@@ -24,11 +24,10 @@ class VIEW3D_PT_activity_manager(Panel):
 
     @classmethod
     def poll(cls, context):
-        em_tools = context.scene.em_tools
         # Hidden in landscape/multigraph mode (not yet multigraph-aware)
         if getattr(context.scene, 'landscape_mode_active', False):
             return False
-        return em_tools.mode_em_advanced
+        return True
 
     def draw(self, context):
         layout = self.layout

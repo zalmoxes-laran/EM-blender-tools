@@ -61,11 +61,6 @@ class EM_ParadataPanel:
     bl_region_type = "UI"
     bl_options = {"DEFAULT_CLOSED"}
 
-    @classmethod
-    def poll(cls, context):
-        em_tools = context.scene.em_tools
-        return em_tools.mode_em_advanced
-
     def draw(self, context):
         layout = self.layout
         scene = context.scene

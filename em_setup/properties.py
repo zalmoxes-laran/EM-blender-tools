@@ -210,7 +210,13 @@ def get_emdb_mappings(self=None, context=None):
     """
     try:
         from s3dgraphy.mappings import mapping_registry
-        return mapping_registry.list_available_mappings('emdb')
+        # U4 · and the generic ones: `excel_to_graphml_mapping` (the
+        # stratigraphy template the xlsx wizard read) is an Excel read through
+        # a mapping like the EMdb sheets, by the same MappedXLSXImporter
+        found = mapping_registry.list_available_mappings('emdb')
+        have = {m[0] for m in found}
+        found += [m for m in mapping_registry.list_available_mappings('generic') if m[0] not in have]
+        return found or [("none", "No Mapping", "Select a mapping file")]
     except Exception as e:
         print(f"Error loading EMdb mappings: {str(e)}")
         return [("none", "No Mapping", "Select a mapping file")]
@@ -393,12 +399,7 @@ class EMToolsProperties(bpy.types.PropertyGroup):
         options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     )  # type: ignore
 
-    xlsx_3DGIS_database_file: StringProperty(
-        name="3D GIS Database File",
-        description="Path to the 3D GIS database Excel file",
-        subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
-    )  # type: ignore
+    # U4 · `xlsx_3DGIS_database_file` read by nothing, gone with the 3D GIS mode
 
     emdb_filepath: StringProperty(
         name="EMdb File (sqlite)",

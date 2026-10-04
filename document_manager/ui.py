@@ -414,7 +414,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
 
     @classmethod
     def poll(cls, context):
-        return hasattr(context.scene, 'em_tools') and context.scene.em_tools.mode_em_advanced
+        return hasattr(context.scene, 'em_tools')
 
     def draw_header(self, context):
         layout = self.layout
@@ -780,11 +780,6 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
     bl_category = "EM Scene"
     bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        em_tools = context.scene.em_tools
-        return em_tools.mode_em_advanced
 
     def draw_header(self, context):
         layout = self.layout

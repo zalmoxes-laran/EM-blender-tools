@@ -12,7 +12,6 @@ from ..thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs
 from ..operators.graphml_converter import GRAPHML_OT_convert_borders
 from ..import_operators.geom_georef import classify_georef_state, STATE_CONFIGURED
 # XLSX_OT_to_graphml kept registered for F3 access but no longer used in panel UI
-# from ..operators.xlsx_to_graphml import XLSX_OT_to_graphml
 
 from s3dgraphy import get_graph, get_all_graph_ids
 
@@ -306,166 +305,6 @@ def _draw_experimental_notice(layout, context):
         "only use them on files with backups.",
         icon='INFO',
     )
-
-def _draw_graphml_wizard(layout, context, em_tools):
-    """Legacy GraphML wizard (stratigraphy + em_paradata two-file flow).
-
-    **No UI currently calls this function**, and it has not for some time: the panel
-    that used to (``VIEW3D_PT_graphml_wizard_bridge``) was renamed and repointed at
-    the StratiMiner panel, which SM3 has now removed with the rest of that flow.
-    Kept rather than deleted because what it draws — stratigraphy.xlsx + paradata →
-    GraphML — is an IMPORT path, not StratiMiner authoring, and reviving it is a
-    decision about the legacy two-file format rather than about this cut.
-
-    Its "AI Extraction Prompt" block is gone: that was the same
-    ``get_ai_prompt`` authoring that moved to EMStudio (SM1/SM2), and it referenced
-    ``xlsx_wizard_prompt_part_a``…``_d``, which are declared nowhere in
-    ``em_props`` — so the block would have raised the first time it was drawn.
-    """
-    graphml_box = layout.box()
-    row = graphml_box.row(align=True)
-    row.prop(
-        em_tools,
-        "exp_create_graphml_expanded",
-        text="GraphML Wizard (Experimental)",
-        icon="TRIA_DOWN" if em_tools.exp_create_graphml_expanded else "TRIA_RIGHT",
-        emboss=False
-    )
-    row.label(text="", icon='EXPERIMENTAL')
-    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-    help_op.title = "Create a GraphML"
-    help_op.text = (
-        "Legacy wizard for creating an Extended Matrix\n"
-        "GraphML from a stratigraphy Excel. The unified\n"
-        "em_data.xlsx flow in the EM Bridge panel is the\n"
-        "preferred path."
-    )
-    help_op.url = "tutorials/16-mapping-tool-excel.html"
-
-    if not em_tools.exp_create_graphml_expanded:
-        return
-
-    # ── STEP 1: Convert Stratigraphy ──
-    step1_box = graphml_box.box()
-    row = step1_box.row(align=True)
-    row.label(text="Step 1: Convert Stratigraphy", icon='IMPORT')
-    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-    help_op.title = "Step 1 — Convert Stratigraphy"
-    help_op.text = (
-        "Load a stratigraphy.xlsx file and convert it\n"
-        "to an s3dgraphy graph in memory. The Excel must\n"
-        "follow the 24-column template. Download the\n"
-        "template using the button below."
-    )
-    help_op.url = "tutorials/16-mapping-tool-excel.html"
-    step1_box.prop(em_tools, "xlsx_wizard_strat_file", text="Excel File")
-    step1_box.prop(em_tools, "xlsx_wizard_mapping", text="Mapping")
-
-    can_convert = bool(em_tools.xlsx_wizard_strat_file)
-    row = step1_box.row()
-    row.scale_y = 1.3
-    row.enabled = can_convert
-    row.operator(
-        "xlsx_wizard.convert_stratigraphy",
-        text="Convert to Graph",
-        icon='GRAPH'
-    )
-
-    has_graph = bool(em_tools.xlsx_wizard_graph_id)
-    if has_graph:
-        # Show graph stats from memory
-        try:
-            from s3dgraphy import get_graph as _get_graph
-            _g = _get_graph(em_tools.xlsx_wizard_graph_id)
-            if _g:
-                step1_box.label(
-                    text=f"Graph in memory: {len(_g.nodes)} nodes, {len(_g.edges)} edges",
-                    icon='CHECKMARK'
-                )
-            else:
-                step1_box.label(text="Graph expired — re-run Step 1", icon='ERROR')
-                has_graph = False
-        except Exception:
-            step1_box.label(text="Graph loaded", icon='CHECKMARK')
-
-    # ── STEP 2: Export GraphML (experimental — write-back not production-ready) ──
-    if em_tools.experimental_features:
-        step3_box = graphml_box.box()
-        step3_box.enabled = has_graph
-        row = step3_box.row(align=True)
-        row.label(text="Step 2: Export GraphML", icon='EXPORT')
-        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-        help_op.title = "Step 2 — Export GraphML"
-        help_op.text = (
-            "Save the in-memory graph as a GraphML file.\n"
-            "Then import it via File > Import EM file to\n"
-            "populate the Blender lists and scene."
-        )
-        help_op.url = "tutorials/16-mapping-tool-excel.html"
-        step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
-
-        can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
-        row = step3_box.row()
-        row.scale_y = 1.3
-        row.enabled = can_export
-        row.operator(
-            "xlsx_wizard.export_graphml",
-            text="Export GraphML",
-            icon='FILE_TICK'
-        )
-
-    # ── Wizard Warnings ──
-    if em_tools.xlsx_wizard_warnings:
-        warnings_list = [w for w in em_tools.xlsx_wizard_warnings.split("\n") if w.strip()]
-        if warnings_list:
-            graphml_box.separator(factor=0.5)
-            warn_box = graphml_box.box()
-            warn_box.alert = True
-            header_row = warn_box.row(align=True)
-            icon = 'TRIA_DOWN' if em_tools.xlsx_wizard_show_warnings else 'TRIA_RIGHT'
-            header_row.prop(
-                em_tools, "xlsx_wizard_show_warnings",
-                text=f"Wizard Warnings ({len(warnings_list)})",
-                icon=icon,
-                emboss=False
-            )
-            header_row.label(text="", icon='ERROR')
-            header_row.operator("xlsx_wizard.clear_warnings", text="", icon='X')
-            if em_tools.xlsx_wizard_show_warnings:
-                warn_col = warn_box.column(align=True)
-                for w in warnings_list:
-                    _draw_wrapped_warning(warn_col, context, w)
-
-    # ── Templates ──
-    graphml_box.separator(factor=0.5)
-    row = graphml_box.row(align=True)
-    row.label(text="Templates:", icon='FILE_NEW')
-    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-    help_op.title = "Excel Templates"
-    help_op.text = (
-        "Download empty Excel templates to fill manually\n"
-        "or use as reference for AI-assisted extraction.\n"
-        "stratigraphy.xlsx: 24-column stratigraphic data.\n"
-        "em_paradata.xlsx: per-property provenance data."
-    )
-    help_op.url = "tutorials/16-mapping-tool-excel.html"
-    row = graphml_box.row(align=True)
-    row.scale_y = 0.9
-    row.operator(
-        "emtools.save_stratigraphy_template",
-        text="Save Stratigraphy Template",
-        icon='FILE_TICK'
-    )
-    row.operator(
-        "emtools.save_em_paradata_template",
-        text="Save Paradata Template",
-        icon='FILE_TICK'
-    )
-
-
-# ============================================================================
-# UI CLASSES
-# ============================================================================
 
 class AUXILIARY_UL_files(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -970,191 +809,147 @@ class EM_SetupPanel(bpy.types.Panel):
             pass
 
         # ========================================================================
-        # WORKING METHODS SECTION
-        # ========================================================================
-
-        box = layout.box()
-        row = box.row(align=True)
-        split = row.split()
-        col = split.column()
-
-        activemode_label = ""
-        active_label = ""
-        # Cambia l'etichetta del pulsante in base alla modalità attiva
-        if em_tools.mode_em_advanced:
-            activemode_label = "Switch to 3D GIS"
-            active_label = "Active Mode: EM"
-        else:
-            activemode_label = "Switch to EM"
-            active_label = "Active Mode: 3D GIS"
-
-        # Disegna il pulsante
-        col.label(text=active_label)
-        col = split.column()
-        col.operator("emtools.switch_mode", text=activemode_label)
-
-        if not em_tools.mode_em_advanced and len(em_tools.graphml_files) > 0:
-            warn_col = box.column(align=True)
-            warn_col.alert = True
-            _draw_wrapped_text(
-                warn_col,
-                context,
-                "Warning: Starting from a blank file is strongly recommended",
-                icon='ERROR',
-            )
-            _draw_wrapped_text(
-                warn_col,
-                context,
-                "when working in Basic 3D GIS mode with existing Advanced EM graphs.",
-            )
-
-        # ========================================================================
         # SEZIONE LANDSCAPE MODE - (in advanced mode)
         # ========================================================================
 
-        if em_tools.mode_em_advanced:
+        # U4 · there is one way of working: the 3D GIS mode and its switch are
+        # gone, a table makes a real graph («Import from tables» below)
 
-            # ── UX3/B · LA VIA PIÙ CORTA PER VEDERE UN CONTENUTO ─────────
-            #
-            # La sequenza vera è: aggiungi un grafo → dai il path → carica.
-            # L'interfaccia non la diceva: su una scena vuota si vedevano sei
-            # bottoni icona uguali, un campo Path e nessun ordine.
-            #
-            # Il principio non è spiegare la sequenza, è fare in modo che a
-            # ogni passo l'unica cosa accesa sia quella giusta.
-            _stato = self._catena(context, em_tools)
+        # ── UX3/B · LA VIA PIÙ CORTA PER VEDERE UN CONTENUTO ─────────
+        #
+        # La sequenza vera è: aggiungi un grafo → dai il path → carica.
+        # L'interfaccia non la diceva: su una scena vuota si vedevano sei
+        # bottoni icona uguali, un campo Path e nessun ordine.
+        #
+        # Il principio non è spiegare la sequenza, è fare in modo che a
+        # ogni passo l'unica cosa accesa sia quella giusta.
+        _stato = self._catena(context, em_tools)
 
-            # PASSO 0 · la guida, e SOLO per il primo grafo.
-            #
-            # Prima compariva ogni volta che l'ATTIVO non era caricato,
-            # quindi tornava quando si aggiungeva il secondo grafo — e lì è
-            # pleonastica: la sequenza la si è appena fatta. La condizione è
-            # «nessun grafo caricato in tutto», cioè «non ho ancora mai visto
-            # un contenuto».
-            #
-            # Il secondo grafo non resta senza indicazioni: i comandi spenti
-            # dicono la ragione nel tooltip (`poll_message_set`) e il `Load`
-            # in evidenza compare comunque appena c'è un path.
-            if not _stato["grafi_caricati"] and self._guida_richiesta():
-                self._guida(layout, _stato)
+        # PASSO 0 · la guida, e SOLO per il primo grafo.
+        #
+        # Prima compariva ogni volta che l'ATTIVO non era caricato,
+        # quindi tornava quando si aggiungeva il secondo grafo — e lì è
+        # pleonastica: la sequenza la si è appena fatta. La condizione è
+        # «nessun grafo caricato in tutto», cioè «non ho ancora mai visto
+        # un contenuto».
+        #
+        # Il secondo grafo non resta senza indicazioni: i comandi spenti
+        # dicono la ragione nel tooltip (`poll_message_set`) e il `Load`
+        # in evidenza compare comunque appena c'è un path.
+        if not _stato["grafi_caricati"] and self._guida_richiesta():
+            self._guida(layout, _stato)
 
-            # M1 · the graphs as a tree «file or room → graphs», like EMStudio's
-            # EMTree: each graph under the place it comes from, and «Save» on a
-            # branch writes that file with its own graphs only. With no rows
-            # the old list stays (empty state, same as before).
-            if len(em_tools.graphml_files):
-                from .graph_tree import draw_graph_tree
-                draw_graph_tree(layout, context, em_tools)
-            else:
-                row = layout.row()
-                row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
-
-            if not _stato["ha_grafo"]:
-                # STATO VUOTO · zero grafi, una strada sola. La riga dei sei
-                # bottoni NON si disegna: con la lista vuota cinque su sei non
-                # hanno nulla su cui agire, e sei icone uguali di cui una sola
-                # funziona sono un indovinello.
-                vuoto = layout.row()
-                vuoto.scale_y = 1.5
-                vuoto.operator('em_tools.add_file', text="Add graph",
-                               icon='ADD')
-            else:
-                self._riga_comandi(context, layout, em_tools, scene, _stato)
-
-
-            # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
-            if em_tools.experimental_features:
-                row = layout.row(align=True)
-                row.operator('export.graphml_update', text="Save GraphML", icon="FILE_TICK")
-                row.operator('export.graphml_saveas', text="Save As...", icon="FILE_NEW")
-                row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
-
-                # Hybrid-C Phase 4: Bake auxiliary → GraphML. Shown only
-                # when the active graph carries any injected content
-                # (nodes/edges tagged ``injected_by``, attribute
-                # overrides, or orphan entries). One-way op: the
-                # enrichment layer becomes graph-native in the file.
-                try:
-                    from ..operators.aux_lifecycle import has_injected_content
-                    from s3dgraphy import get_graph as _sg_get_graph
-                    _bake_available = False
-                    if em_tools.active_file_index >= 0 and em_tools.graphml_files:
-                        _gf = em_tools.graphml_files[em_tools.active_file_index]
-                        _g = _sg_get_graph(_gf.name)
-                        _bake_available = has_injected_content(_g)
-                except ImportError:
-                    _bake_available = False
-                if _bake_available:
-                    bake_row = layout.row(align=True)
-                    bake_row.alert = True
-                    bake_row.operator(
-                        'em.aux_bake_to_graphml',
-                        text="Bake Auxiliaries → GraphML",
-                        icon='FILE_TICK')
-
-            # (Multigraph Mode è nella riga di icone sopra — B3.)
-
-            # Details for selected GraphML file (codice esistente)
-            if em_tools.active_file_index >= 0 and em_tools.graphml_files:
-
-                layout.separator()
-
-                active_file = em_tools.graphml_files[em_tools.active_file_index]
-
-                # Path to GraphML
-                row = layout.row(align=True)
-                row.prop(active_file, "graphml_path", text="Path")
-
-                # PASSO 3 · il caricamento, in evidenza e CON IL TESTO, finché
-                # il grafo non è caricato. A grafo caricato torna icona nella
-                # riga (come `Reload`), che è dove stava e dove basta che sia.
-                #
-                # Sta DOPO il Path e non prima: la catena si legge lista →
-                # path → carica, e a video il bottone sopra il campo che deve
-                # riempire prima invertiva l'ordine dei due passi.
-                if _stato["ha_path"] and not _stato["caricato"]:
-                    carica = layout.row()
-                    carica.scale_y = 1.5
-                    self._op_carica(carica, _stato, testo="Load")
-
-                # UX3/A · la scala NON sta più qui: è diventata il pannello
-                # `EM Overview`, primo del tab. Il motivo è di scope — i suoi
-                # quattro numeri venivano da posti diversi (scena / grafo
-                # attivo) e in multigrafo due cambiavano e due no. Vedi
-                # `VIEW3D_PT_EM_Overview` sopra.
-
-                # ── B2 (EM16-UX) · «Graph info», collassabile e chiuso ────
-                #
-                # Da qui al banner di versione: US/USV, Epochs, Properties,
-                # Author, License, Embargo, `GraphML · EM 1.5.4`. Erano sempre
-                # aperti in cima al pannello d'ingresso, e sono informazioni di
-                # servizio.
-                #
-                # «Graph info» e non «Info»: quei numeri riguardano il GRAFO,
-                # non la scena — ed è precisamente la distinzione che il
-                # riquadro della scala, qui sopra, rischia di confondere.
-                gi_box = layout.box()
-                gi_head = gi_box.row(align=True)
-                gi_head.prop(
-                    em_tools, "show_graph_info", text="Graph info",
-                    icon="TRIA_DOWN" if em_tools.show_graph_info else "TRIA_RIGHT",
-                    emboss=False)
-                if em_tools.show_graph_info:
-                    self._draw_graph_info(context, gi_box, active_file)
-
-                # I warning NON entrano nel collassabile: un avviso che si può
-                # chiudere resta chiuso, ed è lo stesso motivo per cui la riga
-                # della scala sta fuori.
-                self._draw_graph_warnings(context, layout, em_tools, active_file)
-
-                # I file ausiliari, che erano in coda a questo blocco.
-                self._draw_auxiliary_files(context, layout, active_file)
-
+        # M1 · the graphs as a tree «file or room → graphs», like EMStudio's
+        # EMTree: each graph under the place it comes from, and «Save» on a
+        # branch writes that file with its own graphs only. With no rows
+        # the old list stays (empty state, same as before).
+        if len(em_tools.graphml_files):
+            from .graph_tree import draw_graph_tree
+            draw_graph_tree(layout, context, em_tools)
         else:
-            # La modalità 3D GIS, estratta per la stessa ragione delle
-            # altre: `draw` era un metodo di trecento righe, e il ramo
-            # `else` di un `if` così lontano dal suo `if` non si legge.
-            self._draw_3dgis_mode(context, layout, em_tools)
+            row = layout.row()
+            row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
+
+        if not _stato["ha_grafo"]:
+            # STATO VUOTO · zero grafi, una strada sola. La riga dei sei
+            # bottoni NON si disegna: con la lista vuota cinque su sei non
+            # hanno nulla su cui agire, e sei icone uguali di cui una sola
+            # funziona sono un indovinello.
+            vuoto = layout.row()
+            vuoto.scale_y = 1.5
+            vuoto.operator('em_tools.add_file', text="Add graph",
+                           icon='ADD')
+        else:
+            self._riga_comandi(context, layout, em_tools, scene, _stato)
+
+
+        # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
+        if em_tools.experimental_features:
+            row = layout.row(align=True)
+            row.operator('export.graphml_update', text="Save GraphML", icon="FILE_TICK")
+            row.operator('export.graphml_saveas', text="Save As...", icon="FILE_NEW")
+            row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
+
+            # Hybrid-C Phase 4: Bake auxiliary → GraphML. Shown only
+            # when the active graph carries any injected content
+            # (nodes/edges tagged ``injected_by``, attribute
+            # overrides, or orphan entries). One-way op: the
+            # enrichment layer becomes graph-native in the file.
+            try:
+                from ..operators.aux_lifecycle import has_injected_content
+                from s3dgraphy import get_graph as _sg_get_graph
+                _bake_available = False
+                if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+                    _gf = em_tools.graphml_files[em_tools.active_file_index]
+                    _g = _sg_get_graph(_gf.name)
+                    _bake_available = has_injected_content(_g)
+            except ImportError:
+                _bake_available = False
+            if _bake_available:
+                bake_row = layout.row(align=True)
+                bake_row.alert = True
+                bake_row.operator(
+                    'em.aux_bake_to_graphml',
+                    text="Bake Auxiliaries → GraphML",
+                    icon='FILE_TICK')
+
+        # (Multigraph Mode è nella riga di icone sopra — B3.)
+
+        # Details for selected GraphML file (codice esistente)
+        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+
+            layout.separator()
+
+            active_file = em_tools.graphml_files[em_tools.active_file_index]
+
+            # Path to GraphML
+            row = layout.row(align=True)
+            row.prop(active_file, "graphml_path", text="Path")
+
+            # PASSO 3 · il caricamento, in evidenza e CON IL TESTO, finché
+            # il grafo non è caricato. A grafo caricato torna icona nella
+            # riga (come `Reload`), che è dove stava e dove basta che sia.
+            #
+            # Sta DOPO il Path e non prima: la catena si legge lista →
+            # path → carica, e a video il bottone sopra il campo che deve
+            # riempire prima invertiva l'ordine dei due passi.
+            if _stato["ha_path"] and not _stato["caricato"]:
+                carica = layout.row()
+                carica.scale_y = 1.5
+                self._op_carica(carica, _stato, testo="Load")
+
+            # UX3/A · la scala NON sta più qui: è diventata il pannello
+            # `EM Overview`, primo del tab. Il motivo è di scope — i suoi
+            # quattro numeri venivano da posti diversi (scena / grafo
+            # attivo) e in multigrafo due cambiavano e due no. Vedi
+            # `VIEW3D_PT_EM_Overview` sopra.
+
+            # ── B2 (EM16-UX) · «Graph info», collassabile e chiuso ────
+            #
+            # Da qui al banner di versione: US/USV, Epochs, Properties,
+            # Author, License, Embargo, `GraphML · EM 1.5.4`. Erano sempre
+            # aperti in cima al pannello d'ingresso, e sono informazioni di
+            # servizio.
+            #
+            # «Graph info» e non «Info»: quei numeri riguardano il GRAFO,
+            # non la scena — ed è precisamente la distinzione che il
+            # riquadro della scala, qui sopra, rischia di confondere.
+            gi_box = layout.box()
+            gi_head = gi_box.row(align=True)
+            gi_head.prop(
+                em_tools, "show_graph_info", text="Graph info",
+                icon="TRIA_DOWN" if em_tools.show_graph_info else "TRIA_RIGHT",
+                emboss=False)
+            if em_tools.show_graph_info:
+                self._draw_graph_info(context, gi_box, active_file)
+
+            # I warning NON entrano nel collassabile: un avviso che si può
+            # chiudere resta chiuso, ed è lo stesso motivo per cui la riga
+            # della scala sta fuori.
+            self._draw_graph_warnings(context, layout, em_tools, active_file)
+
+            # I file ausiliari, che erano in coda a questo blocco.
+            self._draw_auxiliary_files(context, layout, active_file)
 
     def _draw_graph_info(self, context, layout, active_file):
         """B2 · i numeri e i metadati del grafo attivo."""
@@ -1681,196 +1476,205 @@ class EM_SetupPanel(bpy.types.Panel):
             # e un menu è il posto giusto per quelli. Un pannello d'ingresso
             # non è un cassetto degli attrezzi.
         ################################################################################
-        # 3D GIS MODE SECTION
         ################################################################################
 
 
-    def _draw_3dgis_mode(self, context, layout, em_tools):
-        """La modalità 3D GIS di base — l'altro ramo di `mode_em_advanced`."""
-        # UI per modalità 3D GIS
-        box = layout.box()
+def draw_import_from_tables(layout, context, em_tools):
+    """U4 · «Import from tables» (Analysis 1 of the UI audit): ONE gesture that
+    makes a real graph from a table — Excel through a mapping, an Excel sheet,
+    pyArchInit (SQLite or PostgreSQL, with its filters) — saves it as em.json
+    and lists it with the other graphs; for pyArchInit, the US geometries too
+    (Enzo Cocca's reader, unchanged). It took the place of the 3D GIS mode,
+    whose fields these are."""
+    box = layout.column()
+    row = box.row()
+    row.prop(em_tools, "table_import_type", expand=True)
 
-        # Menu a tendina per il tipo di import
-        row = box.row()
-        row.prop(em_tools, "mode_3dgis_import_type",
-                text="Import Type",
-                expand=True)
+    # Box specifico per le opzioni del tipo selezionato
+    options_box = box.box()
 
-        # Box specifico per le opzioni del tipo selezionato
-        options_box = box.box()
+    if em_tools.table_import_type == "generic_xlsx":
+        options_box.label(text="Generic Excel Import Settings:")
 
-        if em_tools.mode_3dgis_import_type == "generic_xlsx":
-            options_box.label(text="Generic Excel Import Settings:")
+        # File Excel
+        options_box.prop(em_tools, "generic_xlsx_file", text="Excel File")
 
-            # File Excel
-            options_box.prop(em_tools, "generic_xlsx_file", text="Excel File")
+        # Sheet dropdown (solo se file è selezionato e proprietà esiste)
+        if em_tools.generic_xlsx_file and hasattr(em_tools, 'generic_xlsx_sheet'):
+            options_box.prop(em_tools, "generic_xlsx_sheet", text="Sheet Name")
 
-            # Sheet dropdown (solo se file è selezionato e proprietà esiste)
-            if em_tools.generic_xlsx_file and hasattr(em_tools, 'generic_xlsx_sheet'):
-                options_box.prop(em_tools, "generic_xlsx_sheet", text="Sheet Name")
-
-                # Colonna ID (solo se sheet è selezionato)
-                if (hasattr(em_tools, 'generic_xlsx_sheet') and
-                    em_tools.generic_xlsx_sheet and
-                    em_tools.generic_xlsx_sheet != "none" and
-                    hasattr(em_tools, 'xlsx_id_column')):
-                    options_box.prop(em_tools, "xlsx_id_column", text="ID Column")
-
-                    # Colonna descrizione opzionale (solo se ID è selezionato)
-                    if (hasattr(em_tools, 'xlsx_id_column') and
-                        em_tools.xlsx_id_column and
-                        em_tools.xlsx_id_column != "none" and
-                        hasattr(em_tools, 'generic_xlsx_desc_column')):
-                        options_box.prop(em_tools, "generic_xlsx_desc_column", text="Description Column (Optional)")
-
-        elif em_tools.mode_3dgis_import_type == "pyarchinit":
-            options_box.label(text="pyArchInit Import Settings:")
-            options_box.prop(em_tools, "pyarchinit_connection_mode",
-                             text="Connection", expand=True)
-            if em_tools.pyarchinit_connection_mode == "postgres":
-                pg_box = options_box.box()
-                pg_box.prop(em_tools, "pyarchinit_pg_host", text="Host")
-                pg_box.prop(em_tools, "pyarchinit_pg_port", text="Port")
-                pg_box.prop(em_tools, "pyarchinit_pg_dbname", text="Database")
-                pg_box.prop(em_tools, "pyarchinit_pg_user", text="User")
-                pg_box.prop(em_tools, "pyarchinit_pg_password", text="Password")
-                creds = pg_box.row(align=True)
-                creds.operator("emtools.pyarchinit_pg_save_password",
-                               text="Save to keychain", icon='LOCKED')
-                creds.operator("emtools.pyarchinit_pg_forget_password",
-                               text="Forget", icon='UNLOCKED')
-            else:
-                options_box.prop(em_tools, "pyarchinit_db_path",
-                                 text="SQLite Database")
-            options_box.prop(em_tools, "pyarchinit_mapping", text="Select Mapping")
-            options_box.operator("emtools.open_mapping_preferences",
-                        text="",
-                        icon='PREFERENCES')
-            row = options_box.row()
-            row.prop(em_tools, "pyarchinit_import_geometries")
-            if em_tools.pyarchinit_import_geometries:
-                sub = options_box.row()
-                sub.alignment = 'RIGHT'
-                sub.prop(em_tools, "pyarchinit_geom_force_update")
-                if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
-                    warn = options_box.row()
-                    warn.label(
-                        text="Set shift in Georeferencing panel first",
-                        icon='ERROR',
-                    )
-
-            # Mostra info sul mapping selezionato
-            if em_tools.pyarchinit_mapping != "none":
-                desc_box = options_box.box()
-                desc_box.label(text="Mapping Info:")
-                mapping_data = get_mapping_description(em_tools.pyarchinit_mapping, "pyarchinit")
-                if mapping_data:
-                    row = desc_box.row()
-                    row.label(text=f"Name: {mapping_data['name']}")
-                    if "description" in mapping_data:
-                        desc_box.label(text=mapping_data["description"])
-                    if "table_settings" in mapping_data:
-                        desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
-
-            # Dynamic filter dropdowns (populated by the mapping's
-            # ``is_filter`` columns — see s3dgraphy 1.6).
-            active_filters = [
-                i for i in range(1, 6)
-                if em_tools.get(f"pyarchinit_filter_{i}_column")
-            ]
-            if active_filters:
-                filter_box = options_box.box()
-                filter_box.label(text="Filter rows by:", icon='FILTER')
-                for i in active_filters:
-                    label = em_tools.get(
-                        f"pyarchinit_filter_{i}_label", f"Filter {i}"
-                    )
-                    required = em_tools.get(
-                        f"pyarchinit_filter_{i}_required", False
-                    )
-                    text = label + (" *" if required else "")
-                    row = filter_box.row()
-                    row.prop(em_tools, f"pyarchinit_filter_{i}", text=text)
-
-        elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
-            options_box.label(text="EMdb Excel Import Settings:")
-            options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
-            options_box.prop(em_tools, "emdb_mapping", text="EMdb Format")
-            options_box.operator("emtools.open_mapping_preferences",
-                        text="",
-                        icon='PREFERENCES')
-
-            # Mostra una descrizione del formato selezionato
-            if em_tools.emdb_mapping != "none":
-                desc_box = options_box.box()
-                desc_box.label(text="Format Description:")
-                mapping_data = get_mapping_description(em_tools.emdb_mapping)
-                if mapping_data:
-                    # Header
-                    row = desc_box.row()
-                    row.label(text=f"Name: {mapping_data['name']}")
-
-                    # Description
-                    if "description" in mapping_data:
-                        desc_box.label(text=mapping_data["description"])
-
-                    # Required Excel columns
-                    if "required_columns" in mapping_data:
-                        col_box = desc_box.box()
-                        col_box.label(text="Required Excel columns:")
-                        for col in mapping_data["required_columns"]:
-                            col_box.label(text=f"- {col}")
-
-        # Tasto Import con operatore unificato
-        row = box.row(align=True)
-        row.scale_y = 1.5  # Bottone più grande
-
-        # Validazione campi obbligatori per abilitare il pulsante Import
-        can_import = False
-
-        if em_tools.mode_3dgis_import_type == "generic_xlsx":
-            # Richiede: file, sheet, ID column
-            can_import = bool(
-                em_tools.generic_xlsx_file and
-                hasattr(em_tools, 'generic_xlsx_sheet') and
+            # Colonna ID (solo se sheet è selezionato)
+            if (hasattr(em_tools, 'generic_xlsx_sheet') and
                 em_tools.generic_xlsx_sheet and
                 em_tools.generic_xlsx_sheet != "none" and
-                hasattr(em_tools, 'xlsx_id_column') and
-                em_tools.xlsx_id_column and
-                em_tools.xlsx_id_column != "none"
-            )
-        elif em_tools.mode_3dgis_import_type == "pyarchinit":
-            # Richiede un mapping e una connessione valida: in SQLite
-            # il file DB, in PostgreSQL host+db+user (la password è
-            # verificata all'avvio dell'import, non qui — #27 Sub-2).
-            conn_mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
-            if conn_mode == "postgres":
-                conn_ok = bool(
-                    (em_tools.pyarchinit_pg_host or "").strip() and
-                    (em_tools.pyarchinit_pg_dbname or "").strip() and
-                    (em_tools.pyarchinit_pg_user or "").strip()
-                )
-            else:
-                conn_ok = bool(em_tools.pyarchinit_db_path)
-            can_import = bool(
-                conn_ok and
-                em_tools.pyarchinit_mapping != "none"
-            )
-        elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
-            # Richiede: file, mapping
-            can_import = bool(
-                em_tools.emdb_xlsx_file and
-                em_tools.emdb_mapping != "none"
-            )
+                hasattr(em_tools, 'xlsx_id_column')):
+                options_box.prop(em_tools, "xlsx_id_column", text="ID Column")
 
-        row.enabled = can_import
-        op = row.operator("em.import_3dgis_database",
-                        text="Import Database",
-                        icon='IMPORT')
-        # Impostiamo le proprietà dell'operatore
-        op.auxiliary_mode = False  # Modalità 3DGIS standard
-        op.graphml_index = -1  # Non applicabile in modalità 3DGIS
-        op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
+                # Colonna descrizione opzionale (solo se ID è selezionato)
+                if (hasattr(em_tools, 'xlsx_id_column') and
+                    em_tools.xlsx_id_column and
+                    em_tools.xlsx_id_column != "none" and
+                    hasattr(em_tools, 'generic_xlsx_desc_column')):
+                    options_box.prop(em_tools, "generic_xlsx_desc_column", text="Description Column (Optional)")
+
+    elif em_tools.table_import_type == "pyarchinit":
+        options_box.label(text="pyArchInit Import Settings:")
+        options_box.prop(em_tools, "pyarchinit_connection_mode",
+                         text="Connection", expand=True)
+        if em_tools.pyarchinit_connection_mode == "postgres":
+            pg_box = options_box.box()
+            pg_box.prop(em_tools, "pyarchinit_pg_host", text="Host")
+            pg_box.prop(em_tools, "pyarchinit_pg_port", text="Port")
+            pg_box.prop(em_tools, "pyarchinit_pg_dbname", text="Database")
+            pg_box.prop(em_tools, "pyarchinit_pg_user", text="User")
+            pg_box.prop(em_tools, "pyarchinit_pg_password", text="Password")
+            creds = pg_box.row(align=True)
+            creds.operator("emtools.pyarchinit_pg_save_password",
+                           text="Save to keychain", icon='LOCKED')
+            creds.operator("emtools.pyarchinit_pg_forget_password",
+                           text="Forget", icon='UNLOCKED')
+        else:
+            options_box.prop(em_tools, "pyarchinit_db_path",
+                             text="SQLite Database")
+        options_box.prop(em_tools, "pyarchinit_mapping", text="Select Mapping")
+        options_box.operator("emtools.open_mapping_preferences",
+                    text="",
+                    icon='PREFERENCES')
+        row = options_box.row()
+        row.prop(em_tools, "pyarchinit_import_geometries")
+        if em_tools.pyarchinit_import_geometries:
+            sub = options_box.row()
+            sub.alignment = 'RIGHT'
+            sub.prop(em_tools, "pyarchinit_geom_force_update")
+            if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
+                warn = options_box.row()
+                warn.label(
+                    text="Set shift in Georeferencing panel first",
+                    icon='ERROR',
+                )
+
+        # Mostra info sul mapping selezionato
+        if em_tools.pyarchinit_mapping != "none":
+            desc_box = options_box.box()
+            desc_box.label(text="Mapping Info:")
+            mapping_data = get_mapping_description(em_tools.pyarchinit_mapping, "pyarchinit")
+            if mapping_data:
+                row = desc_box.row()
+                row.label(text=f"Name: {mapping_data['name']}")
+                if "description" in mapping_data:
+                    desc_box.label(text=mapping_data["description"])
+                if "table_settings" in mapping_data:
+                    desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
+
+        # Dynamic filter dropdowns (populated by the mapping's
+        # ``is_filter`` columns — see s3dgraphy 1.6).
+        active_filters = [
+            i for i in range(1, 6)
+            if em_tools.get(f"pyarchinit_filter_{i}_column")
+        ]
+        if active_filters:
+            filter_box = options_box.box()
+            filter_box.label(text="Filter rows by:", icon='FILTER')
+            for i in active_filters:
+                label = em_tools.get(
+                    f"pyarchinit_filter_{i}_label", f"Filter {i}"
+                )
+                required = em_tools.get(
+                    f"pyarchinit_filter_{i}_required", False
+                )
+                text = label + (" *" if required else "")
+                row = filter_box.row()
+                row.prop(em_tools, f"pyarchinit_filter_{i}", text=text)
+
+    elif em_tools.table_import_type == "emdb_xlsx":
+        options_box.label(text="EMdb Excel Import Settings:")
+        options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
+        options_box.prop(em_tools, "emdb_mapping", text="EMdb Format")
+        options_box.operator("emtools.open_mapping_preferences",
+                    text="",
+                    icon='PREFERENCES')
+
+        # Mostra una descrizione del formato selezionato
+        if em_tools.emdb_mapping != "none":
+            desc_box = options_box.box()
+            desc_box.label(text="Format Description:")
+            mapping_data = get_mapping_description(em_tools.emdb_mapping)
+            if mapping_data:
+                # Header
+                row = desc_box.row()
+                row.label(text=f"Name: {mapping_data['name']}")
+
+                # Description
+                if "description" in mapping_data:
+                    desc_box.label(text=mapping_data["description"])
+
+                # Required Excel columns
+                if "required_columns" in mapping_data:
+                    col_box = desc_box.box()
+                    col_box.label(text="Required Excel columns:")
+                    for col in mapping_data["required_columns"]:
+                        col_box.label(text=f"- {col}")
+
+    # Validazione campi obbligatori per abilitare il pulsante Import
+    can_import = False
+
+    if em_tools.table_import_type == "generic_xlsx":
+        # Richiede: file, sheet, ID column
+        can_import = bool(
+            em_tools.generic_xlsx_file and
+            hasattr(em_tools, 'generic_xlsx_sheet') and
+            em_tools.generic_xlsx_sheet and
+            em_tools.generic_xlsx_sheet != "none" and
+            hasattr(em_tools, 'xlsx_id_column') and
+            em_tools.xlsx_id_column and
+            em_tools.xlsx_id_column != "none"
+        )
+    elif em_tools.table_import_type == "pyarchinit":
+        # Richiede un mapping e una connessione valida: in SQLite
+        # il file DB, in PostgreSQL host+db+user (la password è
+        # verificata all'avvio dell'import, non qui — #27 Sub-2).
+        conn_mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
+        if conn_mode == "postgres":
+            conn_ok = bool(
+                (em_tools.pyarchinit_pg_host or "").strip() and
+                (em_tools.pyarchinit_pg_dbname or "").strip() and
+                (em_tools.pyarchinit_pg_user or "").strip()
+            )
+        else:
+            conn_ok = bool(em_tools.pyarchinit_db_path)
+        can_import = bool(
+            conn_ok and
+            em_tools.pyarchinit_mapping != "none"
+        )
+    elif em_tools.table_import_type == "emdb_xlsx":
+        # Richiede: file, mapping
+        can_import = bool(
+            em_tools.emdb_xlsx_file and
+            em_tools.emdb_mapping != "none"
+        )
+
+    # the new graph: its code and its em.json (both may stay empty)
+    out = box.column(align=True)
+    out.prop(em_tools, "table_graph_code", text="Graph code")
+    out.prop(em_tools, "table_output_path", text="Save as")
+    row = box.row(align=True)
+    row.scale_y = 1.5
+    row.enabled = can_import
+    row.operator("em.import_from_table", text="New graph from the table", icon='IMPORT')
+
+
+class VIEW3D_PT_import_from_tables(bpy.types.Panel):
+    bl_label = "Import from tables"
+    bl_idname = "VIEW3D_PT_import_from_tables"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM"
+    bl_parent_id = "VIEW3D_PT_EM_Tools_Setup"
+    bl_order = 1
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        draw_import_from_tables(self.layout, context, context.scene.em_tools)
 
 
 class AUXILIARY_MT_context_menu(bpy.types.Menu):
@@ -1902,6 +1706,7 @@ classes = (
     AUXILIARY_UL_files,
     EMTOOLS_UL_files,
     EM_SetupPanel,
+    VIEW3D_PT_import_from_tables,
     AUXILIARY_MT_context_menu,
 )
 

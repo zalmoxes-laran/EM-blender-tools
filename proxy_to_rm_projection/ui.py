@@ -22,11 +22,10 @@ class VIEW3D_PT_proxy_projection_panel(Panel):
 
     @classmethod
     def poll(cls, context):
-        """Show panel only when EM Tools is in advanced mode and system is available"""
+        """Show panel only when experimental features are on and system is available"""
         em_tools = context.scene.em_tools
 
-        # Check if EM Tools is in advanced mode
-        if not hasattr(context.scene, 'em_tools') or not context.scene.em_tools.mode_em_advanced or not em_tools.experimental_features:
+        if not hasattr(context.scene, 'em_tools') or not em_tools.experimental_features:
             return False
         
         # Check if projection system is available
@@ -230,8 +229,8 @@ def draw_projection_integration_in_visual_manager(self, context):
     layout = self.layout
     scene = context.scene
     
-    # Only show if system is available and in advanced mode
-    if not hasattr(scene, 'em_tools') or not scene.em_tools.mode_em_advanced:
+    # Only show if system is available
+    if not hasattr(scene, 'em_tools'):
         return
     
     available, _ = is_system_available()

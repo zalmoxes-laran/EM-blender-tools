@@ -64,15 +64,13 @@ class EM_BasePanel:
 
     @classmethod
     def poll(cls, context):
-        em_tools = context.scene.em_tools
         scene = context.scene
         
         # NUOVA LOGICA: Nascondere se in modalità Landscape
         if hasattr(scene, 'landscape_mode_active') and scene.landscape_mode_active:
             return False
         
-        # Logica originale: mostra solo in modalità Advanced EM
-        return em_tools.mode_em_advanced
+        return True
 
 
     def draw(self, context):

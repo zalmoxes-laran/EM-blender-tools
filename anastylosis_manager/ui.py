@@ -133,12 +133,6 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
     bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 
-    @classmethod
-    def poll(cls, context):
-        em_tools = context.scene.em_tools
-        # Show only if we're in advanced EM mode
-        return em_tools.mode_em_advanced
-
     def draw_header(self, context):
         layout = self.layout
         icon_id = icons_manager.get_icon_value("show_all_special_finds")

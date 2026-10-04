@@ -364,7 +364,7 @@ def hex_to_rgb(value):
 def get_available_properties(context):
     """
     Get list of available property names using optimized indices.
-    Supporta modalità 3D GIS (grafo hardcodato) e Advanced EM (grafo attivo/multigrafo).
+    Usa il grafo attivo o, con show_all_graphs, tutti i grafi caricati.
     """
     scene = context.scene
     em_tools = scene.em_tools
@@ -376,31 +376,22 @@ def get_available_properties(context):
     if _cached_properties and (current_time - _last_cache_time) < CACHE_DURATION:
         return _cached_properties
 
-    if not em_tools.mode_em_advanced:  # Modalità 3D GIS
-        # Nome hardcodato per modalità 3D GIS
-        graph = get_graph("3dgis_graph")
-        if graph and hasattr(graph, 'indices'):
-            properties.update(graph.indices.get_property_names())
-            print(f"3D GIS mode: found {len(properties)} properties from hardcoded graph")
+    if hasattr(scene, 'show_all_graphs') and scene.show_all_graphs:  # Modalità multigrafo
+        graph_ids = get_all_graph_ids()
+        print(f"Advanced EM multigrafo mode: processing {len(graph_ids)} graphs")
+        for graph_id in graph_ids:
+            graph = get_graph(graph_id)
+            if graph and hasattr(graph, 'indices'):
+                properties.update(graph.indices.get_property_names())
+    else:  # Solo grafo attivo
+        if em_tools.active_file_index >= 0:
+            active_file = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(active_file.name)
+            if graph and hasattr(graph, 'indices'):
+                properties.update(graph.indices.get_property_names())
+                print(f"Advanced EM mode: found {len(properties)} properties from active graph '{active_file.name}'")
         else:
-            print("3D GIS mode: hardcoded graph '3dgis_graph' not found")
-    else:  # Modalità Advanced EM
-        if hasattr(scene, 'show_all_graphs') and scene.show_all_graphs:  # Modalità multigrafo
-            graph_ids = get_all_graph_ids()
-            print(f"Advanced EM multigrafo mode: processing {len(graph_ids)} graphs")
-            for graph_id in graph_ids:
-                graph = get_graph(graph_id)
-                if graph and hasattr(graph, 'indices'):
-                    properties.update(graph.indices.get_property_names())
-        else:  # Solo grafo attivo
-            if em_tools.active_file_index >= 0:
-                active_file = em_tools.graphml_files[em_tools.active_file_index]
-                graph = get_graph(active_file.name)
-                if graph and hasattr(graph, 'indices'):
-                    properties.update(graph.indices.get_property_names())
-                    print(f"Advanced EM mode: found {len(properties)} properties from active graph '{active_file.name}'")
-            else:
-                print("Advanced EM mode: no active GraphML file selected")
+            print("Advanced EM mode: no active GraphML file selected")
 
     result = sorted(list(properties))
     print(f"Total: {len(result)} properties found")
@@ -454,9 +445,9 @@ def test_optimization_performance(context):
         
     graph = None
     try:
-        graph = get_graph("3dgis_graph")
-        if not graph and hasattr(scene.em_tools, 'graphml_files') and len(scene.em_tools.graphml_files) > 0:
-            graph = get_graph(scene.em_tools.graphml_files[0].name)
+        em_tools = scene.em_tools
+        if 0 <= em_tools.active_file_index < len(em_tools.graphml_files):
+            graph = get_graph(em_tools.graphml_files[em_tools.active_file_index].name)
     except Exception as e:
         print(f"Error getting graph: {e}")
         

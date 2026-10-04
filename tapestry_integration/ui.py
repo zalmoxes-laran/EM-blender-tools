@@ -104,10 +104,9 @@ class TAPESTRY_PT_main_panel(Panel):
         row.prop(tapestry, "job_name", text="Job Name")
         row.operator("tapestry.generate_job_name", text="", icon='FILE_REFRESH')
 
-        # Epoch selection (only in EM Advanced mode)
-        if scene.em_tools.mode_em_advanced:
-            row = box.row()
-            row.prop(tapestry, "selected_epoch", text="Epoch")
+        # Epoch selection
+        row = box.row()
+        row.prop(tapestry, "selected_epoch", text="Epoch")
 
         # Resolution
         row = box.row()
@@ -120,34 +119,33 @@ class TAPESTRY_PT_main_panel(Panel):
         row = box.row()
         row.prop(tapestry, "use_visible_only", text="Use Only Visible Proxies")
 
-        # Epoch filter status (only in EM mode)
-        if scene.em_tools.mode_em_advanced:
-            epochs = scene.em_tools.epochs
+        # Epoch filter status
+        epochs = scene.em_tools.epochs
 
-            # Epoch info row
-            row = box.row()
-            if epochs.list and epochs.list_index >= 0:
-                active_epoch = epochs.list[epochs.list_index]
-                row.label(text=f"Epoch: {active_epoch.name}", icon='TIME')
-                # Filter status indicator
-                if scene.filter_by_epoch:
-                    row.label(text="(Filtered)", icon='FILTER')
-            else:
-                row.label(text="No epoch selected", icon='ERROR')
-
-            # Epoch filter controls
-            row = box.row(align=True)
+        # Epoch info row
+        row = box.row()
+        if epochs.list and epochs.list_index >= 0:
+            active_epoch = epochs.list[epochs.list_index]
+            row.label(text=f"Epoch: {active_epoch.name}", icon='TIME')
+            # Filter status indicator
             if scene.filter_by_epoch:
-                # Show disable button when filtering is active
-                row.operator("tapestry.disable_epoch_filter", text="Disable Epoch Filter", icon='X')
+                row.label(text="(Filtered)", icon='FILTER')
+        else:
+            row.label(text="No epoch selected", icon='ERROR')
+
+        # Epoch filter controls
+        row = box.row(align=True)
+        if scene.filter_by_epoch:
+            # Show disable button when filtering is active
+            row.operator("tapestry.disable_epoch_filter", text="Disable Epoch Filter", icon='X')
+        else:
+            # Show enable button when filtering is inactive
+            if epochs.list and epochs.list_index >= 0:
+                row.operator("tapestry.setup_epoch_filter", text="Enable Epoch Filter", icon='FILTER')
             else:
-                # Show enable button when filtering is inactive
-                if epochs.list and epochs.list_index >= 0:
-                    row.operator("tapestry.setup_epoch_filter", text="Enable Epoch Filter", icon='FILTER')
-                else:
-                    # Disabled button when no epoch selected
-                    row.enabled = False
-                    row.operator("tapestry.setup_epoch_filter", text="Enable Epoch Filter (Select Epoch First)", icon='ERROR')
+                # Disabled button when no epoch selected
+                row.enabled = False
+                row.operator("tapestry.setup_epoch_filter", text="Enable Epoch Filter (Select Epoch First)", icon='ERROR')
 
     def draw_preview_section(self, layout, tapestry, context):
         """Draw preview and queue management section"""

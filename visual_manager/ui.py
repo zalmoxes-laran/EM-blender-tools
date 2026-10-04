@@ -76,11 +76,10 @@ class VISUAL_MT_display_mode_menu(Menu):
     def draw(self, context):
         layout = self.layout
 
-        if context.scene.em_tools.mode_em_advanced:
-            layout.operator("emset.emmaterial", text="EM")
-            is_landscape = getattr(context.scene, 'landscape_mode_active', False)
-            label = "Horizons" if is_landscape else "Epochs"
-            layout.operator("emset.epochmaterial", text=label)
+        layout.operator("emset.emmaterial", text="EM")
+        is_landscape = getattr(context.scene, 'landscape_mode_active', False)
+        label = "Horizons" if is_landscape else "Epochs"
+        layout.operator("emset.epochmaterial", text=label)
 
         layout.operator("visual.set_property_materials", text="Properties")
 
@@ -135,8 +134,8 @@ class VIEW3D_PT_visual_panel(Panel):
 
         # U2 · the inflation is gone; «Offset proxy» lives in Proxy & surface tools
         
-        # RM Coloring (only in advanced mode, RM sync active, AND experimental features)
-        if (hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced and 
+        # RM Coloring (only with RM sync active AND experimental features)
+        if (hasattr(scene, 'em_tools') and
             getattr(scene, 'sync_rm_visibility', False) and
             hasattr(scene.em_tools, 'experimental_features') and scene.em_tools.experimental_features):
             self.draw_rm_coloring(layout, context)
@@ -145,10 +144,6 @@ class VIEW3D_PT_visual_panel(Panel):
         """Draw property management UI"""
         scene = context.scene
         box = layout.box()
-        
-        #if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
-        #    row = box.row()
-        #    row.prop(scene, "show_all_graphs", text="Show All Graphs")
         
         row = box.row()
         if hasattr(scene, 'property_enum'):
@@ -260,90 +255,89 @@ class VIEW3D_PT_visual_panel(Panel):
         except:
             pass
 
-        if scene.em_tools.mode_em_advanced:
-            row.separator()
+        row.separator()
 
-            # RMs show/hide
-            try:
-                row.operator(
-                    "em.strat_show_all_rms",
-                    text="",
-                    icon_value=icons_manager.get_icon_value("show_all_RMs")
-                )
-            except:
-                pass
+        # RMs show/hide
+        try:
+            row.operator(
+                "em.strat_show_all_rms",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_RMs")
+            )
+        except:
+            pass
 
-            try:
-                row.operator(
-                    "em.strat_hide_all_rms",
-                    text="",
-                    icon_value=icons_manager.get_icon_value("show_all_RMs_off")
-                )
-            except:
-                pass
+        try:
+            row.operator(
+                "em.strat_hide_all_rms",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_RMs_off")
+            )
+        except:
+            pass
 
-            row.separator()
+        row.separator()
 
-            # Special Finds show/hide
-            try:
-                row.operator(
-                    "em.strat_show_all_special_finds",
-                    text="",
-                    icon_value=icons_manager.get_icon_value("show_all_special_finds")
-                )
-            except:
-                pass
+        # Special Finds show/hide
+        try:
+            row.operator(
+                "em.strat_show_all_special_finds",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_special_finds")
+            )
+        except:
+            pass
 
-            try:
-                row.operator(
-                    "em.strat_hide_all_special_finds",
-                    text="",
-                    icon_value=icons_manager.get_icon_value("show_all_special_finds_off")
-                )
-            except:
-                pass
+        try:
+            row.operator(
+                "em.strat_hide_all_special_finds",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_special_finds_off")
+            )
+        except:
+            pass
 
-            row.separator()
+        row.separator()
 
-            # RMDoc show/hide — fourth pair, mirrors the others.
-            try:
-                row.operator(
-                    "em.strat_show_all_rmdocs",
-                    text="",
-                    icon_value=icons_manager.get_icon_value("show_all_RMDoc")
-                )
-            except:
-                pass
+        # RMDoc show/hide — fourth pair, mirrors the others.
+        try:
+            row.operator(
+                "em.strat_show_all_rmdocs",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_RMDoc")
+            )
+        except:
+            pass
 
-            try:
-                row.operator(
-                    "em.strat_hide_all_rmdocs",
-                    text="",
-                    icon_value=icons_manager.get_icon_value("show_all_RMDoc_off")
-                )
-            except:
-                pass
+        try:
+            row.operator(
+                "em.strat_hide_all_rmdocs",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_RMDoc_off")
+            )
+        except:
+            pass
 
-            row.separator()
+        row.separator()
 
-            # Help button
-            try:
-                op = row.operator("em.help_popup", text="", icon='QUESTION')
-                op.title = "Visibility Controls Help"
-                op.text = (
-                    "Quick visibility controls:\n"
-                    "- First pair: Show/Hide all Proxies\n"
-                    "- Second pair: Show/Hide all Representation Models\n"
-                    "- Third pair: Show/Hide all Special Finds\n"
-                    "- Fourth pair: Show/Hide all RMDoc quads\n\n"
-                    "These buttons reset any active filters in the Stratigraphy Manager."
-                )
-                op.url = "panels/visual_manager.html#visual-manager"
-                op.project = 'em_tools'
-            except:
-                pass
+        # Help button
+        try:
+            op = row.operator("em.help_popup", text="", icon='QUESTION')
+            op.title = "Visibility Controls Help"
+            op.text = (
+                "Quick visibility controls:\n"
+                "- First pair: Show/Hide all Proxies\n"
+                "- Second pair: Show/Hide all Representation Models\n"
+                "- Third pair: Show/Hide all Special Finds\n"
+                "- Fourth pair: Show/Hide all RMDoc quads\n\n"
+                "These buttons reset any active filters in the Stratigraphy Manager."
+            )
+            op.url = "panels/visual_manager.html#visual-manager"
+            op.project = 'em_tools'
+        except:
+            pass
 
-            row.separator()
+        row.separator()
 
         # Demote proxy: unlink the selected proxies from their nodes
         try:

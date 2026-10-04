@@ -58,8 +58,6 @@ class PROXYBOX_PT_main_panel(Panel):
             return False
         if getattr(context.scene, 'landscape_mode_active', False):
             return False
-        if not getattr(em_tools, 'mode_em_advanced', False):
-            return False
         return True
 
     def draw_header(self, context):

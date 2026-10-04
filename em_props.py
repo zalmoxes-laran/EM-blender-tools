@@ -782,11 +782,8 @@ class EM_Tools(PropertyGroup):
     # GLOBAL SETTINGS
     # ============================================
 
-    mode_em_advanced: BoolProperty(
-        name="EM Advanced Mode",
-        description="Switch between 3D GIS mode and EM advanced mode",
-        default=True
-    )  # type: ignore
+    # U4 · `mode_em_advanced` (the 3D GIS mode's switch) is gone: a table
+    # makes a real graph through «Import from tables»
 
     show_advanced_tools: BoolProperty(
         name="Show Advanced Tools",
@@ -831,21 +828,32 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
 
-    exp_create_graphml_expanded: BoolProperty(
-        name="GraphML Wizard",
-        description="Expand the GraphML wizard section",
-        default=True
+
+    # U4 · «Import from tables»: which table, the new graph's code, its em.json
+    table_import_type: EnumProperty(
+        name="Table",
+        description="The kind of table the new graph is made from",
+        items=[
+            ("emdb_xlsx", "Excel + mapping",
+             "An Excel file read through a mapping (EMdb sheets, the stratigraphy template)"),
+            ("generic_xlsx", "Excel sheet", "One sheet of an Excel file: an ID column, a description"),
+            ("pyarchinit", "pyArchInit", "A pyArchInit database, SQLite or PostgreSQL, with its filters"),
+        ],
+        default="emdb_xlsx",
     )  # type: ignore
 
-    mode_3dgis_import_type: EnumProperty(
-        name="Import Type",
-        description="Select the 3D GIS import format",
-        items=[
-            ("generic_xlsx", "Generic Excel", "Import from a generic Excel file"),
-            ("pyarchinit", "pyArchInit", "Import from a pyArchInit SQLite database"),
-            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format"),
-        ],
-        default="generic_xlsx",
+    table_graph_code: StringProperty(
+        name="Graph code",
+        description="The code of the new graph; empty: the table's name and the filters' values",
+        default="",
+    )  # type: ignore
+
+    table_output_path: StringProperty(
+        name="Save as",
+        description="The em.json of the new graph; empty: <code>.em.json beside the table "
+                    "(a free name: an existing file is never overwritten)",
+        subtype='FILE_PATH',
+        default="",
     )  # type: ignore
 
     landscape_mode: BoolProperty(
@@ -1086,35 +1094,10 @@ class EM_Tools(PropertyGroup):
         default=False,
     )  # type: ignore
 
-    # ============================================
-    # XLSX-TO-GRAPHML WIZARD (panel-based workflow)
-    # ============================================
-
-    xlsx_wizard_strat_file: StringProperty(
-        name="Stratigraphy XLSX",
-        description="Path to the stratigraphy Excel file",
-        subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
-    )  # type: ignore
-
-    xlsx_wizard_mapping: StringProperty(
-        name="Mapping Name",
-        description="Name of the mapping configuration (without .json extension)",
-        default="excel_to_graphml_mapping"
-    )  # type: ignore
-
-    xlsx_wizard_output_path: StringProperty(
-        name="Output GraphML",
-        description="Path where the GraphML file will be saved",
-        subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
-    )  # type: ignore
-
-    xlsx_wizard_graph_id: StringProperty(
-        name="Active Wizard Graph",
-        description="Internal: graph_id of the graph created by the wizard",
-        default=""
-    )  # type: ignore
+    # U4 · the xlsx → GraphML wizard is gone (its file, its graph id and its
+    # output path with it): «Import from tables» makes the graph and saves it
+    # as em.json in one gesture. Its warnings STAY: merge_conflict_ui writes
+    # them and the Conflict Resolution panel reads them.
 
     xlsx_wizard_warnings: StringProperty(
         name="Wizard Warnings",

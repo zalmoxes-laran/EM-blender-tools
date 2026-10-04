@@ -28,3 +28,11 @@ Each subfolder says why it left. From MICRO-EMTOOLS-MENO-E-MEGLIO (4 October
 - `graph_editor/` — **U3**, the graph in the Node Editor (EMGraph Tools, four
   panels, and the EMGraph panel of the 3D sidebar). Its own README says why
   and when it might come back.
+- `operators/xlsx_wizard.py`, `operators/xlsx_to_graphml.py` — **U4**, the two
+  ways from an xlsx to a GraphML file to import again (neither was drawn any
+  more: `_draw_graphml_wizard` was defined and called by nothing, measured on
+  4 Oct 2026). «Import from tables» (`em.import_from_table`) reads the same
+  xlsx through the same mapping (`excel_to_graphml_mapping` is offered with the
+  EMdb ones) and makes a real graph saved as em.json in one gesture. The 3D
+  GIS mode it replaces (`mode_em_advanced`, `emtools.switch_mode`, the fixed
+  graph id `3dgis_graph`) is gone from the code, not kept here.

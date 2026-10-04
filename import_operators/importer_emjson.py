@@ -188,6 +188,9 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         attrs = getattr(graph, "attributes", {}) or {}
         if "graph_code" in attrs:
             entry.graph_code = attrs["graph_code"]
+        elif (getattr(graph, "data", None) or {}).get("graph_code"):
+            # U4 · a graph made from a table carries its code in graph.data
+            entry.graph_code = str(graph.data["graph_code"])
         if hasattr(entry, "import_warnings"):
             entry.import_warnings = "\n".join(warnings) if warnings else ""
         # Structured counterpart: the panel groups by `kind` instead of matching

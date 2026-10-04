@@ -50,9 +50,9 @@ def generate_job_name(context, tapestry):
     else:
         parts.append("untitle")
 
-    # 3. Epoch (if EM mode and epoch filtering active)
+    # 3. Epoch (if epoch filtering active)
     scene = context.scene
-    if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
+    if hasattr(scene, 'em_tools'):
         if scene.filter_by_epoch:
             epochs = scene.em_tools.epochs
             if epochs.list and epochs.list_index >= 0:
@@ -119,13 +119,12 @@ class TAPESTRY_OT_analyze_camera_view(Operator):
         # Get camera
         camera = tapestry.render_camera
 
-        # Get epoch filter (if EM mode)
+        # Get epoch filter
         epoch_filter = None
-        if scene.em_tools.mode_em_advanced:
-            # Use active epoch from epoch manager
-            epochs = scene.em_tools.epochs
-            if epochs.list and epochs.list_index >= 0:
-                epoch_filter = epochs.list[epochs.list_index].name
+        # Use active epoch from epoch manager
+        epochs = scene.em_tools.epochs
+        if epochs.list and epochs.list_index >= 0:
+            epoch_filter = epochs.list[epochs.list_index].name
 
         # Analyze visible proxies
         try:
@@ -213,11 +212,6 @@ class TAPESTRY_OT_setup_epoch_filter(Operator):
     def execute(self, context):
         scene = context.scene
         em_tools = scene.em_tools
-
-        # Verify we're in EM mode
-        if not em_tools.mode_em_advanced:
-            self.report({'WARNING'}, "Epoch filtering only available in EM Advanced mode")
-            return {'CANCELLED'}
 
         # Verify epoch is selected
         epochs = em_tools.epochs

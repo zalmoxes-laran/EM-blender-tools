@@ -7,7 +7,6 @@ from .update_graph import *
 from .help_popup import *
 
 # Import XLSX to GraphML converter
-from .xlsx_to_graphml import *
 
 # Import save template operators
 from .save_template import *
@@ -15,12 +14,10 @@ from .save_template import *
 # Import bake paradata operator
 from .bake_paradata import *
 
-# Import XLSX wizard operators (legacy 3-step stratigraphy.xlsx -> GraphML).
-# The StratiMiner authoring flow that used to sit beside this one moved OUT of
-# EMtools in SM3 (2026-08-03): folder -> em_data.xlsx -> em.json is data work, not
-# Blender modelling, and it now lives in EMStudio over s3Dgraphy's api. What stays
-# here is what touches the ACTIVE graph: see `merge_conflict_ui`.
-from .xlsx_wizard import *
+# U4 · the xlsx → GraphML wizard and converter (xlsx_wizard, xlsx_to_graphml)
+# are in _dead_code: «Import from tables» makes the graph and saves it as
+# em.json in one gesture (import_operators/import_EMdb.py). What stays here is
+# what touches the ACTIVE graph: see `merge_conflict_ui`.
 
 # Import Hybrid-C auxiliary-lifecycle operators (orphan list + bake)
 from .aux_lifecycle import *
@@ -65,20 +62,16 @@ def register():
     # Import submodules that have register() functions
     from . import update_graph
     from . import help_popup
-    from . import xlsx_to_graphml
     from . import save_template
     from . import bake_paradata
-    from . import xlsx_wizard
     from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Register each submodule
     update_graph.register()
     help_popup.register()
-    xlsx_to_graphml.register()
     save_template.register()
     bake_paradata.register()
-    xlsx_wizard.register()
     aux_lifecycle.register()
     merge_conflict_ui.register()
 
@@ -88,19 +81,15 @@ def unregister():
     # Import submodules
     from . import update_graph
     from . import help_popup
-    from . import xlsx_to_graphml
     from . import save_template
     from . import bake_paradata
-    from . import xlsx_wizard
     from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Unregister in reverse order
     merge_conflict_ui.unregister()
     aux_lifecycle.unregister()
-    xlsx_wizard.unregister()
     bake_paradata.unregister()
     save_template.unregister()
-    xlsx_to_graphml.unregister()
     help_popup.unregister()
     update_graph.unregister()

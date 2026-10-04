@@ -1,117 +1,20 @@
 # import_operators/import_EMdb.py
 
 import bpy # type: ignore
-from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
+from bpy.props import IntProperty # type: ignore
 import io
 import contextlib
-from ..populate_lists import populate_blender_lists_from_graph, clear_lists
-from .importer_xlsx import GenericXLSXImporter
-from s3dgraphy import get_graph, Graph
-from s3dgraphy.importer.pyarchinit_importer import PyArchInitImporter
-from s3dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
-from s3dgraphy.multigraph.multigraph import multi_graph_manager
+from s3dgraphy import get_graph
 from .pyarchinit_geom_importer import import_geometries as _pyarchinit_import_geometries
 
 
-class EM_OT_import_3dgis_database(bpy.types.Operator):
-    """Import operator for both 3D GIS mode and advanced EM mode"""
-    bl_idname = "em.import_3dgis_database"
-    bl_label = "Import Database"
-    bl_description = "Import data from selected database format"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    # Properties for auxiliary files
-    auxiliary_mode: BoolProperty(
-        name="Auxiliary Mode",
-        description="Whether this is an auxiliary file import",
-        default=False
-    ) # type: ignore
-    graphml_index: IntProperty(
-        name="GraphML Index",
-        description="Index of the parent GraphML file",
-        default=-1
-    ) # type: ignore
-    auxiliary_index: IntProperty(
-        name="Auxiliary Index", 
-        description="Index of the auxiliary file",
-        default=-1
-    ) # type: ignore
-
-    def get_import_settings(self, context):
-        """Get import settings based on mode"""
-        em_tools = context.scene.em_tools
-
-        if self.auxiliary_mode:
-            # EM Advanced mode - auxiliary file
-            graphml = em_tools.graphml_files[self.graphml_index]
-            aux_file = graphml.auxiliary_files[self.auxiliary_index]
-
-            if aux_file.file_type == "emdb_xlsx":
-                mapping_name = aux_file.emdb_mapping
-            elif aux_file.file_type == "pyarchinit":
-                mapping_name = aux_file.pyarchinit_mapping
-            else:
-                mapping_name = None
-
-            return {
-                'import_type': aux_file.file_type,
-                'filepath': aux_file.filepath,
-                'mapping_name': mapping_name,
-                'sheet_name': em_tools.xlsx_sheet_name,
-                'id_column': em_tools.xlsx_id_column,
-                'parent_graphml': graphml,
-                'resource_folder': aux_file.resource_folder,
-                'mode': 'EM_ADVANCED'
-            }
-        else:
-            # 3D GIS mode
-            import_type = em_tools.mode_3dgis_import_type
-            
-            if import_type == "pyarchinit":
-                from .pyarchinit_db_reader import is_postgres_spec
-                db_spec, err = self._resolve_pyarchinit_db_spec(em_tools)
-                if err:
-                    self.report({'ERROR'}, err)
-                    return None
-                settings = {
-                    'import_type': import_type,
-                    'mapping_name': em_tools.pyarchinit_mapping,
-                    'mode': '3DGIS'
-                }
-                # SQLite path vs PostgreSQL URL — mutually exclusive
-                # kwargs on PyArchInitImporter (issue #27, Sub-2).
-                if is_postgres_spec(db_spec):
-                    settings['connection_url'] = db_spec
-                else:
-                    settings['filepath'] = db_spec
-                filters = self._collect_pyarchinit_filters(em_tools)
-                if filters is None:
-                    # Required filter left at "(All values)" — abort
-                    # gracefully; the user-facing error has already
-                    # been reported.
-                    return None
-                if filters:
-                    settings['filters'] = filters
-                return settings
-            elif import_type == "generic_xlsx":
-                return {
-                    'import_type': import_type,
-                    'filepath': em_tools.generic_xlsx_file,
-                    'sheet_name': em_tools.generic_xlsx_sheet,
-                    'id_column': em_tools.xlsx_id_column,
-                    'desc_column': em_tools.generic_xlsx_desc_column if em_tools.generic_xlsx_desc_column != "none" else None,
-                    'mode': '3DGIS'
-                }
-            elif import_type == "emdb_xlsx":
-                return {
-                    'import_type': import_type,
-                    'filepath': em_tools.emdb_xlsx_file,
-                    'mapping_name': em_tools.emdb_mapping,
-                    'mode': '3DGIS'
-                }
+class _TableImport:
+    """What the two gestures share: the pyArchInit connection and filters,
+    the importer, the provenance, the geometries (Enzo Cocca's reader,
+    `pyarchinit_geom_importer`, called unchanged)."""
 
     def _resolve_pyarchinit_db_spec(self, em_tools):
-        """Resolve the pyArchInit connection spec from the 3D GIS panel.
+        """Resolve the pyArchInit connection spec from the panel.
 
         Returns ``(db_spec, error)``:
 
@@ -164,178 +67,24 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             filters[column] = value
         return filters
 
-    def execute(self, context):
-        try:
-            # 1. Get import settings
-            settings = self.get_import_settings(context)
-            if settings is None:
-                # Filter validation failed (e.g. required filter empty).
-                return {'CANCELLED'}
-
-            # ✅ VALIDAZIONE PREVENTIVA PER AUXILIARY MODE
-            if self.auxiliary_mode:
-                em_tools = context.scene.em_tools
-                graphml = em_tools.graphml_files[self.graphml_index]
-                
-                # Verifica se il grafo è già caricato
-                from s3dgraphy import get_graph
-                existing_graph = get_graph(graphml.name)
-                
-                if not existing_graph:
-                    # ✅ POPUP ELEGANTE
-                    from ..functions import show_popup_message
-                    show_popup_message(
-                        context,
-                        title="GraphML Not Loaded",
-                        message=f"The GraphML file '{graphml.graph_code}' must be loaded first.\n\n"
-                                f"Steps:\n"
-                                f"1. Go to 'GraphML List' section above\n"
-                                f"2. Click the Import button (↓) next to '{graphml.graph_code}'\n"
-                                f"3. Then retry importing this auxiliary file",
-                        icon='ERROR'
-                    )
-                    return {'FINISHED'}
-
-            # ✅ VALIDAZIONE: pyArchInit richiede sempre un mapping valido
-            if settings['import_type'] == "pyarchinit":
-                if not settings.get('mapping_name') or settings['mapping_name'] == 'none':
-                    self.report({'ERROR'}, "pyArchInit import requires a valid mapping. Please select a mapping from the dropdown.")
-                    return {'CANCELLED'}
-
-            # 2. VALIDAZIONE
-            if not self._validate_settings(settings):
-                return {'CANCELLED'}
-            
-            # 3. PULIZIA (solo per 3DGIS)
-            if settings['mode'] == '3DGIS':
-                self._clean_3dgis_state(context)
-            
-            # 4. PREPARAZIONE GRAFO
-            # ✅ Per EM_ADVANCED: ritorna grafo esistente
-            # ✅ Per 3DGIS: ritorna None (importer lo creerà)
-            graph_to_use = self._prepare_graph(settings)
-            if settings['mode'] == 'EM_ADVANCED' and not graph_to_use:
-                return {'CANCELLED'}
-            
-            # 5. CREAZIONE IMPORTER
-            importer = self._create_importer(settings, graph_to_use)
-            if not importer:
-                return {'CANCELLED'}
-            
-            # 6. IMPORT
-            captured_output = io.StringIO()
-            with contextlib.redirect_stdout(captured_output), contextlib.redirect_stderr(captured_output):
-                graph = importer.parse()
-                importer.display_warnings()
-
-            # Filtra log troppo verbosi (es. nodi mancanti in grafo esistente)
-            noisy_tokens = [
-                "not found in existing graph - SKIPPED",
-                "Processing pyArchInit row",
-                "Node name from DB:",
-                "Enriching existing graph:",
-            ]
-            for line in captured_output.getvalue().splitlines():
-                if any(tok in line for tok in noisy_tokens):
-                    continue
-                if line.strip():
-                    print(line)
-            
-            # 7. REGISTRAZIONE GRAFO (solo per 3DGIS, dopo l'import)
-            if settings['mode'] == '3DGIS':
-                graph.graph_id = "3dgis_graph"
-                multi_graph_manager.graphs["3dgis_graph"] = graph
-                print(f"EM-tools: Registered graph '3dgis_graph' after import")
-                print(f"Nodes in graph: {len(graph.nodes)}")
-            
-            # 8. METADATA
-            self._set_graph_metadata(settings, graph)
-            
-            # 9. POST-PROCESSING
-            result = self._handle_import_results(context, settings, graph)
-
-            if settings.get("import_type") == "pyarchinit" \
-               and result == {'FINISHED'}:
-                self._maybe_import_pyarchinit_geometries(context, settings, graph)
-
-            return result
-            
-        except Exception as e:
-            self.report({'ERROR'}, f"Import failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return {'CANCELLED'}
-    
     def _validate_settings(self, settings):
-        """
-        Validate import settings using centralized validator.
-
-        Uses the ImportValidator class for consistent, comprehensive validation.
-        """
+        """Validate import settings using the centralized validator."""
         from .import_validator import ImportValidator
 
         is_valid, error_msg = ImportValidator.validate(
             settings['import_type'],
             settings
         )
-
         if not is_valid:
             self.report({'ERROR'}, error_msg)
             return False
-
         return True
-    
-    def _clean_3dgis_state(self, context):
-        """Clean existing 3DGIS graph and Blender lists"""
-        hardcoded_name = "3dgis_graph"
-        
-        if hardcoded_name in multi_graph_manager.graphs:
-            multi_graph_manager.remove_graph(hardcoded_name)
-            print(f"EM-tools: Removed existing 3D GIS graph '{hardcoded_name}'")
-        
-        clear_lists(context)
-        print("🧹 EM-tools: Cleared Blender lists for clean 3D GIS import")
-    
-    def _prepare_graph(self, settings):
-        """
-        Prepare graph for import based on mode.
-        
-        Returns:
-            - For EM_ADVANCED: existing graph from GraphML
-            - For 3DGIS: None (importer will create it)
-        """
-        if settings['mode'] == 'EM_ADVANCED':
-            # EM_ADVANCED: recupera grafo esistente
-            graphml = settings['parent_graphml']
-            existing_graph = get_graph(graphml.name)
-            if not existing_graph:
-                self.report({'ERROR'}, f"GraphML graph '{graphml.name}' not found")
-                return None
-            print(f"EM-tools: Using existing graph '{graphml.name}' for EM_ADVANCED")
-            return existing_graph
-        else:
-            # 3DGIS: ritorna None, l'importer creerà il grafo
-            print(f"EM-tools: Importer will create new graph for 3DGIS")
-            return None
-    
+
     def _create_importer(self, settings, graph_to_use):
-        """
-        Create appropriate importer using registry pattern.
-
-        This method uses the centralized importer registry, which provides
-        automatic parameter validation and importer instantiation.
-
-        Args:
-            graph_to_use: Existing graph for EM_ADVANCED, None for 3DGIS
-
-        Returns:
-            Configured importer instance, or None on error
-        """
+        """The importer of the registry: the existing graph to enrich, or
+        None for a new graph."""
         from .importer_registry import create_importer
-
         try:
-            # ✅ ARCHITECTURE: Registry pattern handles all importer creation
-            # No need for if/elif chains - registry is self-documenting
             return create_importer(
                 import_type=settings['import_type'],
                 settings=settings,
@@ -344,13 +93,31 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
         except ValueError as e:
             self.report({'ERROR'}, str(e))
             return None
-    
+
+    def _parse(self, importer):
+        """Run the importer with its chatter filtered."""
+        captured_output = io.StringIO()
+        with contextlib.redirect_stdout(captured_output), contextlib.redirect_stderr(captured_output):
+            graph = importer.parse()
+            importer.display_warnings()
+        noisy_tokens = [
+            "not found in existing graph - SKIPPED",
+            "Processing pyArchInit row",
+            "Node name from DB:",
+            "Enriching existing graph:",
+        ]
+        for line in captured_output.getvalue().splitlines():
+            if any(tok in line for tok in noisy_tokens):
+                continue
+            if line.strip():
+                print(line)
+        return graph
+
     def _set_graph_metadata(self, settings, graph):
         """Set metadata on the graph after import"""
         if not hasattr(graph, 'attributes'):
             graph.attributes = {}
-
-        # 3D GIS pyArchInit may carry a connection_url instead of a
+        # A pyArchInit import may carry a connection_url instead of a
         # filepath; redact credentials before recording provenance so a
         # PostgreSQL password never lands in the graph / .blend (#27).
         source = settings.get('filepath')
@@ -359,50 +126,15 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             source = redacted_db_spec(settings['connection_url'])
         graph.attributes['source_file'] = str(source or '')
         graph.attributes['import_type'] = settings['import_type']
-        
-        print(f"EM-tools: Set metadata on graph '{graph.graph_id}'")
-    
-    def _handle_import_results(self, context, settings, graph):
-        """Handle post-import processing"""
-        if self.auxiliary_mode:
-            # ✅ FIXED: In auxiliary mode NON fare populate_lists qui!
-            # Il populate verrà fatto UNA SOLA VOLTA alla fine dell'import del GraphML
-            # in importer_graphml.py:126 dopo che tutti i file ausiliari sono stati importati.
-            # Questo evita duplicazione delle epoche e altri elementi nelle liste.
-            self.report({'INFO'}, "Successfully imported auxiliary data to existing graph")
-        else:
-            # Normal mode: populate lists
-            populate_blender_lists_from_graph(context, graph)
-            self.report({'INFO'}, f"Successfully imported {len(graph.nodes)} nodes from {settings['import_type']}")
 
-        return {'FINISHED'}
-
-    def _maybe_import_pyarchinit_geometries(self, context, settings, graph):
-        em_tools = context.scene.em_tools
-        if settings["mode"] == "EM_ADVANCED":
-            graphml = em_tools.graphml_files[self.graphml_index]
-            aux_file = graphml.auxiliary_files[self.auxiliary_index]
-            if not aux_file.pyarchinit_import_geometries:
-                return
-            db_path = aux_file.filepath
-            force_update = aux_file.pyarchinit_geom_force_update
-            graph_code = graphml.graph_code
-        else:
-            if not em_tools.pyarchinit_import_geometries:
-                return
-            db_path, err = self._resolve_pyarchinit_db_spec(em_tools)
-            if err:
-                from ..functions import show_popup_message
-                show_popup_message(context, title="Geometry import ERROR",
-                                   message=err, icon='ERROR')
-                return
-            force_update = em_tools.pyarchinit_geom_force_update
-            graph_code = "GraphMain"
-
+    def _import_geometries(self, context, db_path, graph, graph_code, force_update, filters):
         from ..functions import show_popup_message
 
         def show_warning(level, msg):
             icon = 'ERROR' if level == 'ERROR' else 'INFO'
+            if bpy.app.background:
+                print(f"[geometry import] {level}: {msg}")
+                return
             show_popup_message(context, title=f"Geometry import {level}",
                                message=msg, icon=icon)
 
@@ -413,9 +145,10 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             graph_code=graph_code,
             force_update=force_update,
             show_warning_callback=show_warning,
-            filters=settings.get('filters'),
+            filters=filters,
         )
         self._show_geom_summary(context, report)
+        return report
 
     def _show_geom_summary(self, context, report):
         lines = [
@@ -432,7 +165,9 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             )
         if report["backup_collection"]:
             lines.append(f"Backup collection:     {report['backup_collection']}")
-
+        if bpy.app.background:
+            print("[geometry import] " + " · ".join(x.strip() for x in lines))
+            return
         from ..functions import show_popup_message
         show_popup_message(
             context,
@@ -442,9 +177,224 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
         )
 
 
+class EM_OT_import_auxiliary_table(_TableImport, bpy.types.Operator):
+    """Enrich a graph already loaded with a table (EMdb Excel or pyArchInit)
+    attached to it as an auxiliary file"""
+    bl_idname = "em.import_auxiliary_table"
+    bl_label = "Import the auxiliary table"
+    bl_description = "Enrich the graph it is attached to with this table"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    graphml_index: IntProperty(
+        name="GraphML Index",
+        description="Index of the parent GraphML file",
+        default=-1
+    ) # type: ignore
+    auxiliary_index: IntProperty(
+        name="Auxiliary Index", 
+        description="Index of the auxiliary file",
+        default=-1
+    ) # type: ignore
+
+    def get_import_settings(self, context):
+        """The auxiliary file's settings."""
+        em_tools = context.scene.em_tools
+        graphml = em_tools.graphml_files[self.graphml_index]
+        aux_file = graphml.auxiliary_files[self.auxiliary_index]
+        if aux_file.file_type == "emdb_xlsx":
+            mapping_name = aux_file.emdb_mapping
+        elif aux_file.file_type == "pyarchinit":
+            mapping_name = aux_file.pyarchinit_mapping
+        else:
+            mapping_name = None
+        return {
+            'import_type': aux_file.file_type,
+            'filepath': aux_file.filepath,
+            'mapping_name': mapping_name,
+            'sheet_name': em_tools.xlsx_sheet_name,
+            'id_column': em_tools.xlsx_id_column,
+            'parent_graphml': graphml,
+            'resource_folder': aux_file.resource_folder,
+        }
+
+    def execute(self, context):
+        try:
+            settings = self.get_import_settings(context)
+            em_tools = context.scene.em_tools
+            graphml = em_tools.graphml_files[self.graphml_index]
+            existing_graph = get_graph(graphml.name)
+            if not existing_graph:
+                from ..functions import show_popup_message
+                show_popup_message(
+                    context,
+                    title="GraphML Not Loaded",
+                    message=f"The GraphML file '{graphml.graph_code}' must be loaded first.\n\n"
+                            f"Steps:\n"
+                            f"1. Go to 'GraphML List' section above\n"
+                            f"2. Click the Import button (↓) next to '{graphml.graph_code}'\n"
+                            f"3. Then retry importing this auxiliary file",
+                    icon='ERROR'
+                )
+                return {'FINISHED'}
+            if settings['import_type'] == "pyarchinit":
+                if not settings.get('mapping_name') or settings['mapping_name'] == 'none':
+                    self.report({'ERROR'}, "pyArchInit import requires a valid mapping. Please select a mapping from the dropdown.")
+                    return {'CANCELLED'}
+            if not self._validate_settings(settings):
+                return {'CANCELLED'}
+            importer = self._create_importer(settings, existing_graph)
+            if not importer:
+                return {'CANCELLED'}
+            graph = self._parse(importer)
+            self._set_graph_metadata(settings, graph)
+            # the lists are populated ONCE, at the end of the graph's import
+            # (importer_graphml), after every auxiliary file
+            self.report({'INFO'}, "Successfully imported auxiliary data to existing graph")
+            if settings["import_type"] == "pyarchinit":
+                aux_file = graphml.auxiliary_files[self.auxiliary_index]
+                if aux_file.pyarchinit_import_geometries:
+                    self._import_geometries(context, aux_file.filepath, graph, graphml.graph_code,
+                                            aux_file.pyarchinit_geom_force_update, settings.get('filters'))
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Import failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
+
+
+
+def _random_epoch_hex_color():
+    """A vivid colour for an epoch the table gave none (the xlsx wizard's)."""
+    import random
+    return "#{:02X}{:02X}{:02X}".format(*(random.randint(50, 230) for _ in range(3)))
+
+
+class EM_OT_import_from_table(_TableImport, bpy.types.Operator):
+    """A new graph from a table — an Excel read through a mapping, an Excel
+    sheet, a pyArchInit database (SQLite or PostgreSQL, with its filters) —
+    saved as em.json and listed with the other graphs; for pyArchInit, the
+    US geometries too when asked"""
+    bl_idname = "em.import_from_table"
+    bl_label = "Import from tables"
+    bl_description = ("A new graph from a table (Excel with a mapping, an Excel sheet, pyArchInit), "
+                      "saved as em.json beside the table and listed with the other graphs")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def settings(self, context):
+        em_tools = context.scene.em_tools
+        kind = em_tools.table_import_type
+        if kind == "pyarchinit":
+            from .pyarchinit_db_reader import is_postgres_spec
+            db_spec, err = self._resolve_pyarchinit_db_spec(em_tools)
+            if err:
+                self.report({'ERROR'}, err)
+                return None
+            out = {'import_type': kind, 'mapping_name': em_tools.pyarchinit_mapping, 'db_spec': db_spec}
+            if is_postgres_spec(db_spec):
+                out['connection_url'] = db_spec
+            else:
+                out['filepath'] = db_spec
+            filters = self._collect_pyarchinit_filters(em_tools)
+            if filters is None:
+                return None
+            if filters:
+                out['filters'] = filters
+            return out
+        if kind == "generic_xlsx":
+            return {'import_type': kind, 'filepath': bpy.path.abspath(em_tools.generic_xlsx_file),
+                    'sheet_name': em_tools.generic_xlsx_sheet, 'id_column': em_tools.xlsx_id_column,
+                    'desc_column': em_tools.generic_xlsx_desc_column
+                    if em_tools.generic_xlsx_desc_column != "none" else None}
+        return {'import_type': "emdb_xlsx", 'filepath': bpy.path.abspath(em_tools.emdb_xlsx_file),
+                'mapping_name': em_tools.emdb_mapping}
+
+    def execute(self, context):
+        import os
+        import uuid
+        from .table_naming import emjson_path_for, graph_code_for
+        em_tools = context.scene.em_tools
+        try:
+            settings = self.settings(context)
+            if settings is None:
+                return {'CANCELLED'}
+            if settings['import_type'] == "pyarchinit" and settings.get('mapping_name') in (None, "", "none"):
+                self.report({'ERROR'}, "pyArchInit needs a mapping: choose one")
+                return {'CANCELLED'}
+            if not self._validate_settings(settings):
+                return {'CANCELLED'}
+            source = settings.get('filepath') or settings.get('connection_url') or ""
+            code = graph_code_for(settings['import_type'], source, settings.get('filters'),
+                                  typed=em_tools.table_graph_code)
+            if settings.get('filepath'):
+                folder = os.path.dirname(settings['filepath'])
+            elif bpy.data.filepath:
+                folder = os.path.dirname(bpy.data.filepath)
+            else:
+                folder = ""
+            typed_out = bpy.path.abspath(em_tools.table_output_path) if em_tools.table_output_path else ""
+            if not folder and not typed_out:
+                self.report({'ERROR'}, "where to save the new graph? A PostgreSQL table has no folder: "
+                                       "save the .blend first, or give the em.json path")
+                return {'CANCELLED'}
+            path = emjson_path_for(code, folder, typed=typed_out)
+
+            importer = self._create_importer(settings, None)
+            if not importer:
+                return {'CANCELLED'}
+            graph = self._parse(importer)
+            if graph is None or not getattr(graph, "nodes", None):
+                self.report({'ERROR'}, "the table gave no node: nothing to save (check the mapping and the filters)")
+                return {'CANCELLED'}
+            # a graph of its own, like any other: its id, its code, its name
+            graph.graph_id = str(uuid.uuid4())
+            self._set_graph_metadata(settings, graph)
+            graph.attributes['graph_code'] = code
+            # graph.data is what em.json carries (attributes stay in memory)
+            if isinstance(getattr(graph, "data", None), dict):
+                graph.data['graph_code'] = code
+            if hasattr(graph, "name") and not getattr(graph, "name", None):
+                try:
+                    graph.name = {"default": code}
+                except Exception:  # noqa: BLE001
+                    pass
+            for node in graph.nodes:
+                if getattr(node, "node_type", None) == "EpochNode" and not getattr(node, "color", None):
+                    node.color = _random_epoch_hex_color()
+
+            from ..emjson_support import export_graph_to_emjson
+            export_graph_to_emjson(graph, path)
+            # loaded as every em.json is: a row in the list, its origin, the lists
+            r = getattr(bpy.ops, "import").em_emjson(filepath=path)
+            if r != {'FINISHED'}:
+                self.report({'ERROR'}, f"saved {path} but it could not be loaded back")
+                return {'CANCELLED'}
+            loaded = get_graph(graph.graph_id)
+            row = next((f for f in em_tools.graphml_files if f.name == graph.graph_id), None)
+            if row is not None and not row.graph_code:
+                row.graph_code = code
+            n_units = len([n for n in loaded.nodes if hasattr(n, "node_type")]) if loaded else 0
+            said = f"new graph {code} from the table: {n_units} nodes, saved in {path}"
+
+            if settings['import_type'] == "pyarchinit" and em_tools.pyarchinit_import_geometries and loaded:
+                report = self._import_geometries(context, settings['db_spec'], loaded,
+                                                 row.graph_code if row is not None and row.graph_code else code,
+                                                 em_tools.pyarchinit_geom_force_update, settings.get('filters'))
+                said += f"; geometries: {report['created']} created, {report['updated']} updated"
+            self.report({'INFO'}, said)
+            return {'FINISHED'}
+        except Exception as e:  # noqa: BLE001
+            self.report({'ERROR'}, f"Import failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
+
+
 def register():
-    bpy.utils.register_class(EM_OT_import_3dgis_database)
+    bpy.utils.register_class(EM_OT_import_auxiliary_table)
+    bpy.utils.register_class(EM_OT_import_from_table)
 
 
 def unregister():
-    bpy.utils.unregister_class(EM_OT_import_3dgis_database)
+    bpy.utils.unregister_class(EM_OT_import_from_table)
+    bpy.utils.unregister_class(EM_OT_import_auxiliary_table)

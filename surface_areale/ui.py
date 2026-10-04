@@ -46,8 +46,6 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         em_tools = getattr(context.scene, 'em_tools', None)
         if em_tools is None:
             return False
-        if not getattr(em_tools, 'mode_em_advanced', False):
-            return False
         return em_tools.active_file_index >= 0
 
     def draw_header(self, context):

@@ -347,25 +347,6 @@ class EM_OT_manage_object_prefixes(Operator):
         return {'FINISHED'}
 
 
-class EMToolsSwitchModeOperator(Operator):
-    bl_idname = "emtools.switch_mode"
-    bl_label = "Switch Mode"
-
-    def execute(self, context):
-        em_tools = context.scene.em_tools
-
-        # Alterna tra le due modalità
-        em_tools.mode_em_advanced = not em_tools.mode_em_advanced
-
-        # Messaggio per informare l'utente
-        if em_tools.mode_em_advanced:
-            self.report({'INFO'}, "Switched to EM Mode")
-        else:
-            self.report({'INFO'}, "Switched to 3D GIS Mode")
-
-        return {'FINISHED'}
-
-
 class EMToolsAddFile(Operator):
     bl_idname = "em_tools.add_file"
     bl_label = "Add graph"
@@ -556,8 +537,7 @@ class AUXILIARY_OT_import_now(Operator):
             return self._process_resource_collection(context, graphml, aux_file)
 
         # ✅ 1. Importa file xlsx (aggiunge proprietà ai nodi esistenti)
-        result = bpy.ops.em.import_3dgis_database(
-            auxiliary_mode=True,
+        result = bpy.ops.em.import_auxiliary_table(
             graphml_index=em_tools.active_file_index,
             auxiliary_index=graphml.active_auxiliary_index
         )
@@ -1228,7 +1208,6 @@ classes = (
     EM_OT_diagnose_resources,
     EM_OT_rebuild_graph_indices,
     EM_OT_manage_object_prefixes,
-    EMToolsSwitchModeOperator,
     EMToolsAddFile,
     EMToolsRemoveFile,
     EM_InvokePopulateLists,

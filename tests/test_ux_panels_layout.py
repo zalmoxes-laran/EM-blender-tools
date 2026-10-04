@@ -172,10 +172,13 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     Manager perché è la lente): 34.
     MICRO-EMTOOLS-MENO-E-MEGLIO (U3) stacca il grafo nel Node Editor: via
     i quattro pannelli di EMGraph Tools e il pannello EMGraph del 3D, ora in
-    `_dead_code/graph_editor/`: 29.
+    `_dead_code/graph_editor/`: 29. U4 ne aggiunge uno, «Import from tables»
+    (`VIEW3D_PT_import_from_tables`, figlio di EM Data Tree), che prende il
+    posto della modalità 3D GIS: 30.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 29, sorted(PANNELLI)
+    assert len(PANNELLI) == 30, sorted(PANNELLI)
+    assert PANNELLI["VIEW3D_PT_import_from_tables"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert not any(n.startswith("GRAPHEDIT_PT_") or n == "VIEW3D_PT_graphedit_sync" for n in PANNELLI)
     assert PANNELLI["VIEW3D_PT_em_readings"]["parent"] == "VIEW3D_PT_visual_panel"
     assert "VIEW3D_PT_EM_Overview" not in PANNELLI
@@ -1018,8 +1021,19 @@ def test_OGNI_self_METODO_CHIAMATO_ESISTE_NELLA_SUA_CLASSE():
             albero = ast.parse(f.read_text(errors="replace"))
         except SyntaxError:
             continue
-        for cls in [n for n in ast.walk(albero) if isinstance(n, ast.ClassDef)]:
-            definiti = {n.name for n in cls.body
+        classi = {n.name: n for n in ast.walk(albero) if isinstance(n, ast.ClassDef)}
+
+        def _antenate(c, visti=None):
+            """the class's ancestors DEFINED IN THE FILE (a mixin beside it)"""
+            visti = visti if visti is not None else set()
+            for b in c.bases:
+                if isinstance(b, ast.Name) and b.id in classi and b.id not in visti:
+                    visti.add(b.id)
+                    _antenate(classi[b.id], visti)
+            return [classi[n] for n in visti]
+
+        for cls in classi.values():
+            definiti = {n.name for c in [cls, *_antenate(cls)] for n in c.body
                         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
             definiti |= {t.id for n in cls.body
                          if isinstance(n, ast.Assign)

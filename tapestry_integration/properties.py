@@ -125,7 +125,7 @@ class TapestryManagerProps(PropertyGroup):
         items = [('NONE', 'No Epoch Filter', 'Use all objects regardless of epoch')]
 
         scene = context.scene
-        if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
+        if hasattr(scene, 'em_tools'):
             epochs = scene.em_tools.epochs
             if hasattr(epochs, 'list') and epochs.list:
                 for i, epoch in enumerate(epochs.list):
@@ -137,7 +137,7 @@ class TapestryManagerProps(PropertyGroup):
         """Update Epoch Manager when Tapestry epoch changes"""
         scene = context.scene
 
-        if not hasattr(scene, 'em_tools') or not scene.em_tools.mode_em_advanced:
+        if not hasattr(scene, 'em_tools'):
             return
 
         epochs = scene.em_tools.epochs
@@ -153,7 +153,7 @@ class TapestryManagerProps(PropertyGroup):
 
     selected_epoch: EnumProperty(
         name="Epoch",
-        description="Select epoch to filter objects (EM Advanced mode only)",
+        description="Select epoch to filter objects",
         items=_get_epoch_items,
         update=_update_selected_epoch
     )  # type: ignore

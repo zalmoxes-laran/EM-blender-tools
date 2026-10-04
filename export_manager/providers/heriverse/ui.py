@@ -11,7 +11,7 @@ from .... import icons_manager
 
 
 def poll(context):
-    return context.scene.em_tools.mode_em_advanced
+    return True
 
 
 def draw(box, context):

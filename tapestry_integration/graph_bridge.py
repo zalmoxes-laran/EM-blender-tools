@@ -34,9 +34,8 @@ def get_visible_proxies(context, camera, use_frustum_culling=True, epoch_filter=
     scene = context.scene
     visible_proxies = []
 
-    # Check if EM mode with epoch filtering enabled
-    em_mode = hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced
-    use_em_filtering = em_mode and scene.filter_by_epoch
+    # Check if epoch filtering is enabled
+    use_em_filtering = hasattr(scene, 'em_tools') and scene.filter_by_epoch
 
     if use_em_filtering:
         # Use EM's native stratigraphy filtering
@@ -146,7 +145,7 @@ def generate_tapestry_json(context, job_id, render_data, tapestry_settings):
     # Get selected epoch for context metadata
     selected_epoch = None
     scene = context.scene
-    if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
+    if hasattr(scene, 'em_tools'):
         if tapestry_settings.selected_epoch and tapestry_settings.selected_epoch != 'NONE':
             selected_epoch = tapestry_settings.selected_epoch
 
@@ -168,8 +167,7 @@ def generate_tapestry_json(context, job_id, render_data, tapestry_settings):
         },
         "metadata": {
             "epoch": selected_epoch,
-            "blender_version": str(bpy.app.version),
-            "em_advanced_mode": scene.em_tools.mode_em_advanced if hasattr(scene, 'em_tools') else False
+            "blender_version": str(bpy.app.version)
         }
     }
 
@@ -398,7 +396,7 @@ def extract_semantic_json_from_graph(context, visible_proxies, camera):
         dict: Semantic JSON structure for Tapestry
     """
     scene = context.scene
-    em_mode = hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced
+    em_mode = hasattr(scene, 'em_tools')
 
     # Try to get graph
     try:
@@ -424,7 +422,6 @@ def extract_semantic_json_from_graph(context, visible_proxies, camera):
         },
         "objects": [],
         "metadata": {
-            "em_advanced_mode": em_mode,
             "blender_version": ".".join(str(v) for v in bpy.app.version),
             "graph_available": graph is not None
         }

@@ -91,72 +91,44 @@ class VISUAL_OT_update_property_values(Operator):
             values = set()
             processed_graphs = 0
             
-            # LOGICA CORRETTA PER ENTRAMBE LE MODALITÀ
-            if not em_tools.mode_em_advanced:  # Modalità 3D GIS
-                # Nome hardcodato per modalità 3D GIS
-                graph_name = "3dgis_graph"
-                print(f"3D GIS mode: processing hardcoded graph '{graph_name}'")
-                
-                # Validazione esistenza grafo 3D GIS
-                if graph_name not in multi_graph_manager.graphs:
-                    message = f"3D GIS graph '{graph_name}' not found. Please import data first."
-                    self.report({'WARNING'}, message)
-                    print(f"Error: {message}")
-                    return {'FINISHED'}
-                
-                graph = get_graph(graph_name)
-                if graph:
-                    print(f"Processing graph '{graph_name}'")
-                    # USA LA STESSA FUNZIONE DI APPLY_COLORS PER COERENZA
-                    mapping = create_property_value_mapping(graph, scene.selected_property)
-                    values.update(mapping.values())
-                    processed_graphs = 1
-                    print(f"Found {len(set(mapping.values()))} unique values")
-                else:
-                    message = f"3D GIS graph '{graph_name}' not accessible"
-                    self.report({'ERROR'}, message)
-                    print(f"Error: {message}")
-                    return {'FINISHED'}
-                    
-            else:  # Modalità Advanced EM
-                if hasattr(scene, 'show_all_graphs') and scene.show_all_graphs:  # Modalità multigrafo
-                    graph_ids = get_all_graph_ids()
-                    print(f"Advanced EM multigrafo mode: processing {len(graph_ids)} graphs")
-                    
-                    for graph_id in graph_ids:
-                        try:
-                            graph = get_graph(graph_id)
-                            if graph:
-                                # USA LA STESSA FUNZIONE DI APPLY_COLORS PER COERENZA
-                                mapping = create_property_value_mapping(graph, scene.selected_property)
-                                values.update(mapping.values())
-                                processed_graphs += 1
-                                print(f"Processed graph '{graph_id}': {len(set(mapping.values()))} unique values")
-                        except Exception as e:
-                            print(f"Error processing graph '{graph_id}': {e}")
-                            continue
-                            
-                else:  # Solo grafo attivo
-                    if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
-                        active_file = em_tools.graphml_files[em_tools.active_file_index]
-                        graph = get_graph(active_file.name)
+            if hasattr(scene, 'show_all_graphs') and scene.show_all_graphs:  # Modalità multigrafo
+                graph_ids = get_all_graph_ids()
+                print(f"Advanced EM multigrafo mode: processing {len(graph_ids)} graphs")
+
+                for graph_id in graph_ids:
+                    try:
+                        graph = get_graph(graph_id)
                         if graph:
-                            print(f"Advanced EM single graph mode: processing '{active_file.name}'")
                             # USA LA STESSA FUNZIONE DI APPLY_COLORS PER COERENZA
                             mapping = create_property_value_mapping(graph, scene.selected_property)
                             values.update(mapping.values())
-                            processed_graphs = 1
-                            print(f"Found {len(set(mapping.values()))} unique values")
-                        else:
-                            message = f"Graph '{active_file.name}' not found"
-                            self.report({'ERROR'}, message)
-                            print(f"Error: {message}")
-                            return {'FINISHED'}
+                            processed_graphs += 1
+                            print(f"Processed graph '{graph_id}': {len(set(mapping.values()))} unique values")
+                    except Exception as e:
+                        print(f"Error processing graph '{graph_id}': {e}")
+                        continue
+
+            else:  # Solo grafo attivo
+                if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
+                    active_file = em_tools.graphml_files[em_tools.active_file_index]
+                    graph = get_graph(active_file.name)
+                    if graph:
+                        print(f"Advanced EM single graph mode: processing '{active_file.name}'")
+                        # USA LA STESSA FUNZIONE DI APPLY_COLORS PER COERENZA
+                        mapping = create_property_value_mapping(graph, scene.selected_property)
+                        values.update(mapping.values())
+                        processed_graphs = 1
+                        print(f"Found {len(set(mapping.values()))} unique values")
                     else:
-                        message = "No active GraphML file selected"
-                        self.report({'WARNING'}, message)
+                        message = f"Graph '{active_file.name}' not found"
+                        self.report({'ERROR'}, message)
                         print(f"Error: {message}")
                         return {'FINISHED'}
+                else:
+                    message = "No active GraphML file selected"
+                    self.report({'WARNING'}, message)
+                    print(f"Error: {message}")
+                    return {'FINISHED'}
             
             # Converti i valori in lista ordinata
             unique_values = sorted(list(values))
@@ -220,26 +192,15 @@ class VISUAL_OT_apply_colors(Operator):
         scene = context.scene
         em_tools = scene.em_tools
         
-        if not em_tools.mode_em_advanced:  # Modalità 3D GIS
-            # Nome hardcodato per modalità 3D GIS
-            graph_name = "3dgis_graph"
-            graph = get_graph(graph_name)
-            if graph:
-                print(f"3D GIS mode: using hardcoded graph '{graph_name}'")
-                return graph
-            else:
-                print(f"3D GIS mode: hardcoded graph '{graph_name}' not found")
-                return None
-        else:  # Modalità Advanced EM
-            # Usa il grafo attivo selezionato
-            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
-                graphml = em_tools.graphml_files[em_tools.active_file_index]
-                graph = get_graph(graphml.name)
-                print(f"Advanced EM mode: using active graph '{graphml.name}'")
-                return graph
-            else:
-                print("Advanced EM mode: no active GraphML file selected")
-                return None
+        # Usa il grafo attivo selezionato
+        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+            print(f"Advanced EM mode: using active graph '{graphml.name}'")
+            return graph
+        else:
+            print("Advanced EM mode: no active GraphML file selected")
+            return None
     
     def execute(self, context):
         scene = context.scene
@@ -333,25 +294,17 @@ class VISUAL_OT_select_proxies(Operator):
         # Deselect all objects first
         bpy.ops.object.select_all(action='DESELECT')
         
-        # Determina il grafo attivo basato sulla modalità
+        # Determina il grafo attivo
         graph = None
-        use_prefix = True  # Flag per sapere se usare il prefisso
         
-        if not scene.em_tools.mode_em_advanced: # Modalità 3D GIS
-            graph = get_graph("3dgis_graph")
-            use_prefix = False  # 3DGIS non usa prefissi!
-            if graph:
-                print(f"Using 3D GIS graph (no prefix)")
-        else: # Modalità Advanced EM
-            use_prefix = True  # Advanced EM usa i prefissi
-            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
-                try:
-                    graphml = em_tools.graphml_files[em_tools.active_file_index]
-                    graph = get_graph(graphml.name)
-                    print(f"Using Advanced EM graph: {graphml.name} (with prefix)")
-                except Exception as e:
-                    self.report({'ERROR'}, f"Error loading graph: {str(e)}")
-                    return {'CANCELLED'}
+        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
+            try:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                print(f"Using Advanced EM graph: {graphml.name} (with prefix)")
+            except Exception as e:
+                self.report({'ERROR'}, f"Error loading graph: {str(e)}")
+                return {'CANCELLED'}
         
         if not graph:
             self.report({'ERROR'}, "No active graph found")
@@ -370,13 +323,7 @@ class VISUAL_OT_select_proxies(Operator):
             selected_count = 0
             for node_name, prop_value in property_mapping.items():
                 if str(prop_value) == self.value:
-                    # Determina il nome del proxy in base alla modalità
-                    if use_prefix:
-                        # Advanced EM: usa il prefisso
-                        proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
-                    else:
-                        # Basic 3DGIS: usa il nome diretto senza prefisso
-                        proxy_name = node_name
+                    proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
 
                     # ✅ OPTIMIZED: Use cached object lookup
                     proxy = cache.get_object(proxy_name)
