@@ -1464,10 +1464,10 @@ def draw_import_from_tables(layout, context, em_tools):
     options_box = box.box()
 
     if em_tools.table_import_type == "generic_xlsx":
-        options_box.label(text="Generic Excel Import Settings:")
+        options_box.label(text="One sheet of an Excel file:")
 
         # File Excel
-        options_box.prop(em_tools, "generic_xlsx_file", text="Excel File")
+        options_box.prop(em_tools, "generic_xlsx_file", text="Excel file")
 
         # Sheet dropdown (solo se file è selezionato e proprietà esiste)
         if em_tools.generic_xlsx_file and hasattr(em_tools, 'generic_xlsx_sheet'):
@@ -1488,7 +1488,7 @@ def draw_import_from_tables(layout, context, em_tools):
                     options_box.prop(em_tools, "generic_xlsx_desc_column", text="Description Column (Optional)")
 
     elif em_tools.table_import_type == "pyarchinit":
-        options_box.label(text="pyArchInit Import Settings:")
+        options_box.label(text="A pyArchInit database:")
         options_box.prop(em_tools, "pyarchinit_connection_mode",
                          text="Connection", expand=True)
         if em_tools.pyarchinit_connection_mode == "postgres":
@@ -1557,9 +1557,9 @@ def draw_import_from_tables(layout, context, em_tools):
                 row.prop(em_tools, f"pyarchinit_filter_{i}", text=text)
 
     elif em_tools.table_import_type == "emdb_xlsx":
-        options_box.label(text="EMdb Excel Import Settings:")
-        options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
-        options_box.prop(em_tools, "emdb_mapping", text="EMdb Format")
+        options_box.label(text="An Excel read through a mapping:")
+        options_box.prop(em_tools, "emdb_xlsx_file", text="Excel file")
+        options_box.prop(em_tools, "emdb_mapping", text="Mapping")
         options_box.operator("emtools.open_mapping_preferences",
                     text="",
                     icon='PREFERENCES')
