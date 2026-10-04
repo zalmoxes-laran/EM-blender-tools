@@ -77,7 +77,8 @@ class EMGeorefProperties(PropertyGroup):
     rotation: FloatProperty(
         name="Azimuth",
         description=(
-            "Scene azimuth in degrees, clockwise from geographic north. "
+            "Scene azimuth in degrees, clockwise from the GRID north of the "
+            "CRS (not the geographic north: D2). "
             "0 = north up, which is the default and the normal case; a "
             "non-zero value says the scene is rotated with respect to north "
             "(aligned to a wall, an excavation grid, a historical plan). "

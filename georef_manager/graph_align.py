@@ -19,9 +19,11 @@ dentro la scena:
 in senso orario, misurato sul **nord del reticolo** del CRS del grafo. Con
 ``rotation = 0`` gli assi locali SONO gli assi del CRS meno lo shift — che è
 come si costruisce un modello shiftato (3DSC, BlenderGIS). Il docstring di
-s3Dgraphy dice «nord geografico»: la differenza fra i due è proprio la
-convergenza del CRS in quel punto, che per un grafo da solo nessuno ha mai
-applicato; fra due grafi conta la convergenza RELATIVA, ed è quella calcolata.
+Da D2 (E.D., 4 ottobre 2026) lo dice anche s3Dgraphy, docstring e dato
+(``rotation_reference = "grid"``): prima diceva «nord geografico». La differenza
+fra i due è la convergenza del CRS in quel punto, che per un grafo da solo
+nessuno applica; fra due grafi conta la convergenza RELATIVA, ed è quella
+calcolata.
 
 **Cosa NON si applica, e si dice.** Il fattore di scala fra i due reticoli
 (``scale``, tipicamente 1 ± 1e-3 fra zone UTM vicine) è misurato e riportato ma
