@@ -107,6 +107,13 @@ class EM_import_GraphML(bpy.types.Operator):
         if em_tools.graphml_files[self.graphml_index]:
             # Ottieni il file GraphML selezionato
             graphml = em_tools.graphml_files[self.graphml_index]
+            # G1 · a slot that is an em.json is never read as a GraphML (it
+            # became one when its GraphML was imported)
+            if getattr(graphml, "file_format", "") == "EMJSON" or \
+                    str(graphml.graphml_path).lower().endswith(".json"):
+                self.report({'ERROR'}, "this graph is an em.json now: reload it "
+                                       "with its own button (import.em_emjson)")
+                return {'CANCELLED'}
 
             # Verifica che il campo path sia valorizzato
             if not graphml.graphml_path:

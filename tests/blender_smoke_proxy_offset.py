@@ -69,6 +69,16 @@ r = bpy.ops.em.proxy_offset(scope="ALL")
 n = sum(1 for o in bpy.data.objects if o.modifiers.get("EM offset"))
 check("with no graph, All proxies takes the «Proxy» collection", r == {"FINISHED"} and n > 30, f"{n} offset")
 bpy.ops.em.proxy_offset_remove(scope="ALL")
+# G1 · loading the GraphML writes an em.json BESIDE it: the GraphML of the
+# copy's slot 0 is in E.D.'s examples, so it is copied to a temporary folder
+# first and the slot points at the copy (the .blend is not saved)
+import os as _os, shutil as _shutil, tempfile as _tempfile  # noqa: E401,E402
+_row0 = bpy.context.scene.em_tools.graphml_files[0]
+_src0 = bpy.path.abspath(_row0.graphml_path)
+if _src0.lower().endswith(".graphml"):
+    _dst0 = _os.path.join(_tempfile.mkdtemp(prefix="em-smoke-"), _os.path.basename(_src0))
+    _shutil.copy2(_src0, _dst0)
+    _row0.graphml_path = _dst0
 scene.em_tools.active_file_index = 0
 getattr(bpy.ops, "import").em_graphml(graphml_index=0)
 units = len(scene.em_tools.stratigraphy.units)

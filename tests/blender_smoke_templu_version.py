@@ -28,6 +28,16 @@ names = [n for n in sys.modules if n.endswith(".graph_origins") and n.startswith
 PKG = names[0].rsplit(".graph_origins", 1)[0]
 av = importlib.import_module(PKG + ".sync_manager.asset_versions")
 # the copy may have been saved with another slot active (14:32 on 4 Oct: slot 2)
+# G1 · loading the GraphML writes an em.json BESIDE it: the GraphML of the
+# copy's slot 0 is in E.D.'s examples, so it is copied to a temporary folder
+# first and the slot points at the copy (the .blend is not saved)
+import os as _os, shutil as _shutil, tempfile as _tempfile  # noqa: E401,E402
+_row0 = bpy.context.scene.em_tools.graphml_files[0]
+_src0 = bpy.path.abspath(_row0.graphml_path)
+if _src0.lower().endswith(".graphml"):
+    _dst0 = _os.path.join(_tempfile.mkdtemp(prefix="em-smoke-"), _os.path.basename(_src0))
+    _shutil.copy2(_src0, _dst0)
+    _row0.graphml_path = _dst0
 bpy.context.scene.em_tools.active_file_index = 0
 getattr(bpy.ops, "import").em_graphml(graphml_index=0)
 from s3dgraphy import get_graph  # noqa: E402
@@ -87,19 +97,18 @@ check("◂ LOD comes back to the master", obj.data.name == master_mesh,
 r3 = bpy.ops.em.asset_lod_step(direction=1)
 check("…and forward again", obj.data.name == after_fwd, obj.data.name)
 
-# Q4 · a reload does not drop the version in silence
-n_before = len(graph.nodes)
+# Q4 · a reload does not drop the version in silence. G1 · the slot is the
+# em.json the GraphML became: the reload is import.em_emjson, whose dialog
+# names the unsaved versions; the GraphML importer refuses an em.json slot
+check("the reload's warning names the unsaved version",
+      bool(av.reload_warning(graph.graph_id)), av.reload_warning(graph.graph_id)[:90])
 try:
     r = getattr(bpy.ops, "import").em_graphml()
 except RuntimeError as exc:          # a CANCELLED with an ERROR, headless
     r = {"CANCELLED"}
     print("[SMOKE] the sentence:", str(exc)[:160])
-check("a reload with an unsaved version is refused, and says why",
-      r == {"CANCELLED"} and len(get_graph(graph.graph_id).nodes) == n_before,
-      f"{r} · {av.reload_warning(graph.graph_id)[:90]}")
-# Q5 · no index = the active slot; with the yes, the reload happens
-r = getattr(bpy.ops, "import").em_graphml(discard_unsaved=True)
-check("…and with the yes it reloads the ACTIVE slot", r == {"FINISHED"}
-      and not av.unsaved(graph.graph_id), str(r))
+check("the GraphML importer refuses the em.json slot", r == {"CANCELLED"}, str(r))
+r = getattr(bpy.ops, "import").em_emjson(file_index=0)
+check("…and the em.json reloads", r == {"FINISHED"}, str(r))
 print(f"[SMOKE] {'ALL PASS' if not FAILURES else 'FAILURES: ' + ', '.join(FAILURES)}")
 sys.exit(1 if FAILURES else 0)

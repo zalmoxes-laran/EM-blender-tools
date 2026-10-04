@@ -93,6 +93,16 @@ def step():
                 print("[SMOKE] note: cannot switch the sidebar tab here")
             return 0.5
         if s == 2:
+            # G1 · the GraphML becomes an em.json beside it: a copy, not E.D.'s
+            import shutil
+            import tempfile
+            row0 = bpy.context.scene.em_tools.graphml_files[0]
+            src0 = bpy.path.abspath(row0.graphml_path)
+            if src0.lower().endswith(".graphml"):
+                dst0 = os.path.join(tempfile.mkdtemp(prefix="em-shots-"),
+                                    os.path.basename(src0))
+                shutil.copy2(src0, dst0)
+                row0.graphml_path = dst0
             getattr(bpy.ops, "import").em_graphml(graphml_index=0)
             g = mod("functions").is_graph_available(bpy.context)
             check("Templu Mare's graph is loaded", g[0], str(g[1] and len(g[1].nodes)))
