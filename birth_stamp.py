@@ -471,11 +471,18 @@ def current_operator() -> Optional[Dict[str, Any]]:
       iD declared and checked by nobody, so ``auth: {mode: declared}``;
     * otherwise None — and the stamp names no operator (the format's rule: the
       agent is the software in ``how``)."""
+    # T1 (4 Oct 2026) · the session lives in `room_session`, and it is read
+    # through the module at each call: `activate()` rebinds `SESSION` to the
+    # active graph's room. The import used to name `operators.SESSION`, which
+    # does not exist — the ImportError was swallowed below and no stamp made
+    # in a room ever carried the room's author.
     try:
-        from .sync_manager.operators import SESSION
-        author = str(getattr(SESSION, "author", "") or "").strip()
-    except Exception:                               # noqa: BLE001 — no room module
-        author = ""
+        from .sync_manager import room_session
+    except ImportError:                             # no room module (tests, CLI)
+        room_session = None
+    session = getattr(room_session, "SESSION", None) if room_session else None
+    author = str(getattr(session, "author", "") or "").strip() \
+        if session is not None and getattr(session, "joined", False) else ""
     if author:
         orcid = author.rsplit("/", 1)[-1]
         if len(orcid) == 19 and orcid.count("-") == 3:
