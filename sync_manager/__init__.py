@@ -7,7 +7,16 @@ an EM proxy in Blender highlights the node in EMStudio and vice versa.
 
 Modules:
 - operators   : server lifecycle, the bpy.app.timers main-thread pump, toggle op
-- panel       : EM-tab panel (start/stop, status, port)
+- panel       : «Where you work», the head of the tab EM: four zones and the
+                commands of the place (T1/Z1, 5 Oct 2026)
+- where       : the four zones, pure (where you work, who you are, message, log)
+- windows     : the windows the panel opens: Change…, Choose the node, Enter a
+                collaborative room…, Permissions…, Log…, Room settings…, The
+                .blend in the room…
+- room_access : C1 · members, invitations, who sees the study (the node's doors)
+- scene_sync  : P2 · what «Sync the scene…» offers to send, and the sending
+- entry       : J1 · entering a room with a file that is not empty: the question
+- study       : S1 · the study of this scene as a room holds it (em.json whole)
 - materialise : DP-76's consuming half — the room's geometry into this scene
 - rooms_list  : R1 · the node's rooms (`GET /v1/rooms`), grouped; the id rule
 - rooms_ui    : R1 · the room list in the panel: cache, UIList, refresh/pick/new
@@ -27,9 +36,9 @@ Modules:
 
 from __future__ import annotations
 
-from . import (asset_versions, backups, bring, file_states, materialise, node_choice,
+from . import (asset_versions, backups, bring, entry, file_states, materialise, node_choice,
                open_in_emstudio, signin_ui,
-               operators, panel, rooms_ui, scene_check, scene_package)
+               operators, panel, rooms_ui, scene_check, scene_package, windows)
 
 
 def register():
@@ -45,11 +54,15 @@ def register():
     open_in_emstudio.register()
     signin_ui.register()
     scene_package.register()
+    windows.register()
+    entry.register()
     panel.register()
 
 
 def unregister():
     panel.unregister()
+    entry.unregister()
+    windows.unregister()
     scene_package.unregister()
     signin_ui.unregister()
     open_in_emstudio.unregister()

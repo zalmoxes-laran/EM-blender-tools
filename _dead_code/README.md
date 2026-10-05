@@ -64,3 +64,18 @@ is read once and never written again, `graphml-solo-in-entrata`):
 - `graphml_lock.py` — **G1**, the write-lock pre-flight for a GraphML held by
   yEd (`abort_if_graphml_locked`). Nothing writes a GraphML any more, so
   nothing calls it.
+
+From MICRO-DOVE-LAVORI-E-LA-STANZA-COLLABORATIVA (5 October 2026), **D1**:
+
+- `server.py` — the «EM Server» panel and the old TCP server it drove. Not
+  imported by `__init__.py` for a long time; only `tests/test_ux_panels_layout.py`
+  still listed its panel (now it does not).
+- `sync_manager/toggle_and_explain.py` — `em.sync_toggle` and
+  `em.mode_explain`, registered and drawn by nothing (grep over EM-blender-tools
+  and EMStudio, 5 Oct 2026). The mode is changed by the gestures of «Where you
+  work» and by EM ▸ Mode (`em.set_mode`).
+- `export_manager/panel.py` — the «Export Manager» panel, no longer registered
+  (T1): its providers stay the engine and are opened as dialogs from
+  EM ▸ Export (`export_manager/dialogs.py`).
+- `em_statistics/ui.py` — the «Export statistics» panel, now the dialog
+  EM ▸ Export ▸ Export statistics… (`em.export_statistics_dialog`).

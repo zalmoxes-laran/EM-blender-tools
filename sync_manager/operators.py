@@ -1906,6 +1906,22 @@ def join_room(context, base_url: str, room_id: str, token: str,
                 "; ".join(sentences(verifica)[:2])
     except Exception as exc:  # noqa: BLE001 — una verifica non annulla l'ingresso
         print(f"[scene check] not run at join: {exc}")
+    # S1 · the studies this room cites (container_refs after the first): read
+    # only, listed under the room in the EM Data Tree
+    try:
+        from . import rooms_list
+        info = rooms_list.room_info(base_url, token or None, room_id)
+        SESSION.cited = [str(r) for r in (info.get("container_refs") or [])[1:]]
+        from . import where as _where
+        if info.get("title"):
+            _where.ROOM_TITLES[room_id] = str(info["title"])
+    except Exception as exc:  # noqa: BLE001 — a description is not worth the entry
+        print(f"[room] the room's record was not read: {exc}")
+    try:
+        from .windows import note_transition
+        note_transition(f"entered {room_id} ({plan})")
+    except Exception:  # noqa: BLE001
+        pass
     _dichiara(context, MODE_HUB)
     return {"ok": True, "plan": plan, "room": SESSION.room_id,
             "members": len(SESSION.members), "host": SESSION.host_tool,
@@ -2200,6 +2216,14 @@ class EM_OT_room_join(bpy.types.Operator):
             self.token = ""
             self.report({"ERROR"}, f"sign-in did not complete: {exc}")
             return {"CANCELLED"}
+        # J1 · a file that already holds a study asks before the room is mixed in
+        from . import entry
+        if self.adopt and entry.needs_choice(context, base, room_id):
+            from . import room as room_cfg
+            room_cfg.set_room(base, room_id, token or None)
+            self.token = ""
+            entry.ask(context, base, room_id)
+            return {"FINISHED"}
         result = join_manual(context, base, room_id, token or "",
                              adopt=self.adopt)
         self.token = ""          # not even in the operator's own memory
@@ -2289,6 +2313,14 @@ class EM_OT_room_open_link(bpy.types.Operator):
             self.report({"INFO"},
                         f"{where['server']} has no sign-in configured "
                         f"(running open) — joining without a token")
+        # J1 · a file that already holds a study asks before the room is mixed in
+        from . import entry
+        if self.adopt and entry.needs_choice(context, where["server"], where["room"]):
+            from . import room as room_cfg
+            room_cfg.set_room(where["server"], where["room"], token or None)
+            self.link = ""
+            entry.ask(context, where["server"], where["room"])
+            return {"FINISHED"}
         result = join_room(context, where["server"], where["room"], token,
                            adopt=self.adopt)
         self.link = ""            # not even in the operator's own memory
@@ -2365,27 +2397,6 @@ class EM_OT_room_open_elsewhere(bpy.types.Operator):
                  else "EMStudio on this machine")
         self.report({"INFO"}, f"opening room {room_id} in {where} — "
                               f"same room, nothing transferred")
-        return {"FINISHED"}
-
-
-class EM_OT_sync_toggle(bpy.types.Operator):
-    bl_idname = "em.sync_toggle"
-    bl_label = "Toggle the Room sync"
-    bl_description = "Start/stop the WebSocket server EMStudio connects to for live selection sync"
-
-    def execute(self, context):
-        # C4 · UNA SOLA STRADA. Questo bottone c'era prima della dichiarazione
-        # del modo, e lasciarlo accendere il ponte per conto suo vorrebbe dire
-        # due meccanismi per lo stesso fatto — cioè la coabitazione con la
-        # stanza che C4 esiste per togliere. Adesso è una scorciatoia per la
-        # stessa regola, e la regola annuncia, spegne l'altra metà e dichiara.
-        verso = MODE_STANDALONE if is_running() else MODE_SIDECAR
-        esito = applica_modo(context, verso)
-        if not esito["ok"]:
-            self.report({"ERROR"}, esito["message"])
-            return {"CANCELLED"}
-        _dichiara(context, esito["mode"])
-        self.report({"INFO"}, esito["message"])
         return {"FINISHED"}
 
 
@@ -2510,7 +2521,6 @@ def register():
         bpy.app.handlers.save_pre.append(_save_unconfirmed)
     if _load_unconfirmed not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(_load_unconfirmed)
-    bpy.utils.register_class(EM_OT_sync_toggle)
     bpy.utils.register_class(EM_OT_set_mode)
     bpy.utils.register_class(EM_OT_room_join)
     bpy.utils.register_class(EM_OT_room_open_link)
@@ -2536,7 +2546,6 @@ def unregister():
     bpy.utils.unregister_class(EM_OT_room_open_elsewhere)
     bpy.utils.unregister_class(EM_OT_room_open_link)
     bpy.utils.unregister_class(EM_OT_room_join)
-    bpy.utils.unregister_class(EM_OT_sync_toggle)
     try:
         bpy.utils.unregister_class(EM_OT_set_mode)
     except Exception:  # noqa: BLE001 — unregistering must not fail

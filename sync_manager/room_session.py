@@ -182,6 +182,9 @@ class RoomSession:
         #: and the edits made meanwhile wait in `unconfirmed` for the re-entry.
         self.seated: bool = False
         self.base_url: Optional[str] = None
+        #: S1 · the studies the room CITES (its container_refs after the first,
+        #: I-2): read only; the tree lists them, no operation leaves from them
+        self.cited: List[str] = []
 
     # ── joining ──────────────────────────────────────────────────────────────
 

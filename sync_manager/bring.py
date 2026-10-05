@@ -116,7 +116,9 @@ def dosco_dirs(context) -> List[str]:
     return [bpy.path.abspath(raw)] if raw else []
 
 
-def open_room(base: str, token: Optional[str], name: str) -> Dict[str, Any]:
+def open_room(base: str, token: Optional[str], name: str, *,
+              sections: Optional[List[Dict[str, Any]]] = None,
+              active_graph_id: Optional[str] = None) -> Dict[str, Any]:
     """Create the room; or, if it exists and you may write in it, use it.
 
     → `{room_id, created, role, seedable, note}`. A NEW room that already holds
@@ -126,12 +128,17 @@ def open_room(base: str, token: Optional[str], name: str) -> Dict[str, Any]:
     """
     room_id = rooms_list.room_id_from_name(name)
     try:
-        created = rooms_list.create_room(base, token, name)
+        created = rooms_list.create_room(base, token, name, graphs=sections,
+                                         active_graph_id=active_graph_id)
         missing = created.get("missing_refs") or []
         refs = created.get("container_refs") or [room_id]
         empty = all(ref in missing for ref in refs)
         return {"room_id": created["room_id"], "created": True,
                 "role": created.get("your_role") or "owner", "seedable": empty,
+                # S1 · the sections the room was born with (a node before G2
+                # answers none: then the active graph alone, as before)
+                "born_with": list(created.get("born_with") or []),
+                "title": str(created.get("title") or name),
                 "note": "" if empty else
                 f"the room {room_id} already holds a graph: not seeded"}
     except room_cfg.RoomError as exc:
@@ -144,25 +151,41 @@ def open_room(base: str, token: Optional[str], name: str) -> Dict[str, Any]:
             f"the room {room_id} exists and you are {role or 'not a member'} "
             f"there: choose another name")
     return {"room_id": room_id, "created": False, "role": role, "seedable": True,
+            "born_with": [], "title": str(info.get("title") or name),
             "note": f"the room {room_id} already exists ({role}): what is "
                     f"brought merges into it"}
 
 
 def prepare(context, graph, *, base: str, name: str, token: Optional[str]
             ) -> Dict[str, Any]:
-    """Step 1 and 2: the room, then the inventory. Nothing is uploaded yet."""
-    where = open_room(base, token, name)
+    """Step 1 and 2: the room, then the inventory. Nothing is uploaded yet.
+
+    S1 · the room is built around the STUDY (`study.study_of`): born with all
+    its sections, and the inventory is of all its graphs, each row naming the
+    graph it is in."""
+    from . import study as study_mod
+    the_study = study_mod.study_of(context, graph)
+    where = open_room(base, token, name,
+                      sections=study_mod.birth_sections(the_study),
+                      active_graph_id=the_study.get("active") or None)
     room_cfg.set_room(base, where["room_id"], token)
-    rows = inventory.classify(
-        inventory.resource_entries(graph), base_dirs=base_dirs(context),
-        asset_home=lambda hexd: asset_upload.asset_head(base, where["room_id"],
-                                                        hexd, token),
-        room_id=where["room_id"], hasher=asset_upload.sha256_of_file)
     from . import exif_lite
     gap, least = lot_thresholds(context)
-    lots = inventory.propose_sessions(rows, exif_of=exif_lite.photo_exif,
-                                      dosco_dirs=dosco_dirs(context),
-                                      gap_seconds=gap, min_photos=least)
+    rows, lots = [], []
+    for gid, member in the_study["graphs"].items():
+        part = inventory.classify(
+            inventory.resource_entries(member), base_dirs=base_dirs(context),
+            asset_home=lambda hexd: asset_upload.asset_head(base, where["room_id"],
+                                                            hexd, token),
+            room_id=where["room_id"], hasher=asset_upload.sha256_of_file)
+        for row in part:
+            row["graph_id"] = gid
+        rows.extend(part)
+        for lot in inventory.propose_sessions(part, exif_of=exif_lite.photo_exif,
+                                              dosco_dirs=dosco_dirs(context),
+                                              gap_seconds=gap, min_photos=least):
+            lot["graph_id"] = gid
+            lots.append(lot)
     # F1 · for every file at home elsewhere, the node's answer BEFORE the yes
     views = {r["id"]: asset_upload.asset_home_view(base, where["room_id"],
                                                    r["sha256"], token)
@@ -170,8 +193,15 @@ def prepare(context, graph, *, base: str, name: str, token: Optional[str]
     STATE.clear()
     STATE.update({"base": base, "room_id": where["room_id"], "where": where,
                   "rows": rows, "lots": lots, "move_views": views,
-                  "graph_id": str(getattr(graph, "graph_id", ""))})
+                  "graph_id": str(getattr(graph, "graph_id", "")),
+                  "study": the_study})
     return STATE
+
+
+def graph_of_row(row: Dict[str, Any], default: Any) -> Any:
+    """S1 · the graph of the study a row of the inventory is in."""
+    study = STATE.get("study") or {}
+    return (study.get("graphs") or {}).get(row.get("graph_id")) or default
 
 
 def move_here(graph, *, token: Optional[str], yes: bool) -> Dict[str, Any]:
@@ -196,7 +226,7 @@ def move_here(graph, *, token: Optional[str], yes: bool) -> Dict[str, Any]:
                                       f"{answer.get('home')}")
                 continue
             moved_ids.add(row["id"])
-            node = graph.find_node_by_id(row["id"])
+            node = graph_of_row(row, graph).find_node_by_id(row["id"])
             if node is not None:
                 inventory.make_store_backed(
                     node, url=asset_upload.asset_url(base, room_id, row["sha256"]),
@@ -209,7 +239,7 @@ def move_here(graph, *, token: Optional[str], yes: bool) -> Dict[str, Any]:
     for row in rows:
         if row["group"] != inventory.GROUP_ELSEWHERE or row["id"] in moved_ids:
             continue
-        node = graph.find_node_by_id(row["id"])
+        node = graph_of_row(row, graph).find_node_by_id(row["id"])
         if node is not None and row.get("home") and row.get("sha256"):
             inventory.make_store_backed(
                 node, url=asset_upload.asset_url(base, row["home"], row["sha256"]),
@@ -228,7 +258,7 @@ def bucket_confirmed_lots(graph, lots: List[Dict[str, Any]]) -> List[str]:
         if not lot.get("confirmed"):
             continue
         out = api.bucket_acquisition(
-            graph, lot["ids"], name=f"Photos · {lot['name']}",
+            graph_of_row(lot, graph), lot["ids"], name=f"Photos · {lot['name']}",
             metadata={"camera": lot["camera"], "taken_from": lot["from"],
                       "taken_to": lot["to"],
                       "source": "EMtools · bring into a room"})
@@ -338,7 +368,7 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
             failed.append(f"{row['name']}: {exc}")
             continue
         done[0] += int(row.get("size") or 0)
-        node = graph.find_node_by_id(row["id"])
+        node = graph_of_row(row, graph).find_node_by_id(row["id"])
         if node is not None:
             inventory.make_store_backed(node, url=info["url"], sha256=info["sha256"])
         if info.get("already"):
@@ -347,38 +377,62 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
             uploaded["count"] += 1
             uploaded["size"] += int(row.get("size") or 0)
 
+    study_graphs = dict((STATE.get("study") or {}).get("graphs") or {}) or \
+        {str(getattr(graph, "graph_id", "")): graph}
     published, published_size, published_skip = [], 0, 0
     if promote:
-        for model in scene_models(context, graph):
-            obj = bpy.data.objects.get(model["object"])
-            if obj is None:
-                continue
-            if _already_published(obj, graph):
-                published_skip += 1
-                continue
-            result = commands.promote_model(
-                model["target"], {"object": obj.name, "residency": "resident"},
-                context, graph)
-            if result.get("ok"):
-                info = result["info"]
-                if model.get("kind") == "proxy":
-                    _fill_proxy_chain(graph, model["target"], info, rows)
-                if info.get("stored"):
-                    published.append(info["object"])
-                    published_size += int(info.get("size") or 0)
-                else:
-                    # X2 · the node had these bytes: published, not uploaded
+        seen_objects = set()
+        for member in study_graphs.values():
+            for model in scene_models(context, member):
+                obj = bpy.data.objects.get(model["object"])
+                if obj is None or obj.name in seen_objects:
+                    continue
+                seen_objects.add(obj.name)
+                if _already_published(obj, member):
                     published_skip += 1
-            else:
-                failed.append(f"{model['object']}: {result.get('error')}")
+                    continue
+                result = commands.promote_model(
+                    model["target"], {"object": obj.name, "residency": "resident"},
+                    context, member)
+                if result.get("ok"):
+                    info = result["info"]
+                    if model.get("kind") == "proxy":
+                        _fill_proxy_chain(member, model["target"], info, rows)
+                    if info.get("stored"):
+                        published.append(info["object"])
+                        published_size += int(info.get("size") or 0)
+                    else:
+                        # X2 · the node had these bytes: published, not uploaded
+                        published_skip += 1
+                else:
+                    failed.append(f"{model['object']}: {result.get('error')}")
 
     acquisitions = bucket_confirmed_lots(graph, STATE.get("lots") or [])
     seeded = {"applied": 0, "refused": [], "requests": 0}
-    if STATE["where"].get("seedable"):
+    born = list(STATE["where"].get("born_with") or [])
+    seeded_graphs: List[str] = []
+    if STATE["where"].get("seedable") and born:
+        # S1 · the study WHOLE: every section the room was born with, seeded
+        # with operations that name their graph
+        from . import study as study_mod
+        for gid, member, section in study_mod.seed_plan(STATE["study"]):
+            if gid not in born:
+                continue
+            part = rooms_list.send_ops(base, token, room_id,
+                                       inventory.seed_ops(member, section),
+                                       graph_id=gid)
+            seeded["applied"] += part["applied"]
+            seeded["refused"] += part["refused"]
+            seeded["requests"] += part["requests"]
+            seeded_graphs.append(gid)
+    elif STATE["where"].get("seedable"):
+        # a node that does not take a study's sections: the active graph, as
+        # before (D-A), and the report says so
         from ..emjson_support import graph_to_emjson_dict
         section = graph_to_emjson_dict(graph).get("graph") or {}
         seeded = rooms_list.send_ops(base, token, room_id,
                                      inventory.seed_ops(graph, section))
+        seeded_graphs = [str(getattr(graph, "graph_id", ""))]
 
     # D-B · Blender ENTERS the room by itself. Not adopting: the room's graph is
     # the one we just seated from this very session.
@@ -389,6 +443,20 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
         if SESSION.joined:
             ops.leave_room()
         joined = ops.join_room(context, base, room_id, token or "", adopt=False)
+    if joined.get("ok") and born:
+        # S1 · ONE SESSION FOR THE STUDY: every graph of it is bound to this
+        # room and named in the operations («Writing in: <graph>»)
+        from .room_session import SESSION as _joined
+        front = str(STATE.get("graph_id") or "")
+        ids = sorted((g for g in study_graphs if g in born), key=lambda g: g != front)
+        ops._lega_grafo_alla_stanza(
+            context, _joined, {"graphs": {g: {"graph_id": g} for g in ids}},
+            base, room_id, token)
+    if joined.get("ok"):
+        from . import study as study_mod
+        study_mod.mark_room(STATE.get("study") or {}, base, room_id)
+        from . import where as _where
+        _where.ROOM_TITLES[room_id] = str(STATE["where"].get("title") or room_id)
 
     from . import handoff
     targets = handoff.open_targets(base, room_id, token=token) or {}
@@ -401,7 +469,8 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
     missing = summary["groups"][inventory.GROUP_MISSING]["count"]
     others = 0
     try:
-        others = max(0, len(context.scene.em_tools.graphml_files) - 1)
+        others = sum(1 for r in context.scene.em_tools.graphml_files
+                     if r.name not in study_graphs)
     except Exception:  # noqa: BLE001
         pass
     size_up = uploaded["size"] + published_size
@@ -414,6 +483,7 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
         "references": refs, "missing": missing,
         "models": published, "failed": failed,
         "ops_applied": seeded["applied"], "ops_refused": len(seeded["refused"]),
+        "seeded_graphs": seeded_graphs, "study_graphs": list(study_graphs),
         "joined": bool(joined.get("ok")), "join_message": joined.get("message"),
         "other_graphs": others, "seconds": round(time.time() - started, 1),
         "note": STATE["where"].get("note") or "",
@@ -429,12 +499,74 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
     print(f"[bring] {report['sentence']}")
     for line in inventory.sentences(summary):
         print(f"[bring]   {line}")
+    print(f"[bring]   the study: {len(seeded_graphs)} graph(s) seeded "
+          f"({', '.join(seeded_graphs)})" + ("" if born else
+          " — the node took no sections: the active graph only (D-A)"))
     if others:
-        print(f"[bring]   one room, one graph: {others} other graph(s) of this "
-              f"project stay here")
+        print(f"[bring]   {others} graph(s) of this scene belong to other studies "
+              f"and stay here")
     for line in failed:
         print(f"[bring]   FAILED {line}")
     return report
+
+
+def apply_access(*, token: Optional[str]) -> Dict[str, Any]:
+    """C1 · who takes part and who sees, on the room just made: the people by
+    ORCID with their roles, the invitation link, the study's visibility and
+    embargo. → `{members, link, access, failed, sentences}`; one refusal of the
+    node is one sentence, the rest still goes."""
+    from . import handoff, room_access
+    want = STATE.get("access") or {}
+    base, room_id = STATE.get("base"), STATE.get("room_id")
+    out: Dict[str, Any] = {"members": [], "link": "", "access": {}, "failed": [],
+                           "sentences": []}
+    if not (base and room_id):
+        return out
+    for person in want.get("people") or []:
+        try:
+            room_access.set_member(base, token, room_id, person["orcid"], person["role"])
+            out["members"].append(person)
+        except Exception as exc:  # noqa: BLE001
+            out["failed"].append(f"{person['orcid']}: {exc}")
+    if want.get("invite"):
+        try:
+            made = room_access.invite(base, token, room_id, want.get("invite_role", "editor"),
+                                      days=want.get("invite_days", 0),
+                                      uses=want.get("invite_uses", 0))
+            doors = handoff.open_targets(base, room_id, token=token) or {}
+            out["link"] = room_access.link_for(doors.get("web") or doors.get("scheme") or "",
+                                               made.get("token") or "")
+            out["invite"] = made
+            try:
+                from .windows import INVITED
+                INVITED.append({"role": made.get("role"), "link": out["link"],
+                                "token_id": made.get("token_id")})
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as exc:  # noqa: BLE001
+            out["failed"].append(f"invitation link: {exc}")
+    visibility = want.get("visibility") or "restricted"
+    embargo = want.get("embargo") or ""
+    try:
+        out["access"] = room_access.set_study_access(
+            base, token, room_id, visibility=visibility, embargo=embargo)
+    except Exception as exc:  # noqa: BLE001
+        out["failed"].append(f"who sees: {exc}")
+    if out["members"]:
+        out["sentences"].append("invited: " + ", ".join(
+            f"{m['orcid']} ({m['role']})" for m in out["members"]))
+    if out["link"]:
+        role = want.get("invite_role") or "editor"
+        out["sentences"].append(f"{'an' if role[0] in 'aeiou' else 'a'} {role} link: "
+                                f"{out['link']}")
+    if out["access"]:
+        out["sentences"].append(
+            f"who sees: {out['access'].get('visibility')}"
+            + (f", embargo until {out['access']['embargo']}" if out["access"].get("embargo") else ""))
+    ULTIMO_REFERTO["access"] = out
+    for line in out["sentences"] + out["failed"]:
+        print(f"[bring]   {line}")
+    return out
 
 
 # ── the operators ────────────────────────────────────────────────────────────
@@ -466,31 +598,110 @@ def _operator_classes():  # pragma: no cover — bpy
                       + (f" · {item.batch}" if item.batch else ""))
             row.prop(item, "choice", text="")
 
+    visibility_items = (
+        ("restricted", "Restricted", "Only the room's people see the study (the default)"),
+        ("public", "Public", "Anybody with its name reads the study"))
+    link_role_items = (("editor", "Editor", "Whoever opens the link may edit"),
+                       ("viewer", "Viewer", "Whoever opens the link may read"))
+
     class EM_OT_room_bring(bpy.types.Operator):
-        """Bring the active graph into a NEW room on this node, with its
-        resources: you become the owner, Blender enters the room."""
+        """Create a collaborative room from this study: the em.json whole (its
+        graphs, its shelf) goes into a NEW room on this node, with who takes
+        part and who sees; you become its owner and Blender enters it. A study
+        already written by a room is offered that room instead"""
 
         bl_idname = "em.room_bring"
-        bl_label = "Bring into a room…"
-        bl_description = ("Create a room on this node (you are its owner), see "
-                          "where the graph's resources are, upload them, publish "
-                          "the scene's models, and enter the room")
+        bl_label = "Create a collaborative room from this study"
+        bl_description = ("Build a room around this study: name it, say who takes "
+                          "part and who sees it; then its resources go up, the "
+                          "scene's models are published, and you are in it")
 
-        name: bpy.props.StringProperty(name="Room name", default="",  # type: ignore
+        name: bpy.props.StringProperty(name="Name", default="",  # type: ignore
                                        options={"SKIP_SAVE"})
+        people: bpy.props.StringProperty(  # type: ignore
+            name="People", default="", options={"SKIP_SAVE"},
+            description=("By ORCID with a role, separated by commas: "
+                         "«0000-0002-1825-0097 editor, 0000-0001-5109-3700 viewer». "
+                         "No role: viewer"))
+        invite: bpy.props.BoolProperty(  # type: ignore
+            name="And an invitation link", default=False, options={"SKIP_SAVE"})
+        invite_role: bpy.props.EnumProperty(  # type: ignore
+            name="Role", items=link_role_items, default="editor")
+        invite_days: bpy.props.IntProperty(  # type: ignore
+            name="Days", default=7, min=0, description="0: no expiry")
+        invite_uses: bpy.props.IntProperty(  # type: ignore
+            name="Uses", default=0, min=0, description="0: no limit")
+        visibility: bpy.props.EnumProperty(  # type: ignore
+            name="Who sees", items=visibility_items, default="restricted")
+        embargo: bpy.props.StringProperty(  # type: ignore
+            name="Embargo until", default="", options={"SKIP_SAVE"},
+            description="YYYY-MM-DD; empty: no embargo")
         confirm: bpy.props.BoolProperty(default=False,  # type: ignore
                                         options={"HIDDEN", "SKIP_SAVE"})
+        existing: bpy.props.StringProperty(default="",  # type: ignore
+                                           options={"HIDDEN", "SKIP_SAVE"})
+
+        def _study_room(self, context):
+            from ..functions import is_graph_available
+            from . import study as study_mod
+            ok, graph = is_graph_available(context)
+            if not ok:
+                return None, None
+            the_study = study_mod.study_of(context, graph)
+            return the_study, study_mod.room_of_study(context, the_study)
 
         def invoke(self, context, event):
-            return context.window_manager.invoke_props_dialog(self, width=420)
+            from ..functions import is_graph_available
+            ok, _graph = is_graph_available(context)
+            if not ok:
+                self.report({"ERROR"}, "no study loaded: load it in the EM Data Tree")
+                return {"CANCELLED"}
+            from .windows import need_node
+            if not need_node(context, "create"):
+                return {"FINISHED"}
+            _study, there = self._study_room(context)
+            self.existing = there["room_id"] if there else ""
+            if there and there.get("node"):
+                context.scene.em_room_url = there["node"]
+            if not self.name and not there:
+                try:
+                    self.name = str(context.scene.em_tools.graphml_files[
+                        context.scene.em_tools.active_file_index].name)[:40]
+                except Exception:  # noqa: BLE001
+                    pass
+            return context.window_manager.invoke_props_dialog(
+                self, width=520,
+                confirm_text="Enter it" if there else "Create the room")
 
         def draw(self, context):
             col = self.layout.column()
-            col.label(text=f"Node: {getattr(context.scene, 'em_room_url', '')}",
-                      icon="WORLD")
-            col.prop(self, "name")
-            col.label(text=f"id: {rooms_list.room_id_from_name(self.name) or '—'}",
-                      icon="INFO")
+            node = getattr(context.scene, "em_room_url", "")
+            if self.existing:
+                # I-2 · a study is written by one room only
+                col.label(text=f"This study is written by the room {self.existing}",
+                          icon="COMMUNITY")
+                col.label(text=f"on {node}. A study lives in one room: enter it.",
+                          icon="BLANK1")
+                return
+            col.label(text=f"Node: {node}", icon="WORLD")
+            box = col.box()
+            box.prop(self, "name")
+            box.label(text=f"id: {rooms_list.room_id_from_name(self.name) or '—'}",
+                      icon="BLANK1")
+            box = col.box()
+            box.label(text="Who takes part", icon="USER")
+            box.prop(self, "people", text="By ORCID")
+            row = box.row(align=True)
+            row.prop(self, "invite")
+            sub = row.row(align=True)
+            sub.enabled = self.invite
+            sub.prop(self, "invite_role", text="")
+            sub.prop(self, "invite_days")
+            sub.prop(self, "invite_uses")
+            box = col.box()
+            box.label(text="Who sees", icon="HIDE_OFF")
+            box.row().prop(self, "visibility", expand=True)
+            box.prop(self, "embargo")
 
         def execute(self, context):
             from ..functions import is_graph_available
@@ -498,18 +709,38 @@ def _operator_classes():  # pragma: no cover — bpy
 
             ok, graph = is_graph_available(context)
             if not ok:
-                self.report({"ERROR"}, "no graph loaded: load it from the EM panel")
+                self.report({"ERROR"}, "no study loaded: load it in the EM Data Tree")
                 return {"CANCELLED"}
+            _study, there = self._study_room(context)
+            if there:
+                # I-2 · not a second room: the one that writes it
+                context.scene.em_room_id = there["room_id"]
+                if there.get("node"):
+                    context.scene.em_room_url = there["node"]
+                self.report({"INFO"}, f"this study is written by the room "
+                                      f"{there['room_id']}: entering it")
+                return bpy.ops.em.room_reconnect()
             base = str(getattr(context.scene, "em_room_url", "") or "").strip().rstrip("/")
             if not base:
-                self.report({"ERROR"}, "set the node address first")
+                self.report({"ERROR"}, "choose the node first")
+                return {"CANCELLED"}
+            from . import room_access
+            try:
+                people = room_access.parse_people(self.people)
+                if self.embargo.strip():
+                    import datetime
+                    datetime.date.fromisoformat(self.embargo.strip()[:10])
+            except ValueError as exc:
+                self.report({"ERROR"}, str(exc) if "ORCID" in str(exc) or "role" in str(exc)
+                            else f"the embargo «{self.embargo}» is not a date (YYYY-MM-DD)")
                 return {"CANCELLED"}
             from .signin_ui import Waiting
-            name, confirm = self.name, self.confirm
+            args = {k: getattr(self, k) for k in (
+                "name", "people", "invite", "invite_role", "invite_days",
+                "invite_uses", "visibility", "embargo", "confirm")}
             try:
                 token, _how = _access_for(
-                    base, "",
-                    resume=lambda: bpy.ops.em.room_bring(name=name, confirm=confirm))
+                    base, "", resume=lambda: bpy.ops.em.room_bring(**args))
                 _keep_access(base, token)
                 prepare(context, graph, base=base, name=self.name, token=token)
             except Waiting as exc:
@@ -518,6 +749,12 @@ def _operator_classes():  # pragma: no cover — bpy
             except Exception as exc:  # noqa: BLE001 — the node's sentence
                 self.report({"ERROR"}, str(exc))
                 return {"CANCELLED"}
+            STATE["access"] = {"people": people, "invite": bool(self.invite),
+                               "invite_role": self.invite_role,
+                               "invite_days": int(self.invite_days),
+                               "invite_uses": int(self.invite_uses),
+                               "visibility": self.visibility,
+                               "embargo": self.embargo.strip()}
             _fill_rows(context)
             for line in inventory.sentences(inventory.summarise(STATE["rows"])):
                 print(f"[bring] inventory: {line}")
@@ -623,9 +860,13 @@ def _operator_classes():  # pragma: no cover — bpy
                 return {"CANCELLED"}
             finally:
                 wm.progress_end()
-            for line in report["failed"]:
+            access = apply_access(token=room_cfg._session.get("token"))
+            report["access"] = access
+            for line in report["failed"] + access["failed"]:
                 self.report({"WARNING"}, line)
             self.report({"INFO"}, report["sentence"])
+            for line in access["sentences"]:
+                self.report({"INFO"}, line)
             if self.offer_blend and not bpy.app.background:
                 bpy.ops.em.blend_backup_archive("INVOKE_DEFAULT")
             return {"FINISHED"}
@@ -679,6 +920,7 @@ def unregister():  # pragma: no cover — bpy
 def draw(layout, context) -> None:  # pragma: no cover — bpy
     """The «Bring into a room…» button and the last report."""
     box = layout.box()
-    box.operator("em.room_bring", icon="EXPORT")
+    box.operator("em.room_bring", text="Create a collaborative room from this study…",
+                 icon="ADD")
     if ULTIMO_REFERTO.get("sentence"):
         box.label(text=ULTIMO_REFERTO["sentence"][:90], icon="CHECKMARK")

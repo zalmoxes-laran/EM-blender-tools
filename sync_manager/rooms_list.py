@@ -125,6 +125,8 @@ def list_rooms(base: str, token: Optional[str], *,
 
 
 def create_room(base: str, token: Optional[str], name: str, *,
+                graphs: Optional[List[Dict[str, Any]]] = None,
+                active_graph_id: Optional[str] = None,
                 timeout: float = 15.0) -> Dict[str, Any]:
     """`POST {node}/v1/rooms {room_id, title}` — you become its owner.
 
@@ -136,7 +138,14 @@ def create_room(base: str, token: Optional[str], name: str, *,
     if not room_id:
         raise RoomError(f"«{name}» has no letters or digits to make a room id "
                         f"from: choose another name")
-    body = json.dumps({"room_id": room_id, "title": (name or "").strip()}).encode("utf-8")
+    payload: Dict[str, Any] = {"room_id": room_id, "title": (name or "").strip()}
+    if graphs:
+        # S1 · the room is born with the study's sections, EMPTY (G2 of the
+        # node): their content comes afterwards as operations naming the graph
+        payload["graphs"] = graphs
+        if active_graph_id:
+            payload["active_graph_id"] = active_graph_id
+    body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(_url(base, "/v1/rooms"), data=body,
                                      method="POST",
                                      headers=_headers(token, json_body=True))
@@ -204,8 +213,8 @@ OPS_PER_REQUEST = 500
 
 
 def send_ops(base: str, token: Optional[str], room_id: str,
-             ops: List[Dict[str, Any]], *, timeout: float = 120.0
-             ) -> Dict[str, Any]:
+             ops: List[Dict[str, Any]], *, graph_id: Optional[str] = None,
+             timeout: float = 120.0) -> Dict[str, Any]:
     """`POST {node}/v1/rooms/{id}/ops` in parts → `{applied, refused, requests}`.
 
     The connector door of the node: the same five idempotent verbs the
@@ -217,8 +226,10 @@ def send_ops(base: str, token: Optional[str], room_id: str,
     applied, refused, requests = 0, [], 0
     url = _url(base, f"/v1/rooms/{urllib.parse.quote(room_id, safe='')}/ops")
     for start in range(0, len(ops), OPS_PER_REQUEST):
-        body = json.dumps({"ops": ops[start:start + OPS_PER_REQUEST]},
-                          ensure_ascii=False).encode("utf-8")
+        batch: Dict[str, Any] = {"ops": ops[start:start + OPS_PER_REQUEST]}
+        if graph_id:
+            batch["graph_id"] = graph_id      # S1 · which graph of the study
+        body = json.dumps(batch, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(url, data=body, method="POST",
                                          headers=_headers(token, json_body=True))
         answer = _call(request, timeout) or {}

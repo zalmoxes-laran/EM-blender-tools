@@ -7,12 +7,12 @@ Organization:
     metrics.py     -> volume/weight/surface computation (bmesh)
     properties.py  -> EMSceneProperties + Scene.em_properties
     operators.py   -> EMExportCSV (ExportHelper)
-    ui.py          -> EM_PT_ExportPanel
+    dialog.py      -> EM ▸ Export ▸ Export statistics… (the panel went, T1)
 """
 
 from . import properties
 from . import operators
-from . import ui
+from . import dialog
 
 from .properties import EMSceneProperties
 from .materials import load_materials, format_decimal
@@ -32,10 +32,10 @@ __all__ = [
 def register():
     properties.register()
     operators.register()
-    ui.register()
+    dialog.register()
 
 
 def unregister():
-    ui.unregister()
+    dialog.unregister()
     operators.unregister()
     properties.unregister()

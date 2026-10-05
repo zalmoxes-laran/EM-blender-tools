@@ -170,7 +170,7 @@ def test_the_operator_hands_join_room_what_the_link_said(monkeypatch):
     assert 'context.scene.em_room_id = where["room"]' in source
     # and nothing in this path touches the old manual host
     path = source[source.index("class EM_OT_room_open_link"):
-                  source.index("class EM_OT_sync_toggle")]
+                  source.index("class EM_OT_set_mode")]
     assert "server_host" not in path
 
 
@@ -201,16 +201,23 @@ def test_the_whole_hop_link_to_set_room(monkeypatch):
 
 def test_the_manual_fields_remain_as_the_declared_fallback():
     """A node in a trench has no browser. Taking the manual route away to make a
-    point would break the honest case."""
-    source = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
-    assert 'col.prop(context.scene, "em_room_url"' in source
-    assert 'col.prop(context.scene, "em_room_id"' in source
-    # …but the link is offered FIRST, so nobody is taught to fill three fields
-    assert source.index('"em.room_open_link"') < source.index('"em_room_url"')
-    assert "or by hand" in source
+    point would break the honest case.
+
+    N1 (5 Oct 2026) · the fields left the panel for the two windows: the room
+    by id in «Enter a collaborative room…», under the lists and beside the
+    link; the node's address in «Choose the node», which probes it."""
+    source = (_REPO / "sync_manager" / "windows.py").read_text(encoding="utf-8")
+    enter = source[source.index("class EM_OT_room_enter"):
+                   source.index("class EM_OT_room_reconnect")]
+    assert 'prop(context.scene, "em_room_id", text="By id")' in enter
+    assert '"em.room_open_link"' in enter
     # R1 · …and the node's room LIST comes before the field to type into
-    assert source.index("rooms_ui.draw_list") < source.index(
-        'col.prop(context.scene, "em_room_id"')
+    assert enter.index('"EM_UL_rooms"') < enter.index('"em_room_id"')
+    choose = source[source.index("class EM_OT_node_choose"):
+                    source.index("class EM_OT_node_use")]
+    assert '"em_node_address"' in choose
+    panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
+    assert '"em_room_url"' not in panel and '"em_room_id"' not in panel
 
 
 # ── 5 · against a REAL server, when one is up ────────────────────────────────
@@ -357,13 +364,15 @@ def test_the_operator_is_EMIT_only_and_says_so():
     half."""
     source = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
     block = source[source.index("class EM_OT_room_open_elsewhere"):
-                   source.index("class EM_OT_sync_toggle")]
+                   source.index("class EM_OT_set_mode")]
     assert "Emit-only" in block
     assert "webbrowser.open(door[\"link\"])" in block
     # …and it is offered only while joined: off a room it would open nothing
     assert "return bool(SESSION.joined)" in block
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
-    assert 'if status["joined"]:' in panel
+    inside = panel[panel.index("def _in_room"):]
+    assert '"em.room_open_elsewhere"' in inside
+    assert panel.count('"em.room_open_elsewhere"') == 1
     assert '"em.room_open_elsewhere"' in panel
 
 
@@ -485,10 +494,13 @@ def test_the_token_field_now_reads_as_the_FALLBACK_it_is():
 
 
 def test_no_second_button_appeared_the_door_is_the_same_one():
+    """One door into a room by its id: `em.room_join`, reached from the
+    windows through «Reconnect» / «Enter» (`em.room_reconnect`), never drawn
+    as a second button in the panel."""
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
-    assert panel.count('"em.room_join"') == 1
-    # …and the link is still offered FIRST, so nobody is taught to fill fields
-    assert panel.index('"em.room_open_link"') < panel.index('"em_room_url"')
+    assert '"em.room_join"' not in panel
+    windows = (_REPO / "sync_manager" / "windows.py").read_text(encoding="utf-8")
+    assert windows.count('bpy.ops.em.room_join(') == 1
 
 
 # ── Q11 · the sign-in runs off Blender's UI thread and says the true outcome ──
@@ -628,8 +640,11 @@ def test_every_door_of_the_panels_waits_without_freezing_blender():
     ui = (_REPO / "sync_manager" / "signin_ui.py").read_text(encoding="utf-8")
     assert "bpy.app.timers.register(_poll" in ui
     assert '"em.sign_in_cancel"' in ui
+    # Z1 · the wait and the expiry are the MESSAGE zone of «Where you work»
+    zones = (_REPO / "sync_manager" / "where.py").read_text(encoding="utf-8")
+    assert '"em.sign_in_cancel"' in zones and '"em.sign_in_again"' in zones
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
-    assert "signin_ui.draw(acts)" in panel
+    assert 'row.operator(msg["op"], text=msg["op_text"])' in panel
 
 
 def _wait_for(pages, seconds=5):

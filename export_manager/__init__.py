@@ -4,7 +4,8 @@ Plugin-style Export panel: each exporter section is a provider under providers/.
 
 Organization:
     registry.py        -> ExportProvider + register/get providers
-    panel.py           -> VIEW3D_PT_ExportPanel (generic, iterates providers)
+    dialogs.py         -> EM ▸ Export: each provider as a dialog (T1, 5 Oct 2026;
+                          the panel went to _dead_code/export_manager/panel.py)
     providers/         -> one subpackage per exporter UI section
         tabular/       -> CSV export (US/USV, Sources, Extractors)
         heriverse/     -> Heriverse Export UI (delegates to export.heriverse op
@@ -16,7 +17,7 @@ block and had no other callers.
 """
 
 from . import registry
-from . import panel
+from . import dialogs
 from . import providers
 
 # Re-export the registry API so third-party/plugin code can add providers.
@@ -39,9 +40,9 @@ __all__ = [
 
 def register():
     providers.register()
-    panel.register()
+    dialogs.register()
 
 
 def unregister():
-    panel.unregister()
+    dialogs.unregister()
     providers.unregister()

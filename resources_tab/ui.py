@@ -39,8 +39,8 @@ class EM_PT_resources(bpy.types.Panel):
     bl_idname = "EM_PT_resources"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Room"
-    bl_order = 1
+    bl_category = "EM Scene"
+    bl_order = 10
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):

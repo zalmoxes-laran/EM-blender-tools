@@ -251,6 +251,12 @@ class EM_OT_room_pick(bpy.types.Operator):
         # M2 · a room already joined is ANOTHER graph's room: it stays joined,
         # and this one is entered beside it with its own session.
         context.scene.em_room_id = self.room_id
+        # J1 · a file that already holds a study asks before the room is mixed in
+        from . import entry
+        if entry.needs_choice(context, base, self.room_id):
+            room_cfg.set_room(base, self.room_id, token or None)
+            entry.ask(context, base, self.room_id)
+            return {"FINISHED"}
         result = ops.join_manual(context, base, self.room_id, token)
         if not result["ok"]:
             self.report({"ERROR"}, result["message"])

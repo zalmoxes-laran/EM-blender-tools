@@ -1621,13 +1621,15 @@ class EM_select_from_list_item(Operator):
         if not item or not item.source_graph:
             return None
 
-        # Find the graph matching this source_graph code
+        # Find the graph this item came from: `source_graph` is its graph_id
+        # (S1, 5 Oct 2026); a list built before keeps the code, matched as a fallback
         try:
             from s3dgraphy import get_graph
             for graph_file in scene.em_tools.graphml_files:
                 try:
                     graph = get_graph(graph_file.name)
-                    if graph and graph.attributes.get('graph_code', '') == item.source_graph:
+                    if graph and (getattr(graph, 'graph_id', '') == item.source_graph
+                                  or graph.attributes.get('graph_code', '') == item.source_graph):
                         return graph
                 except Exception:
                     continue

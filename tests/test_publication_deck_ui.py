@@ -155,14 +155,16 @@ def test_il_pannello_NON_e_chiuso_di_default():
     assert "DEFAULT_CLOSED" not in _SORGENTE
 
 
-def test_e_nel_tab_della_stanza_prima_dell_export_manager():
-    """U6 · EM Bridge è diventata EM Room (dove lavori e con chi): prima la
-    Stanza e i Files, poi il Deck, che resta PRIMA dell'Export Manager perché
-    la sua domanda — cosa manca — viene prima di come esportare."""
-    assert 'bl_category = "EM Room"' in _SORGENTE
-    assert "bl_order = 2" in _SORGENTE
-    export = (_REPO / "export_manager" / "panel.py").read_text()
-    assert "bl_order = 3" in export
+def test_e_nel_tab_della_scena_dopo_i_files():
+    """T1 (E.D., 5 ott 2026) · due tab sole: il Deck è il 3D che esce, quindi
+    sta in EM Scene, dopo Files. L'Export Manager non è più un pannello (gli
+    export sono dialoghi di EM ▸ Export): il Deck resta la casa della
+    pubblicazione, e Heriverse è una sua destinazione (U1)."""
+    assert 'bl_category = "EM Scene"' in _SORGENTE
+    assert "bl_order = 11" in _SORGENTE
+    files = (_REPO / "resources_tab" / "ui.py").read_text()
+    assert 'bl_category = "EM Scene"' in files and "bl_order = 10" in files
+    assert not (_REPO / "export_manager" / "panel.py").exists()
 
 
 def test_il_draw_NON_calcola_niente():

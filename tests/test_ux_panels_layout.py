@@ -114,11 +114,13 @@ def test_LE_VERSIONI_E_I_LOD_SONO_IN_EM_SCENE():
     assert m and m.group(1) == "EM Scene", m and m.group(1)
 
 
-def test_E_LE_TAB_SONO_ESATTAMENTE_TRE():
-    """U6 (MICRO-EMTOOLS-MENO-E-MEGLIO): «EM» il grafo nella scena, «EM
-    Scene» il 3D, «EM Room» dove lavori e con chi — EM Bridge non c'è più."""
+def test_E_LE_TAB_SONO_ESATTAMENTE_DUE():
+    """T1 (E.D., 5 ottobre 2026): «una tab intera per la connessione è troppo».
+    «EM», lo studio in questa scena, con in testa «Where you work»; «EM
+    Scene», il 3D. «EM Room» (era EM Bridge) è andata in pensione: gli export
+    sono dialoghi di EM ▸ Export, Tapestry è un add-on a sé (E3)."""
     cat = {p["categoria"] for p in PANNELLI.values() if p["categoria"]}
-    assert cat == {"EM", "EM Scene", "EM Room"}, sorted(cat)
+    assert cat == {"EM", "EM Scene"}, sorted(cat)
 
 
 def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
@@ -146,21 +148,17 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     ("VIEW3D_PT_RM_Manager", "EM Scene"),
     ("VIEW3D_PT_Anastylosis_Manager", "EM Scene"),
     ("VIEW3D_PT_RMDoc_Manager", "EM Scene"),
-    ("EM_PT_resources", "EM Room"),
+    ("EM_PT_resources", "EM Scene"),
     ("EM_PT_shelf", "EM Scene"),
     ("EM_PT_proxy_surface_tools", "EM Scene"),
     ("PROXYBOX_PT_main_panel", "EM Scene"),
     ("VIEW3D_PT_SurfaceAreale", "EM Scene"),
     ("VIEW3D_PT_proxy_offset", "EM Scene"),
     ("EM_PT_georef", "EM Scene"),
-    # EM Room · dove lavori e con chi (U6: era EM Bridge)
-    ("VIEW3D_PT_ExportPanel", "EM Room"),
-    ("EM_PT_ExportPanel", "EM Room"),
-    ("VIEW3D_PT_em_sync", "EM Room"),
-    ("VIEW3D_PT_ServerPanel", "EM Room"),
-    # NIGHT-DECK · il Publication Deck, prima dell'Export Manager: la domanda
-    # che risponde — cosa manca — viene prima di come esportare.
-    ("VIEW3D_PT_em_publication_deck", "EM Room"),
+    # T1 · «Where you work» in testa a EM; il Deck nel 3D, dopo Files. Gli
+    # export non sono più pannelli (EM ▸ Export), EM Server è in _dead_code (D1)
+    ("VIEW3D_PT_em_sync", "EM"),
+    ("VIEW3D_PT_em_publication_deck", "EM Scene"),
 ])
 def test_OGNI_PANNELLO_E_DOVE_IL_PROMPT_DICE(classe, categoria):
     assert classe in PANNELLI, f"{classe} non esiste più: sparito nel trasloco?"
@@ -188,9 +186,14 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     31. E2 (decisioni della sera) aggiunge «Re-import a table»
     (`VIEW3D_PT_reimport_table`), accanto a Import from tables: 32; E3 porta
     Tapestry fuori, add-on suo (`TAPESTRY_PT_main_panel` non è più qui): 31.
+    MICRO-DOVE-LAVORI (T1, D1): «Export Manager» ed «Export statistics»
+    diventano dialoghi di EM ▸ Export, «EM Server» (mai importato) va in
+    `_dead_code/`: 28.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 31, sorted(PANNELLI)
+    assert len(PANNELLI) == 28, sorted(PANNELLI)
+    for gone in ("VIEW3D_PT_ExportPanel", "EM_PT_ExportPanel", "VIEW3D_PT_ServerPanel"):
+        assert gone not in PANNELLI, gone
     assert "TAPESTRY_PT_main_panel" not in PANNELLI
     assert PANNELLI["VIEW3D_PT_reimport_table"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert PANNELLI["VIEW3D_PT_auxiliary_files"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
@@ -254,11 +257,11 @@ def test_E_IL_DOCUMENT_MANAGER_E_PRIMO_in_EM_Scene():
 # ═══ A2 · FILES E SCAFFALE (U6: erano «Resources & Shelf») ═══════════════════
 
 def test_IL_PANNELLO_NON_SI_CHIAMA_PIU_COME_LA_SUA_TAB():
-    """U6 · i file sono di dove lavori — la stanza, il nodo —: «Files» in EM
-    Stanza, come nella barra di EMStudio."""
+    """U6 · «Files», come nella barra di EMStudio; T1 · nel 3D (EM Scene),
+    dopo Asset versions."""
     p = PANNELLI["EM_PT_resources"]
     assert p["label"] == "Files", p["label"]
-    assert p["categoria"] == "EM Room"
+    assert p["categoria"] == "EM Scene"
     assert p["label"] != p["categoria"]
 
 
@@ -606,7 +609,6 @@ def test_D_NESSUN_TITOLO_DICE_PIU_EXPERIMENTAL():
 
 
 @pytest.mark.parametrize("rel,classe", [
-    ("em_statistics/ui.py", "EM_PT_ExportPanel"),
     ("proxy_to_rm_projection/ui.py", "VIEW3D_PT_proxy_projection_panel"),
 ])
 def test_D_MA_L_ICONA_C_E_nell_header(rel, classe):
@@ -623,13 +625,10 @@ def test_D_MA_L_ICONA_C_E_nell_header(rel, classe):
 def test_D_E_NIENTE_ROSSO_per_sperimentale():
     """In Blender il rosso è l'errore, e questo repository lo usa sul serio nei
     box di indisponibilità. Estenderlo a «sperimentale» insegnerebbe a non
-    leggere il rosso, e il giorno dopo si perde un errore vero."""
-    for rel, classe in (("em_statistics/ui.py", "EM_PT_ExportPanel"),):
-        t = (_REPO / rel).read_text()
-        m = re.search(rf'^class\s+{classe}\s*\(', t, re.M)
-        i = t.index("def draw_header", m.end())
-        j = t.index("def draw", i + 10)
-        assert "alert" not in t[i:j], f"{classe}: rosso nell'header"
+    leggere il rosso, e il giorno dopo si perde un errore vero. (T1: Export
+    statistics è un dialogo di EM ▸ Export, senza header e senza rosso.)"""
+    t = (_REPO / "em_statistics" / "dialog.py").read_text()
+    assert "alert" not in t
 
 
 # ═══ E · UN MESSAGGIO SOLO ═══════════════════════════════════════════════════
@@ -908,18 +907,13 @@ def test_D_LA_RISALITA_dal_container_al_documento():
 # ═══ UX3/E · IL COLLASSO DELLA SEZIONE RDF ══════════════════════════════════
 
 def test_E_RDF_SI_COLLASSA_COL_MECCANISMO_CHE_CE_GIA():
-    """Non c'è un secondo meccanismo, e non ne ho scritto uno.
-
-    `export_manager/panel.py` cerca `f"{provider.id}_expanded"` su ExportVars
-    e, SE la proprietà esiste, disegna il triangolino; se non esiste tiene la
-    sezione sempre aperta (`expanded = True`). Al provider `rdf` mancava solo
-    quella riga — ed è per questo che srotolava formato, path, base URI, box
-    IRI, opzioni avanzate, bottone e le tre righe di «Workflow after export»,
-    più di uno schermo, mentre Tabular si chiudeva.
+    """T1 · l'RDF è un dialogo di EM ▸ Export, uno per esportatore: non srotola
+    più sotto gli altri. Il dialogo disegna UN fornitore (`p.draw`), e la
+    proprietà `rdf_expanded` resta chiusa di default per chi la legge ancora.
     """
-    panel = (_REPO / "export_manager" / "panel.py").read_text()
-    assert 'expand_attr = f"{provider.id}_expanded"' in panel, (
-        "il meccanismo generico è quello, e non si tocca")
+    dialogs = (_REPO / "export_manager" / "dialogs.py").read_text()
+    assert "p.draw(layout.box(), context)" in dialogs
+    assert 'MENU_PROVIDERS = ("tabular", "rdf", "pyarchinit")' in dialogs
 
     init = (_REPO / "__init__.py").read_text()
     i = init.index("rdf_expanded: BoolProperty(")

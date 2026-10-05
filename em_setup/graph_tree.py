@@ -41,11 +41,39 @@ def room_state(origin) -> tuple:
         return ("room state unknown", "QUESTION")
     for gid, session in _rs.sessions():
         where = _rs.where_of(gid) if gid else {}
-        if session.joined and (where.get("room_id") or session.room_id) == origin.room_id:
+        if (where.get("room_id") or session.room_id) != origin.room_id:
+            continue
+        if session.joined:
             role = f" as {session.role}" if session.role else ""
             people = len(session.members or [])
             return (f"joined{role} · {people} here", "LINKED")
-    return ("not joined: enter the room from EM Room to send edits", "UNLINKED")
+        if session.offline:
+            return (f"offline · {session.waiting()} edit(s) waiting", "TIME")
+    return ("not joined: enter it from Where you work to send edits", "UNLINKED")
+
+
+def writing_in(origin, rows, active) -> str:
+    """S1 · «Writing in: <graph>» — the graph of the room's study the edits
+    are for: the active one when it is in this room's branch."""
+    if not (0 <= active < len(rows)):
+        return ""
+    row = rows[active]
+    if graph_origins.origin_of(row, abspath=_abspath).key != origin.key:
+        return ""
+    return getattr(row, "graph_code", "") or row.name
+
+
+def cited_of(origin) -> list:
+    """S1 · the studies the room CITES (its container_refs after the first,
+    I-2): read only, no operation leaves from them."""
+    try:
+        from ..sync_manager import room_session as _rs
+    except Exception:  # noqa: BLE001
+        return []
+    for _gid, session in _rs.sessions():
+        if session.room_id == origin.room_id:
+            return list(getattr(session, "cited", None) or [])
+    return []
 
 
 def save_origin(context, index: int) -> tuple:
@@ -192,6 +220,15 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             sub = col.row()
             sub.separator(factor=2.0)
             sub.label(text=state, icon=icon)
+            writing = writing_in(origin, rows, active)
+            if writing:
+                sub = col.row()
+                sub.separator(factor=2.0)
+                sub.label(text=f"Writing in: {writing}", icon="GREASEPENCIL")
+            for ref in cited_of(origin):
+                sub = col.row()
+                sub.separator(factor=2.0)
+                sub.label(text=f"↗ {ref} · cited, read only", icon="LIBRARY_DATA_DIRECT")
         for i in indices:
             row = rows[i]
             graph = get_graph(row.name)

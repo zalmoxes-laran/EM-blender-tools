@@ -110,29 +110,14 @@ class EM_MT_mode(bpy.types.Menu):
 
     bl_idname = "EM_MT_mode"
     bl_label = "Mode"
-    bl_description = "How this session works: Standalone, Sidecar or Room"
+    bl_description = ("Where you work: on this computer, with EMStudio, or in a "
+                      "collaborative room")
 
     def draw(self, context):
-        from .sync_manager import operators as sync_ops
-
-        layout = self.layout
-        vero = sync_ops.session_mode(context)
-        for valore, etichetta, spiega in sync_ops.SESSION_MODES:
-            riga = layout.row()
-            op = riga.operator(
-                "em.set_mode",
-                text=("● " if valore == vero else "    ") + etichetta,
-                icon=('RADIOBUT_ON' if valore == vero else 'RADIOBUT_OFF'))
-            op.mode = valore
-        scarto = sync_ops.divergenza(context)
-        if scarto:
-            layout.separator()
-            layout.label(text=scarto, icon='ERROR')
-        ultima = sync_ops.ULTIMA_TRANSIZIONE
-        if ultima.get("message"):
-            layout.separator()
-            layout.label(text=str(ultima["message"])[:70],
-                         icon='INFO' if ultima.get("ok") else 'CANCEL')
+        # Z1 · the same content as «Change…» of «Where you work»: the three
+        # places, with the words of EMStudio's Connection panel
+        from .sync_manager.windows import draw_places
+        draw_places(self.layout, context)
 
 
 class EM_MT_settings(bpy.types.Menu):
@@ -181,15 +166,17 @@ class EM_MT_about(bpy.types.Menu):
 
 
 class EM_MT_header(bpy.types.Menu):
-    """Il menu **EM** stesso: tre sottomenu e nient'altro."""
+    """Il menu **EM** stesso: i sottomenu e nient'altro."""
 
     bl_idname = "EM_MT_header"
     bl_label = "EM"
-    bl_description = "EM Tools: mode, utilities, settings and about"
+    bl_description = "EM Tools: mode, export, utilities, settings and about"
 
     def draw(self, context):
         layout = self.layout
         layout.menu("EM_MT_mode", icon='LINKED')
+        # T1 · the exporters left the tabs: rare gestures, and a file's
+        layout.menu("EM_MT_export", icon='EXPORT')
         layout.menu("EM_MT_utils", icon='TOOL_SETTINGS')
         layout.menu("EM_MT_settings", icon='PREFERENCES')
         layout.menu("EM_MT_about", icon='INFO')

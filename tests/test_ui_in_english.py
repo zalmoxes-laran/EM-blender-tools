@@ -84,8 +84,9 @@ def test_NESSUNA_FRASE_ITALIANA_NELL_INTERFACCIA():
 
 def test_I_NOMI_DELLE_TAB_E_DEI_PANNELLI():
     sync = (_REPO / "sync_manager" / "panel.py").read_text()
-    assert 'bl_label = "Room"' in sync
-    assert 'bl_category = "EM Room"' in sync
+    # T1/Z1 (E.D., 5 Oct 2026) · two tabs: «Where you work» heads the tab EM
+    assert 'bl_label = "Where you work"' in sync
+    assert 'bl_category = "EM"' in sync
     info = (_REPO / "graph_info" / "ui.py").read_text()
     assert 'bl_label = "The graph"' in info
     assert 'text="The graph"' in info

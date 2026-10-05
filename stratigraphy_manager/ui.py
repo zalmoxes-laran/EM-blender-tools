@@ -95,7 +95,8 @@ class EM_STRAT_UL_List(UIList):
             socket_icon = _get_graph_icon(item.source_graph)
             badge_split = remaining.split(factor=0.18)
             badge_row = badge_split.row(align=True)
-            badge_row.label(text=item.source_graph, icon=socket_icon)
+            from ..landscape_system.populate_functions import graph_label
+            badge_row.label(text=graph_label(item.source_graph), icon=socket_icon)
             remaining = badge_split.column(align=True)
 
         # Name + containment icon column (28% of remaining space)

@@ -70,13 +70,30 @@ def get_all_loaded_graphs(context):
             graph = get_graph(graph_file.name)
             
             if graph and hasattr(graph, 'nodes') and len(graph.nodes) > 0:
-                graph_code = graph.attributes.get('graph_code', 'UNKNOWN')
-                loaded_graphs[graph_code] = graph
+                # S1 (MICRO-DOVE-LAVORI, 5 Oct 2026) · keyed by graph_id, the
+                # graph's identity: two graphs without a code both read
+                # 'UNKNOWN' and the second replaced the first. The code is the
+                # label the badge shows (`graph_label`), never the key.
+                loaded_graphs[str(getattr(graph, 'graph_id', '') or graph_file.name)] = graph
                 
         except Exception as e:
             print(f"[Landscape] Error loading graph {graph_file.name}: {e}")
     
     return loaded_graphs
+
+def graph_label(graph_id):
+    """The code a graph is shown by in the Landscape badge (its `graph_code`),
+    or a short id when it has none."""
+    try:
+        from s3dgraphy import get_graph
+        graph = get_graph(graph_id)
+        code = graph.attributes.get('graph_code') if graph is not None else None
+    except Exception:
+        code = None
+    if code and code != 'UNKNOWN':
+        return str(code)
+    return str(graph_id)[:8]
+
 
 def clear_all_lists(context):
     """Pulisce tutte le liste principali (centralizzate e legacy)"""
