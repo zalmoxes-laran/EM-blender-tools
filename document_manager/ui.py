@@ -701,6 +701,17 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             except Exception as _e:
                 detail_box.label(text=f"(metadata unavailable: {_e})", icon='ERROR')
 
+            # D1 · where the document's file comes from: its DTC as a card
+            try:
+                from .. import provenance_card
+                from ..functions import check_active_graph
+                _ok, _g = check_active_graph(context, show_message=False)
+                if _ok and _g is not None:
+                    provenance_card.draw(layout, context,
+                                         provenance_card.resource_linked_to(_g, item.node_id))
+            except Exception as _e:  # noqa: BLE001 — a card never breaks the panel
+                print(f"[Document Manager] where it comes from: {_e}")
+
         # --- Settings (collapsible) ---
         settings_header = layout.row()
         settings_header.prop(

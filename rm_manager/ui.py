@@ -668,6 +668,18 @@ class VIEW3D_PT_RM_Manager(Panel):
                 help_op.project = 'em_tools'
                 av.draw_levels(layout, lod_obj, scope="RM_LIST")
 
+            # D1 · where the model comes from: its DTC as a card
+            if lod_obj is not None and graph_available:
+                try:
+                    from .. import provenance_card
+                    from ..functions import check_active_graph
+                    _ok, _g = check_active_graph(context, show_message=False)
+                    if _ok and _g is not None:
+                        provenance_card.draw(layout, context,
+                                             provenance_card.resource_of_object(_g, lod_obj, scene))
+                except Exception as exc:  # noqa: BLE001 — a card never breaks the panel
+                    print(f"[RM] where it comes from: {exc}")
+
             # Show the list of associated epochs
             box = layout.box()
             row = box.row(align=True)

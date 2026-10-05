@@ -526,7 +526,13 @@ def test_B6_IL_DTC_E_USCITO_dal_data_tree_e_resta_in_resources():
     assert "draw_dtc_section" not in _codice(SETUP), \
         "il DTC è ancora disegnato dal Data Tree"
     res = (_REPO / "resources_tab" / "ui.py").read_text()
-    assert "draw_dtc_section" in res, "il DTC è sparito anche da Resources"
+    #: D1 (E.D., 5 Oct 2026) · and out of Files too: a card per selected asset
+    #: (`provenance_card`) in RM, Asset versions, Files and Document Manager
+    assert "draw_dtc_section" not in _codice(res), "the DTC section is back in Files"
+    assert "provenance_card.draw" in res
+    for rel in ("rm_manager/ui.py", "sync_manager/asset_versions.py",
+                "document_manager/ui.py"):
+        assert "provenance_card.draw" in (_REPO / rel).read_text(), rel
 
 
 def test_LA_SEZIONE_UTILS_E_USCITA_dal_pannello():

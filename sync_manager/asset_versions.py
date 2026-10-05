@@ -1636,6 +1636,18 @@ def _operator_classes():  # pragma: no cover — bpy
                         layout.label(text=line, icon="BLANK1")
             # U1 · the one box of the levels, the same in RM Manager and Anastylosis
             draw_levels(layout, obj, scope="SCENE")
+            # D1 · where the version shown comes from: its DTC as a card
+            if obj is not None:
+                try:
+                    from .. import provenance_card
+                    from ..functions import check_active_graph
+                    _ok, _g = check_active_graph(context, show_message=False)
+                    if _ok and _g is not None:
+                        provenance_card.draw(layout, context,
+                                             provenance_card.resource_of_object(
+                                                 _g, obj, context.scene))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[asset versions] where it comes from: {exc}")
             # F1 · the starting package is in «The .blend in the room…», with
             # the snapshots (`windows.EM_OT_room_blend`)
 

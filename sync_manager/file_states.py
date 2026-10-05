@@ -526,6 +526,11 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
             row.operator("em.files_keep", text="", icon="IMPORT").resource_id = r["id"]
         if r.get("path"):
             row.operator("em.files_open_where", text="", icon="FILEBROWSER").path = r["path"]
+        # D1 · where it comes from: its card under the list (Files has no
+        # selection of its own, so the row's «Where it comes from» button selects it)
+        shown = getattr(context.window_manager, "em_provenance_resource", "") == r["id"]
+        row.operator("em.provenance_show", text="", icon="NODETREE",
+                     depress=shown).resource_id = r["id"]
         if said.get("doc"):
             sub = col.row(align=True)
             sub.active = False

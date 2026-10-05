@@ -121,9 +121,14 @@ class EM_PT_resources(bpy.types.Panel):
         if sigilli:
             self._section(layout, p, "show_seals", f"Seals ({len(sigilli)})",
                           lambda box: self._draw_seals(box, p, sigilli))
-        # the DTC consultation, drawn once (its own toggle): F1 took away the
-        # box that only wrapped it, and «Object store (MinIO)» — one upload
-        self._draw_dtc(layout, context)
+        # D1 (E.D., 5 Oct 2026) · the DTC is no longer a section here: «al
+        # massimo una card per dire da dove viene un asset selezionato». The
+        # card of the row chosen with its «Where it comes from» button (`provenance_card`); the authoring
+        # of processes is EMStudio's (`dtc_authoring.ui.draw_dtc_section` stays
+        # importable, drawn by no panel)
+        from .. import provenance_card
+        provenance_card.draw(layout, context,
+                             getattr(context.window_manager, "em_provenance_resource", ""))
 
     # ── section helper ──────────────────────────────────────────────────────────
     def _section(self, layout, p, prop, title, body):
@@ -244,15 +249,6 @@ class EM_PT_resources(bpy.types.Panel):
                 col.label(text=line, icon='FILE_TEXT' if i == 0 else 'BLANK1')
             op = body.operator("em.seal_copy_json", icon='COPYDOWN')
             op.resource_id = r["id"]
-
-    # ── DTC (the consultation, B6: its one place in EM Tools) ────────────────
-    def _draw_dtc(self, layout, context):
-        try:
-            from ..dtc_authoring.ui import draw_dtc_section
-            draw_dtc_section(layout, context)
-        except Exception as exc:                   # noqa: BLE001
-            layout.label(text=f"DTC: {exc}", icon='ERROR')
-
 
 class EM_MT_project_folder(bpy.types.Menu):
     """F1 · the project folder: where the DosCo is, the scan, a new EM project

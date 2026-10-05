@@ -408,6 +408,7 @@ if DEPENDENCIES_LOADED:
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
             dtc_authoring,  # DTC (Digital Twin Chain) authoring panel (ECHOES)
             resources_tab,  # R4: EM Scene tab over the FS-index resource backend
+            provenance_card,  # D1: «Where it comes from», the DTC of one asset as a card
             publication_deck_ui,  # NIGHT-DECK: the Publication Deck (EM Bridge)
             shelf_tool,  # Shelf v2 C1: absorbed into Resources & Shelf (EM16-UX)
             proxy_surface_tools,  # EM16-UX: container for the drawing tools
@@ -692,6 +693,7 @@ def _core_independent_modules():
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
         resources_tab,  # EM Scene tab (Shelf/RM/DTC/MinIO over FS backend; Documents → Document Manager)
+        provenance_card,  # D1: the card «Where it comes from» and its operator
         # NIGHT-DECK · il Publication Deck. In FASE 1 perché non dipende da
         # nessun altro pannello: legge il grafo attivo e una property di scena
         # sua, e disegna una cache. Il calcolo sta fuori, senza `bpy`.
