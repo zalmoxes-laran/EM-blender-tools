@@ -51,15 +51,56 @@ def room_state(origin) -> tuple:
     return ("not connected: Reconnect in Where you work to send edits", "UNLINKED")
 
 
+def _text_of(name) -> str:
+    """A graph's name as s3dgraphy keeps it: a string, or a dict by language."""
+    if isinstance(name, dict):
+        for key in ("en", "it"):
+            if name.get(key):
+                return str(name[key])
+        return next((str(v) for v in name.values() if v), "")
+    return str(name or "")
+
+
+def study_title(origin) -> str:
+    """V2 · what the study in a room is called: the room's title as the node
+    said it (the list, the creation, the entry), else its id."""
+    try:
+        from ..sync_manager import where
+        return where.ROOM_TITLES.get(origin.room_id) or origin.room_id
+    except Exception:  # noqa: BLE001
+        return origin.room_id
+
+
+def graph_name(row, origin=None) -> tuple:
+    """V2 · `(name, note)` of a graph: its code, its own name, else its id.
+    A room made before S1 holds its graph under the room's id: then the name
+    is the study's title, and `note` says so."""
+    code = str(getattr(row, "graph_code", "") or "")
+    if code:
+        return code, ""
+    try:
+        from s3dgraphy import get_graph
+        graph = get_graph(row.name)
+    except Exception:  # noqa: BLE001
+        graph = None
+    own = _text_of(getattr(graph, "name", "")) if graph is not None else ""
+    if own and own != row.name:
+        return own, ""
+    if origin is not None and origin.is_room and row.name == origin.room_id:
+        return study_title(origin), "the study's title, the graph has none"
+    return row.name, ""
+
+
 def writing_in(origin, rows, active) -> str:
-    """S1 · «Writing in: <graph>» — the graph of the room's study the edits
-    are for: the active one when it is in this room's branch."""
+    """S1 · «Writing in: <graph>» — the graph the edits are for: the active
+    one when it is in this branch. V2 · by its name, never the room's id."""
     if not (0 <= active < len(rows)):
         return ""
     row = rows[active]
     if graph_origins.origin_of(row, abspath=_abspath).key != origin.key:
         return ""
-    return getattr(row, "graph_code", "") or row.name
+    name, note = graph_name(row, origin)
+    return f"{name} ({note})" if note else name
 
 
 def cited_of(origin) -> list:
@@ -201,7 +242,10 @@ def draw_graph_tree(layout, context, em_tools) -> None:
     for origin, indices in branches:
         head = col.row(align=True)
         if origin.is_room:
-            head.label(text=origin.label, icon="WORLD")
+            # V2 · the study the room holds — where, with whom and as what
+            # is «Where you work»'s to say, not repeated here
+            head.label(text=f"{study_title(origin)} · the study in the room",
+                       icon="COMMUNITY")
         elif origin.is_file:
             head.label(text=origin.label,
                        icon="FILE" if origin.is_emjson else "FILE_BLANK")
@@ -214,16 +258,12 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             op = head.operator("em.graph_origin_save", text="", icon="FILE_TICK",
                                emboss=False)
             op.index = indices[0]
-        if origin.is_room:
-            state, icon = room_state(origin)
+        writing = writing_in(origin, rows, active)
+        if writing:
             sub = col.row()
             sub.separator(factor=2.0)
-            sub.label(text=state, icon=icon)
-            writing = writing_in(origin, rows, active)
-            if writing:
-                sub = col.row()
-                sub.separator(factor=2.0)
-                sub.label(text=f"Writing in: {writing}", icon="GREASEPENCIL")
+            sub.label(text=f"Writing in: {writing}", icon="GREASEPENCIL")
+        if origin.is_room:
             for ref in cited_of(origin):
                 sub = col.row()
                 sub.separator(factor=2.0)
@@ -234,7 +274,7 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             present = bool(graph is not None and getattr(graph, "nodes", None))
             line = col.row(align=True)
             line.separator(factor=2.0)
-            label = row.graph_code if getattr(row, "graph_code", "") else row.name
+            label = graph_name(row, origin)[0]
             op = line.operator(
                 "em.graph_activate", text=label,
                 icon="RADIOBUT_ON" if i == active else "RADIOBUT_OFF",

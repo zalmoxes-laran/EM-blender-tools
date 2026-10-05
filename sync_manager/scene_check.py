@@ -316,7 +316,10 @@ def counts_line(report: Dict[str, Any], at: str = "") -> str:
     hh:mm». `changed` counts both directions: older here than the graph, and
     edited here and not yet sent."""
     edited = int(report.get("edited") or 0)
-    parts = [f"◉ {len(report.get('here') or [])} here",
+    # what Sync just downloaded is here now (measured: «◉ 0 here» after 66
+    # had arrived)
+    here = len(report.get('here') or []) + int(report.get("downloaded") or 0)
+    parts = [f"◉ {here} here",
              f"✕ {len(report.get('missing') or []) - int(report.get('downloaded') or 0)} missing",
              f"≠ {len(report.get('changed') or []) + edited} changed",
              f"↗ {len(report.get('external') or [])} references",

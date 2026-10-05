@@ -350,7 +350,8 @@ class EM_OT_manage_object_prefixes(Operator):
 class EMToolsAddFile(Operator):
     bl_idname = "em_tools.add_file"
     bl_label = "Add graph"
-    bl_description = "Add a new EM graph slot (set its Path to a .graphml or .em.json)"
+    bl_description = ("Add a graph to the study: a new slot, whose Path you set "
+                      "to a .graphml or an .em.json")
 
     def execute(self, context):
 
@@ -367,7 +368,8 @@ class EMToolsAddFile(Operator):
 class EMToolsRemoveFile(Operator):
     bl_idname = "em_tools.remove_file"
     bl_label = "Remove graph"
-    bl_description = "Remove the selected EM graph from the list"
+    bl_description = ("Take the selected graph off the study in this scene — "
+                      "its file is not deleted")
 
     def execute(self, context):
         em_tools = context.scene.em_tools

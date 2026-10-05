@@ -381,7 +381,12 @@ def test_C1_LA_RIGA_DI_COMANDI_RIEMPIE_LA_RIGA():
     assert "ui_units_x" not in blocco, (
         "ui_units_x fissa la larghezza: i bottoni non riempiono più la riga")
     #: il contenitore a celle, che è ciò che DAVVERO riempie la riga
-    assert "columns=7" in blocco, "sei comandi più il separatore, sette celle"
+    #: V2 (MICRO-IL-PANNELLO-DICE-IL-VERO): the commands carry their names,
+    #: two rows of three cells
+    assert "columns=3" in blocco, "two rows of three named commands"
+    for name in ('"Add graph"', '"Reload"', '"Save"', '"Save as…"', '"Multigraph"',
+                 '"Remove graph"'):
+        assert name in blocco, f"{name} has its name on the button"
     assert "even_columns=True" in blocco, (
         "senza even_columns le celle si dimensionano sul contenuto e i "
         "bottoni tornano stretti")
@@ -389,7 +394,7 @@ def test_C1_LA_RIGA_DI_COMANDI_RIEMPIE_LA_RIGA():
     assert blocco.count("cmd.row(align=True)") >= 5, (
         "un bottone per cella: `cmd.operator(...)` diretto li impila in una")
     assert "cmd.scale_y" in blocco, "senza scale_y i bottoni sono bassi"
-    #: i sei comandi, tutti icona-sola
+    #: the six commands (V2: named; the ⓘ of Multigraph alone stays an icon)
     for idname in ("em_tools.add_file", "em_tools.remove_file",
                    "export.em_save", "export.em_saveas",
                    "em.toggle_landscape_mode", "wm.call_menu"):
@@ -405,11 +410,11 @@ def test_C1_LA_RIGA_DI_COMANDI_RIEMPIE_LA_RIGA():
     assert blocco.index("via.separator()") < blocco.index("em_tools.remove_file")
     assert blocco.index("em_tools.add_file") < blocco.index("via.separator()")
 
-    #: …e nessuna etichetta di testo è tornata nella RIGA (lo stato vuoto ha
-    #: il suo bottone con il testo, ed è un'altra cosa: vedi le prove B)
-    for morto in ('text="Remove graph"', 'text="Save As…"',
-                  'text="Multigraph'):
-        assert morto not in blocco, f"{morto} è tornato"
+    #: V2 (MICRO-IL-PANNELLO-DICE-IL-VERO, E.D. 5 Oct 2026): the names CAME
+    #: BACK on purpose — beside «Where you work», whose commands say what they
+    #: do, seven bare icons were a riddle. What stays fenced is the old
+    #: capitalisation «Save As…».
+    assert 'text="Save As…"' not in blocco
 
 
 def test_C1_E_I_TOOLTIP_VENGONO_DAGLI_OPERATORI_non_da_una_tupla_morta():
@@ -714,8 +719,10 @@ def test_B_LA_GUIDA_USA_draw_requirement_row_e_SPARISCE():
     #: «nessun grafo caricato in tutto», cioè SOLO PER IL PRIMO GRAFO. Con la
     #: condizione di prima la guida tornava quando si aggiungeva il secondo
     #: grafo, e lì è pleonastica: la sequenza la si è appena fatta.
-    assert 'if not _stato["grafi_caricati"] and self._guida_richiesta():' in corpo
-    i = corpo.index('if not _stato["grafi_caricati"]')
+    #: V2 · and not for a study that comes from a room (no Path to set there)
+    assert ('if (not _stato["grafi_caricati"] and not _da_stanza\n'
+            '                and self._guida_richiesta()):') in corpo
+    i = corpo.index('if (not _stato["grafi_caricati"]')
     assert "self._guida(layout, _stato)" in corpo[i:i + 200]
     assert 'if not _stato["caricato"]:' not in corpo, (
         "la guida non deve tornare per il secondo grafo")
@@ -748,13 +755,11 @@ def test_B_IL_CARICAMENTO_E_IN_EVIDENZA_finche_non_e_fatto():
     #: bottone sopra il campo da riempire prima invertiva i due passi
     assert corpo.index('"graphml_path", text="Path"') < i
 
-    #: e nella riga, senza testo (quindi icona)
+    #: and in the row, as «Reload» (V2: every command there has its name)
     i = corpo.index("def _riga_comandi")
     j = corpo.index("    def draw(self, context):", i)
     riga = corpo[i:j]
-    #: nella riga, senza `testo=` — quindi icona
-    assert "self._op_carica(ricarica, stato)" in riga
-    assert "testo=" not in riga, "nella riga il caricamento è icona, non testo"
+    assert 'self._op_carica(ricarica, stato, testo="Reload"' in riga
 
 
 def test_B_IL_DISPATCH_DEL_CARICAMENTO_STA_IN_UN_POSTO_SOLO():

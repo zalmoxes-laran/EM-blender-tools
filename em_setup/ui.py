@@ -671,7 +671,7 @@ class EM_SetupPanel(bpy.types.Panel):
             inactive=not stato["ha_path"])
 
     @staticmethod
-    def _op_carica(layout, stato, testo=""):
+    def _op_carica(layout, stato, testo="", icona=None):
         """Il comando di caricamento, col dispatch sul formato.
 
         Due importer e non uno: un entry `em.json` passato all'importer
@@ -683,61 +683,43 @@ class EM_SetupPanel(bpy.types.Panel):
         """
         if stato["emjson"]:
             op = layout.operator("import.em_emjson", text=testo,
-                                 icon='IMPORT' if testo else 'FILE_REFRESH')
+                                 icon=icona or ('IMPORT' if testo else 'FILE_REFRESH'))
             op.file_index = stato["indice"]
         else:
             op = layout.operator("import.em_graphml", text=testo,
-                                 icon='IMPORT' if testo else 'FILE_REFRESH')
+                                 icon=icona or ('IMPORT' if testo else 'FILE_REFRESH'))
             op.graphml_index = stato["indice"]
         return op
 
     def _riga_comandi(self, context, layout, em_tools, scene, stato):
-        """I sei comandi sui file EM, tutti della stessa dimensione.
+        """The commands on the graphs, each with its name (V2).
 
-        La larghezza piena la dà `grid_flow(columns=…, even_columns=True)`:
-        un bottone icona-sola (`text=""`) in un `row()` piatto prende la sua
-        larghezza NATURALE — quadrata — e la riga non gli passa lo spazio che
-        avanza. Misurato a video in UX2, dopo che togliere `ui_units_x` non
-        era bastato. `scale_y` per l'altezza.
-
-        Restano icona-sola: i tooltip fanno da etichetta e sono quelli degli
-        operatori (`bl_description`), tutti parlanti. Dove il bottone è
-        spento la ragione la dice `poll_message_set` nei poll di
-        `export.em_save` / `export.em_saveas`: spento con la ragione insegna,
-        spento muto fa sembrare l'add-on rotto.
-
-        Il separatore stacca Remove graph, che è l'unico distruttivo (e
-        conserva la sua conferma), dagli altri.
+        The full width comes from `grid_flow(columns=…, even_columns=True)`.
+        Where a button is off the reason is in its tooltip (`poll_message_set`
+        in the polls of `export.em_save` / `export.em_saveas`): off with the
+        reason teaches, off and mute looks like a broken add-on. Remove graph,
+        the only destructive one, is last and keeps its confirmation.
         """
-        # Sette celle: sei comandi più Reload, che UX3 ha portato nella riga
-        # (a grafo caricato il caricamento è un'azione ripetibile, non un
-        # passo da fare).
-        #
-        # Il separatore di Remove sta DENTRO la sua cella e non è una cella
-        # sua: come cella ottava mandava la riga a capo su due righe —
-        # misurato a video, `grid_flow` decideva quattro colonne e ne
-        # impilava tre sotto.
-        cmd = layout.grid_flow(row_major=True, columns=7,
+        # V2 (MICRO-IL-PANNELLO-DICE-IL-VERO) · the commands on the graphs with
+        # their NAMES: seven icons alone were a riddle beside «Where you work»,
+        # whose commands all say what they do. Two rows of three, the
+        # destructive one last and apart; the tooltips are the operators'.
+        cmd = layout.grid_flow(row_major=True, columns=3,
                                even_columns=True, even_rows=False,
                                align=True)
-        cmd.scale_y = 1.3
-        cmd.row(align=True).operator('em_tools.add_file', text="",
-                                     icon='ADD')
+        cmd.scale_y = 1.2
+        cmd.row(align=True).operator('em_tools.add_file', text="Add graph", icon='ADD')
 
-        # Reload: a grafo caricato il comando di caricamento vive QUI, come
-        # icona, perché è un'azione ripetibile e non più un passo da fare.
+        # Reload: once a graph is loaded, loading is a repeatable action
         ricarica = cmd.row(align=True)
         ricarica.enabled = stato["ha_path"]
-        self._op_carica(ricarica, stato)
+        self._op_carica(ricarica, stato, testo="Reload", icona='FILE_REFRESH')
 
-        cmd.row(align=True).operator('export.em_save', text="",
-                                     icon='FILE_TICK')
-        cmd.row(align=True).operator('export.em_saveas', text="",
-                                     icon='FILE_NEW')
+        cmd.row(align=True).operator('export.em_save', text="Save", icon='FILE_TICK')
+        cmd.row(align=True).operator('export.em_saveas', text="Save as…", icon='FILE_NEW')
 
-        # Multigraph Mode: è un comando sui file EM come gli altri. Lo stato
-        # lo rende l'icona (WORLD accesa / WORLD_DATA spenta, con `depress`),
-        # non una parola.
+        # Multigraph Mode is a command on the graphs like the others; its
+        # state is the depressed button, its explanation the ⓘ beside it
         _loaded = []
         for _gf in getattr(em_tools, "graphml_files", ()) or ():
             if getattr(_gf, 'is_graph', False):
@@ -748,52 +730,27 @@ class EM_SetupPanel(bpy.types.Panel):
                     _loaded.append(_gf)
         _attiva = getattr(scene, 'landscape_mode_active', False)
         multi = cmd.row(align=True)
-        multi.enabled = _attiva or len(_loaded) >= 2
-        _op = multi.operator("em.toggle_landscape_mode", text="",
-                             icon='WORLD' if _attiva else 'WORLD_DATA',
-                             depress=_attiva)
+        sub = multi.row(align=True)
+        sub.enabled = _attiva or len(_loaded) >= 2
+        _op = sub.operator("em.toggle_landscape_mode", text="Multigraph",
+                           icon='WORLD' if _attiva else 'WORLD_DATA',
+                           depress=_attiva)
         _op.enable = not _attiva
-
-        _iop = cmd.row(align=True).operator("wm.call_menu", text="",
-                                            icon='INFO')
+        _iop = multi.operator("wm.call_menu", text="", icon='INFO')
         _iop.name = "EM_MT_LandscapeInfo"
 
-        # …e per ultimo il distruttivo, staccato dal separatore che sta
-        # nella sua stessa cella.
         via = cmd.row(align=True)
         via.separator()
-        via.operator('em_tools.remove_file', text="", icon='REMOVE')
+        via.operator('em_tools.remove_file', text="Remove graph", icon='REMOVE')
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         em_tools = scene.em_tools
 
-        # ========================================================================
-        # WHOSE DOCUMENT IS THIS? (the room, when there is one)
-        # ========================================================================
-        # The design turn: the room is the primitive and **the tree IS the room's
-        # container** when you are in one (EM_design_room-come-workspace §3). The
-        # adopt already fills it; this says so at the top, because a tree that
-        # looks local while it is somebody's shared room is a tree you edit with
-        # the wrong expectations. Leave the room and the line disappears — the
-        # tree is local again, which is also true.
-        try:
-            from ..sync_manager import operators as _sync_ops
-            _room = _sync_ops.room_status(context)
-            if _room.get("joined"):
-                room_box = layout.box()
-                room_box.label(
-                    text=f"In {_room.get('room_id')} · "
-                         f"{_room.get('members', 0)} present"
-                         + (f" · as {_room['author']}" if _room.get("author") else ""),
-                    icon="COMMUNITY")
-                if _room.get("can_write") is False:
-                    room_box.label(
-                        text=f"Read-only ({_room.get('role') or 'viewer'}) — "
-                             f"the room refuses edits from here", icon="LOCKED")
-        except Exception:  # noqa: BLE001 — the tree must draw without the bridge
-            pass
+        # V2 · where you work, with whom and as what is «Where you work»'s, just
+        # above: the tree says WHAT is mounted — the study (a file or the
+        # room), its graphs, the one you write in — and nothing of the room.
 
         # The datamodel the wheel carries, when it is not the one the pin
         # promises (aligned draws nothing: a quiet panel is the normal case).
@@ -835,7 +792,13 @@ class EM_SetupPanel(bpy.types.Panel):
         # Il secondo grafo non resta senza indicazioni: i comandi spenti
         # dicono la ragione nel tooltip (`poll_message_set`) e il `Load`
         # in evidenza compare comunque appena c'è un path.
-        if not _stato["grafi_caricati"] and self._guida_richiesta():
+        # V2 · not in a room: there the study comes from the room, and «Set
+        # path» would teach the wrong thing (Where you work says Reconnect)
+        from .. import graph_origins as _go
+        _da_stanza = any(_go.origin_of(r, abspath=bpy.path.abspath).is_room
+                         for r in em_tools.graphml_files)
+        if (not _stato["grafi_caricati"] and not _da_stanza
+                and self._guida_richiesta()):
             self._guida(layout, _stato)
 
         # M1 · the graphs as a tree «file or room → graphs», like EMStudio's
@@ -901,9 +864,13 @@ class EM_SetupPanel(bpy.types.Panel):
 
             active_file = em_tools.graphml_files[em_tools.active_file_index]
 
-            # Path to GraphML
-            row = layout.row(align=True)
-            row.prop(active_file, "graphml_path", text="Path")
+            # Path to the file. V2 · in a room the study is the room's: an
+            # empty Path there is not drawn
+            from .. import graph_origins as _go
+            _in_room = _go.origin_of(active_file, abspath=bpy.path.abspath).is_room
+            if not (_in_room and not active_file.graphml_path):
+                row = layout.row(align=True)
+                row.prop(active_file, "graphml_path", text="Path")
 
             # PASSO 3 · il caricamento, in evidenza e CON IL TESTO, finché
             # il grafo non è caricato. A grafo caricato torna icona nella

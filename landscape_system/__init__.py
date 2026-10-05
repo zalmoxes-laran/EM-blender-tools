@@ -47,7 +47,8 @@ class EM_OT_ToggleLandscapeMode(Operator):
     """Toggle Landscape mode on/off"""
     bl_idname = "em.toggle_landscape_mode"
     bl_label = "Toggle Landscape Mode"
-    bl_description = "Enable/disable Landscape mode for multiple Extended Matrices"
+    bl_description = ("Multigraph: show every loaded graph of the study together "
+                      "(needs two graphs or more)")
     
     enable: BoolProperty(
         name="Enable",
