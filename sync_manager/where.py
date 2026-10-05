@@ -58,6 +58,36 @@ def _glyph(state: str, fallback: str) -> str:
         return fallback
 
 
+def quiet(message: str) -> bool:
+    """A transition that changed nothing («already standalone»): not a message."""
+    return message.startswith("already ")
+
+
+def scene_status(tally: Optional[Dict[str, int]]) -> tuple:
+    """P1 · the scene in a room in one word: `(icon, word, numbers)`.
+
+    «✓ aligned», «✕ N to download», «≠ N changed» (both when both are true);
+    `numbers` is the long line of the counts, for the tooltip and Log…. No
+    tally (the scene not checked yet) → `("", "", "")`."""
+    if not tally:
+        return ("", "", "")
+    missing = max(0, int(tally.get("missing") or 0))
+    changed = int(tally.get("changed") or 0)
+    numbers = (f"◉ {int(tally.get('here') or 0)} here · ✕ {missing} missing · "
+               f"≠ {changed} changed · ↗ {int(tally.get('external') or 0)} references · "
+               f"◆ {int(tally.get('only_here') or 0)} only here")
+    if tally.get("at"):
+        numbers += f" · checked {tally['at']}"
+    words = []
+    if missing:
+        words.append(f"{_glyph('file.missing', '✕')} {missing} to download")
+    if changed:
+        words.append(f"{_glyph('sync.conflict', '≠')} {changed} changed")
+    if not words:
+        return ("CHECKMARK", f"{_glyph('sync.aligned', '✓')} aligned", numbers)
+    return ("IMPORT" if missing else "ERROR", " · ".join(words), numbers)
+
+
 def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     """`{place, who, message, log}`: each `(icon, text)`; the message also
     `{op, op_text, op_props}` when a gesture fixes it."""
@@ -112,7 +142,9 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
         who = f"{s['user']} ✓ on " if s.get("user") else "signed in to "
         out["who"] = ("USER", f"{who}{host_of(s['signed_in_to'])} — none needed here")
     else:
-        out["who"] = ("USER", "not signed in to a node — none needed here")
+        # P1 (6 Oct 2026) · outside a room and signed in nowhere there is
+        # nothing to say about who you are: the zone is empty, not drawn
+        out["who"] = ("USER", "")
 
     # ── MESSAGE: one sentence, the most recent useful one ───────────────────
     msg: Dict[str, Any] = {"icon": "INFO", "text": "", "op": "", "op_text": "",
@@ -146,7 +178,7 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     elif place == PLACE_EMSTUDIO and s.get("same_document") is False:
         msg.update(icon="ERROR", text="≠ EMStudio has another document open: a node id "
                                       "from there will not be found here")
-    elif s.get("transition"):
+    elif s.get("transition") and not quiet(str(s["transition"])):
         msg.update(text=str(s["transition"]))
     elif s.get("signin_line"):
         msg.update(text=str(s["signin_line"]))
@@ -170,8 +202,9 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
             log = ("CHECKMARK", f"{_glyph('sync.aligned', '✓')} aligned · {sent} sent, "
                                 f"{answered} answered")
     else:
+        # P1 · «no refused edit» said nothing: an empty log is not drawn
         log = (("ERROR", f"✕ {not_applied} edit{'s' if not_applied != 1 else ''} not applied")
-               if not_applied else ("CHECKMARK", "no refused edit"))
+               if not_applied else ("CHECKMARK", ""))
     if place != PLACE_ROOM and waiting:
         log = ("TIME", f"{_glyph('sync.pending', '⋯')} {waiting} edit"
                        f"{'s' if waiting != 1 else ''} waiting for their room")

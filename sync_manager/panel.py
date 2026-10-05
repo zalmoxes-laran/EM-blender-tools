@@ -81,12 +81,19 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
     # ── the four zones ──────────────────────────────────────────────────────
 
     def _zones(self, layout, z):
+        # P1 (6 Oct 2026) · a zone that says nothing is not drawn: on this
+        # computer, signed in nowhere and nothing refused, the panel is the
+        # one line «□ On this computer · <file>» with Change… (and Log… as an
+        # icon, the transitions are still there)
         col = layout.column(align=True)
         row = col.row(align=True)
         row.alert = not z["healthy"]
         row.label(text=z["place"][1], icon=z["place"][0])
         row.operator("em.where_change", text="Change…")
-        col.label(text=z["who"][1], icon=z["who"][0])
+        if not z["log"][1]:
+            row.operator("em.sync_log", text="", icon="TEXT")
+        if z["who"][1]:
+            col.label(text=z["who"][1], icon=z["who"][0])
         msg = z["message"]
         if msg["text"]:
             row = col.row(align=True)
@@ -96,9 +103,10 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
                 op = row.operator(msg["op"], text=msg["op_text"])
                 for key, value in (msg.get("op_props") or {}).items():
                     setattr(op, key, value)
-        row = col.row(align=True)
-        row.label(text=z["log"][1], icon=z["log"][0])
-        row.operator("em.sync_log", text="Log…")
+        if z["log"][1]:
+            row = col.row(align=True)
+            row.label(text=z["log"][1], icon=z["log"][0])
+            row.operator("em.sync_log", text="Log…")
 
     # ── the commands of each place ──────────────────────────────────────────
 
@@ -128,16 +136,28 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         # Sync reconnects by itself first, Open in EMStudio waits for the room
         offline = bool(state.get("offline") or state.get("not_connected"))
         col = layout.column(align=True)
-        if scene_check.ULTIMA_VERIFICA.get("counts"):
-            col.label(text=scene_check.ULTIMA_VERIFICA["counts"][:90])
+        # P1 · the scene in one word (aligned / N to download / N changed);
+        # the numbers in its tooltip and in Log…, where the long line of the
+        # counts went (it was cut in the middle at any sidebar width)
+        icon, word, _numbers = where.scene_status(scene_check.ULTIMA_VERIFICA.get("tally"))
         # V3 · «Materialise geometry» is a preference now; with it off, the
         # geometry the node holds and this scene does not is offered here
         left = int(scene_check.ULTIMA_VERIFICA.get("missing_left") or 0)
-        if left and not offline and not ops._preferenza("materialise_on_adopt", False):
+        offer = bool(left and not offline
+                     and not ops._preferenza("materialise_on_adopt", False))
+        if word or offer:
             row = col.row(align=True)
-            row.label(text=f"✕ {left} on the node, not here", icon="IMPORT")
-            op = row.operator("em.scene_check", text="Download the geometry now")
-            op.download = True
+            if word:
+                # «The scene · …»: the log above says the edits, this the files
+                sub = row.row(align=True)
+                sub.alignment = 'LEFT'
+                op = sub.operator("em.sync_log", text=f"The scene · {word}", emboss=False)
+                op.scene = True
+            else:
+                row.label(text=f"✕ {left} on the node, not here", icon="IMPORT")
+            if offer:
+                op = row.operator("em.scene_check", text="Download now")
+                op.download = True
         row = col.row(align=True)
         row.operator("em.scene_check", text="Sync the scene…", icon="FILE_REFRESH")
         row = col.row(align=True)

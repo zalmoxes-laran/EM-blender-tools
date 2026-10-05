@@ -41,10 +41,40 @@ entry = _load("entry")
 def test_on_this_computer_says_the_file_and_that_no_node_is_needed():
     z = where.zones({"place": "here", "study_file": "Templu Mare.em.json"})
     assert z["place"][1] == "□ On this computer · Templu Mare.em.json"
-    assert z["who"][1] == "not signed in to a node — none needed here"
+    # P1 (6 Oct 2026) · one line: the zones that say nothing are empty
+    assert z["who"][1] == ""
     assert z["message"]["text"] == ""
-    assert z["log"][1] == "no refused edit"
+    assert z["log"][1] == ""
     assert z["healthy"]
+
+
+def test_a_transition_that_changed_nothing_is_not_a_message():
+    z = where.zones({"place": "here", "transition": "already standalone"})
+    assert z["message"]["text"] == ""
+    said = where.zones({"place": "here", "transition": "bridge stopped (1 client(s) told)"})
+    assert said["message"]["text"] == "bridge stopped (1 client(s) told)"
+
+
+def test_signed_in_outside_a_room_is_still_said():
+    z = where.zones({"place": "here", "signed_in_to": "http://localhost:8000",
+                     "user": "dev"})
+    assert z["who"][1] == "dev ✓ on localhost:8000 — none needed here"
+    refused = where.zones({"place": "here", "not_applied": 2})
+    assert refused["log"][1] == "✕ 2 edits not applied"
+
+
+def test_the_scene_in_a_room_is_one_word_and_the_numbers_go_to_the_tooltip():
+    tally = {"here": 133, "missing": 0, "changed": 0, "external": 0,
+             "only_here": 22, "at": "01:37"}
+    icon, word, numbers = where.scene_status(tally)
+    assert (icon, word) == ("CHECKMARK", "✓ aligned")
+    assert numbers == ("◉ 133 here · ✕ 0 missing · ≠ 0 changed · ↗ 0 references · "
+                       "◆ 22 only here · checked 01:37")
+    assert where.scene_status({**tally, "missing": 66})[1] == "✕ 66 to download"
+    assert where.scene_status({**tally, "changed": 1})[1] == "≠ 1 changed"
+    assert where.scene_status({**tally, "missing": 2, "changed": 1})[1] == \
+        "✕ 2 to download · ≠ 1 changed"
+    assert where.scene_status(None) == ("", "", "")
 
 
 def test_the_red_alarm_of_the_reopened_file_is_a_sentence_with_reconnect():

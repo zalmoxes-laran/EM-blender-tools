@@ -372,14 +372,33 @@ class EM_OT_sync_log(bpy.types.Operator):
     bl_idname = "em.sync_log"
     bl_label = "Log"
 
+    #: P1 · drawn as the scene's word in a room: its tooltip is the numbers
+    scene: bpy.props.BoolProperty(default=False, options={"SKIP_SAVE"})  # type: ignore
+
+    @classmethod
+    def description(cls, context, properties):
+        if getattr(properties, "scene", False):
+            from . import scene_check
+            numbers = where.scene_status(scene_check.ULTIMA_VERIFICA.get("tally"))[2]
+            if numbers:
+                return f"The scene: {numbers}. Click for the Log"
+        return cls.__doc__
+
     def invoke(self, context, event):
         return context.window_manager.invoke_popup(self, width=520)
 
     def draw(self, context):
         from . import operators as ops
+        from . import scene_check
         layout = self.layout
         z = where.zones(where.read_state(context))
-        layout.label(text=z["log"][1], icon=z["log"][0])
+        if z["log"][1]:
+            layout.label(text=z["log"][1], icon=z["log"][0])
+        icon, word, numbers = where.scene_status(scene_check.ULTIMA_VERIFICA.get("tally"))
+        if word:
+            box = layout.box()
+            box.label(text=f"The scene · {word}", icon=icon)
+            box.label(text=numbers[:110])
         box = layout.box()
         box.label(text="Not applied", icon="CANCEL")
         for r in ops.RIFIUTI[:8] or []:

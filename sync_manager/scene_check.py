@@ -333,6 +333,18 @@ def counts_line(report: Dict[str, Any], at: str = "") -> str:
     return " · ".join(parts) + (f" · checked {at}" if at else "")
 
 
+def tally_of(report: Dict[str, Any], at: str = "") -> Dict[str, Any]:
+    """P1 · the same counts as numbers, for the one word of «Where you work»
+    (`where.scene_status`): what `counts_line` writes, before it is a line."""
+    downloaded = int(report.get("downloaded") or 0)
+    return {"here": len(report.get("here") or []) + downloaded,
+            "missing": len(report.get("missing") or []) - downloaded,
+            "changed": len(report.get("changed") or []) + int(report.get("edited") or 0),
+            "external": len(report.get("external") or []),
+            "only_here": len(report.get("only_here") or []),
+            "at": at}
+
+
 def _operator_classes():  # pragma: no cover — bpy
     import bpy  # type: ignore
 
@@ -394,6 +406,7 @@ def _operator_classes():  # pragma: no cover — bpy
                 "changed": [], "new": [], "baseline": [], "skipped": []}
             report["edited"] = len(groups["changed"])
             ULTIMA_VERIFICA["counts"] = counts_line(report, time.strftime("%H:%M"))
+            ULTIMA_VERIFICA["tally"] = tally_of(report, time.strftime("%H:%M"))
             ULTIMA_VERIFICA["baseline"] = len(groups["baseline"])
             return report, groups
 
