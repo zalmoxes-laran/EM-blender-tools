@@ -25,6 +25,7 @@ ICONS: Dict[str, str] = {
     "node.local_only": "HOME",
     "room.inside": "COMMUNITY",
     "room.outside": "FILE_BLEND",
+    "room.paired": "LINKED",
     "room.read_only": "LOCKED",
     "sync.aligned": "CHECKMARK",
     "sync.pending": "TIME",

@@ -5,7 +5,7 @@ Blender the panel is a column. Under them, only the commands the place makes
 possible (`panel.py`). The words are those of EMStudio's Connection panel (On
 this computer · With Blender · In a room — here «With EMStudio» and «In a
 collaborative room»); the signs are the ones of the common list
-(`em_state_symbols.json`), and «⇄» for the pair, which EMStudio's bar draws.
+(`em_state_symbols.json`), «⇄» among them since Q2 (`room.paired`).
 
 `zones(state)` is pure: `state` is what `read_state(context)` collects, so the
 four sentences of every place are measured by `tests/test_where_you_work.py`
@@ -88,7 +88,8 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
         same = s.get("same_document")
         doc = ("same document ✓" if same is True else
                "≠ another document" if same is False else "no document declared yet")
-        out["place"] = ("LINKED", f"⇄ With EMStudio · {n} client{'s' if n != 1 else ''} · {doc}")
+        out["place"] = ("LINKED", f"{_glyph('room.paired', '⇄')} With EMStudio · {n} "
+                                  f"client{'s' if n != 1 else ''} · {doc}")
         problem = same is False
     else:
         study = s.get("study_file") or "no study loaded"
