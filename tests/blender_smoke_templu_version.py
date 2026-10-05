@@ -7,7 +7,8 @@ and whose model (`em_rm_node_id`) the GraphML does not carry.
         <copy>.blend --python tests/blender_smoke_templu_version.py
 
 Checks: the object keeps its identity (same `em_rm_node_id`, its model under
-D.01 in the graph, no `ME_PODIO_model`), stays selected and active, and «LOD ▸»
+D.01 in the graph, no model more than before — whatever the copy's state:
+an earlier run may have saved it with `ME_PODIO_model`), stays selected and active, and «LOD ▸»
 / «◂ LOD» walk master ⇄ version both ways. The .blend is NOT saved.
 """
 import importlib
@@ -59,6 +60,11 @@ for o in bpy.context.view_layer.objects:
     o.select_set(False)
 obj.select_set(True)
 bpy.context.view_layer.objects.active = obj
+# E5 · «no new model» measured against THIS file, not against a name: the copy
+# saved after an earlier run already carries ME_PODIO_model as its model id
+rm_ids_before = {n.node_id for n in graph.nodes
+                 if getattr(n, "node_type", "") == "representation_model"
+                 or type(n).__name__ == "RepresentationModelNode"}
 
 result = bpy.ops.em.asset_add_version(source="DECIMATE", ratio=0.25, use={"web"})
 check("«Add version…» finished", result == {"FINISHED"}, str(result))
@@ -71,7 +77,11 @@ check("its model is in the graph with its own id", node is not None)
 check("…under its document D.01",
       any(e.edge_type == "has_representation_model" and e.edge_source == doc
           and e.edge_target == rm_before for e in graph.edges))
-check("no new model ME_PODIO_model", graph.find_node_by_id("ME_PODIO_model") is None)
+rm_ids_after = {n.node_id for n in graph.nodes
+                if getattr(n, "node_type", "") == "representation_model"
+                or type(n).__name__ == "RepresentationModelNode"}
+check("no new model", rm_ids_after == rm_ids_before,
+      f"new: {sorted(rm_ids_after - rm_ids_before)}; the object's: {rm_before}")
 asset = obj.get("em_asset_id")
 linked = [e.edge_target for e in graph.edges
           if e.edge_type == "has_linked_resource" and e.edge_source == rm_before]

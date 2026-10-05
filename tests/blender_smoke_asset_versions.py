@@ -142,10 +142,11 @@ def activate(obj):
 
 # ── T-A2 · «Add version…» twice ─────────────────────────────────────────────
 n_objects = len(bpy.data.objects)
-for level, purpose in (("LOD1", "web"), ("LOD2", "preview")):
+for level, use in (("LOD1", "web"), ("LOD2", "preview")):
     activate(podio)
     t0 = time.time()
-    esito = bpy.ops.em.asset_add_version(level=level, purpose=purpose,
+    # E5 · «purpose» became «use», one or more (the operator's ENUM_FLAG)
+    esito = bpy.ops.em.asset_add_version(level=level, use={use},
                                          master_level="LOD0", source="FILE",
                                          filepath=LOD[level])
     check(f"Add version {level}: FINISHED ({time.time() - t0:.1f}s)",
@@ -155,10 +156,10 @@ check("still ONE object for the podium (and the decoration)",
       len(bpy.data.objects) == n_objects and bpy.data.objects.get("OB_PODIO") is podio,
       repr([o.name for o in bpy.data.objects]))
 rows = api.versions_of(graph, "podio_master")
-print("[SMOKE] versions:", [(r["level"], r["purpose"], r["checksum"][:14]) for r in rows])
+print("[SMOKE] versions:", [(r["level"], r.get("use"), r["checksum"][:14]) for r in rows])
 check("three versions in the graph: LOD0 master, LOD1 web, LOD2 preview",
-      [(r["level"], r["purpose"]) for r in rows]
-      == [("LOD0", ""), ("LOD1", "web"), ("LOD2", "preview")])
+      [(r["level"], list(r.get("use") or [])) for r in rows]
+      == [("LOD0", []), ("LOD1", ["web"]), ("LOD2", ["preview"])])
 check("each version is made by lod_generation from the master",
       all(graph.find_node_by_id(r["process_id"]).data.get("dtc_kind") == "lod_generation"
           for r in rows[1:]))
