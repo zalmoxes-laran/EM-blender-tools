@@ -400,6 +400,9 @@ def promote_model(target: str, params: Dict[str, Any], context,
     # da cui il glb è nato TIENE quei byte, e la verifica della scena non deve
     # riscaricarli sopra di lui.
     obj["em_asset_sha256"] = info["ref"]
+    # P2 · …and the mesh those bytes were made from, for «Sync the scene…»
+    from .scene_sync import record_fingerprint
+    record_fingerprint(obj)
     return {"ok": True,
             "delta": promotion_delta(graph, result),
             "info": {"object": obj.name, "resource_id": resource_id,

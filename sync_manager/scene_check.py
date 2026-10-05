@@ -245,43 +245,167 @@ def check_scene(context, graph, *, download: bool,
     return report
 
 
+def counts_line(report: Dict[str, Any], at: str = "") -> str:
+    """P2 · the scene's counts in one line, with the signs of the one list:
+    «◉ N here · ✕ missing · ≠ changed · ↗ references · ◆ only here · checked
+    hh:mm». `changed` counts both directions: older here than the graph, and
+    edited here and not yet sent."""
+    edited = int(report.get("edited") or 0)
+    parts = [f"◉ {len(report.get('here') or [])} here",
+             f"✕ {len(report.get('missing') or []) - int(report.get('downloaded') or 0)} missing",
+             f"≠ {len(report.get('changed') or []) + edited} changed",
+             f"↗ {len(report.get('external') or [])} references",
+             f"◆ {len(report.get('only_here') or [])} only here"]
+    return " · ".join(parts) + (f" · checked {at}" if at else "")
+
+
 def _operator_classes():  # pragma: no cover — bpy
     import bpy  # type: ignore
 
+    class EM_PG_sync_row(bpy.types.PropertyGroup):
+        """P2 · one model the scene could send: ticked = it goes."""
+        object: bpy.props.StringProperty()  # type: ignore
+        target: bpy.props.StringProperty()  # type: ignore
+        kind: bpy.props.StringProperty()  # type: ignore
+        state: bpy.props.StringProperty()  # type: ignore
+        size: bpy.props.IntProperty()  # type: ignore
+        send: bpy.props.BoolProperty(name="Send", default=False)  # type: ignore
+
     class EM_OT_scene_check(bpy.types.Operator):
-        """Check this scene against the room: download the models the graph cites
-        that are not here, flag the ones that changed, count the external ones,
-        and mark the objects that are only here (never uploaded)."""
+        """Sync the scene with the room: download the models the graph cites
+        that are not here, check the files, and offer to send the models linked
+        to the graph that changed here or are new (a changed one goes as a new
+        revision of its resource). Objects only here never go"""
 
         bl_idname = "em.scene_check"
-        bl_label = "Check the scene against the room"
+        bl_label = "Sync the scene…"
         bl_options = {"REGISTER", "UNDO"}
 
         download: bpy.props.BoolProperty(  # type: ignore
             name="Download what is missing", default=True,
             description="Fetch the store-backed models the graph cites and the "
                         "scene does not have (needs a room)")
+        send: bpy.props.EnumProperty(  # type: ignore
+            name="Send",
+            items=(("ASK", "Ask", "Tick the models to send in the dialog"),
+                   ("CHANGED", "The changed ones",
+                    "Send the models changed here (what the dialog ticks for you)"),
+                   ("CHANGED_AND_NEW", "Changed and new",
+                    "Send the changed models and the new ones"),
+                   ("NONE", "Nothing", "Only check and download")),
+            default="NONE",
+            description="Without the dialog, nothing is sent unless you say so")
 
-        def execute(self, context):
+        def _graph(self, context):
             from ..functions import is_graph_available
-            from .room_session import SESSION
-
             ok, graph = is_graph_available(context)
-            if not ok or graph is None:
-                self.report({"ERROR"}, "no graph loaded: nothing to check the "
-                                       "scene against")
+            return graph if ok else None
+
+        def _check(self, context, graph):
+            from .room_session import SESSION
+            from . import scene_sync
+            import time
+            report = check_scene(context, graph,
+                                 download=bool(self.download and SESSION.joined))
+            groups = scene_sync.candidates(context, graph) if SESSION.seated else {
+                "changed": [], "new": [], "baseline": [], "skipped": []}
+            report["edited"] = len(groups["changed"])
+            ULTIMA_VERIFICA["counts"] = counts_line(report, time.strftime("%H:%M"))
+            ULTIMA_VERIFICA["baseline"] = len(groups["baseline"])
+            return report, groups
+
+        def _fill(self, context, groups):
+            rows = context.window_manager.em_sync_rows
+            rows.clear()
+            for state in ("changed", "new"):
+                for m in groups[state]:
+                    row = rows.add()
+                    row.object, row.target = m["object"], m["target"]
+                    row.kind, row.state = str(m.get("kind") or ""), m["state"]
+                    row.size = int(m.get("size") or 0)
+                    row.send = state == "changed"
+            return rows
+
+        def invoke(self, context, event):
+            graph = self._graph(context)
+            if graph is None:
+                self.report({"ERROR"}, "no graph loaded: nothing to sync the scene with")
                 return {"CANCELLED"}
             try:
-                check_scene(context, graph,
-                            download=bool(self.download and SESSION.joined))
+                _report, groups = self._check(context, graph)
             except Exception as exc:  # noqa: BLE001 — the reason is the user's
                 self.report({"ERROR"}, f"could not check the scene: {exc}")
                 return {"CANCELLED"}
-            for line in ULTIMA_VERIFICA["sentences"]:
+            rows = self._fill(context, groups)
+            if not len(rows):
+                for line in ULTIMA_VERIFICA.get("sentences") or []:
+                    self.report({"INFO"}, line)
+                self.report({"INFO"}, "nothing here to send to the room")
+                return {"FINISHED"}
+            self.send = "ASK"
+            return context.window_manager.invoke_props_dialog(self, width=560)
+
+        def draw(self, context):
+            layout = self.layout
+            layout.label(text=ULTIMA_VERIFICA.get("counts") or "", icon="VIEWZOOM")
+            rows = context.window_manager.em_sync_rows
+            from .scene_sync import human_size
+            layout.label(text="Linked to the graph, not yet in the room as they are here:")
+            col = layout.column(align=True)
+            for row in rows:
+                line = col.row(align=True)
+                line.prop(row, "send", text="")
+                sign = "≠" if row.state == "changed" else "+"
+                what = ("changed here — goes as a new revision"
+                        if row.state == "changed" else "new")
+                line.label(text=f"{sign} {row.object} ({row.kind}) · ≈ "
+                                f"{human_size(row.size)} · {what}")
+            layout.label(text="Objects only here never go.", icon="INFO")
+
+        def execute(self, context):
+            from . import scene_sync
+            graph = self._graph(context)
+            if graph is None:
+                self.report({"ERROR"}, "no graph loaded: nothing to sync the scene with")
+                return {"CANCELLED"}
+            if self.send == "ASK":
+                rows = context.window_manager.em_sync_rows
+                chosen = [{"object": r.object, "target": r.target, "kind": r.kind,
+                           "state": r.state} for r in rows if r.send]
+            else:
+                try:
+                    _report, groups = self._check(context, graph)
+                except Exception as exc:  # noqa: BLE001
+                    self.report({"ERROR"}, f"could not check the scene: {exc}")
+                    return {"CANCELLED"}
+                self._fill(context, groups)
+                chosen = (groups["changed"] if self.send in ("CHANGED", "CHANGED_AND_NEW")
+                          else []) + (groups["new"] if self.send == "CHANGED_AND_NEW" else [])
+            if chosen:
+                from .room_session import SESSION
+                if not SESSION.seated:
+                    self.report({"ERROR"}, "not in a room: there is nowhere to send to")
+                    return {"CANCELLED"}
+                done = scene_sync.send(context, graph, chosen)
+                self.report({"INFO"}, (f"sent {len(done['sent'])} model(s), "
+                                       f"{scene_sync.human_size(done['size'])}, "
+                                       f"{done['ops']} change(s) to the room")
+                            + (f" · {len(done['failed'])} not: {done['failed'][0]}"
+                               if done["failed"] else ""))
+                # …and the scene checked again, so the counts are the new ones
+                self.download = False
+                try:
+                    self._check(context, graph)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[sync] the check after sending did not run: {exc}")
+                ULTIMA_VERIFICA["sent"] = done
+            for line in ULTIMA_VERIFICA.get("sentences") or []:
                 self.report({"INFO"}, line)
+            if ULTIMA_VERIFICA.get("counts"):
+                self.report({"INFO"}, ULTIMA_VERIFICA["counts"])
             return {"FINISHED"}
 
-    return (EM_OT_scene_check,)
+    return (EM_PG_sync_row, EM_OT_scene_check)
 
 
 _CLASSES: tuple = ()
@@ -293,10 +417,14 @@ def register():  # pragma: no cover — bpy
     _CLASSES = _operator_classes()
     for cls in _CLASSES:
         bpy.utils.register_class(cls)
+    bpy.types.WindowManager.em_sync_rows = bpy.props.CollectionProperty(
+        type=_CLASSES[0])
 
 
 def unregister():  # pragma: no cover — bpy
     import bpy  # type: ignore
+    if hasattr(bpy.types.WindowManager, "em_sync_rows"):
+        del bpy.types.WindowManager.em_sync_rows
     for cls in reversed(_CLASSES):
         try:
             bpy.utils.unregister_class(cls)
@@ -305,11 +433,7 @@ def unregister():  # pragma: no cover — bpy
 
 
 def draw(layout) -> None:  # pragma: no cover — bpy
-    """The block in the room section of the Sync panel."""
-    box = layout.box()
-    box.operator("em.scene_check", icon="VIEWZOOM")
-    for line in ULTIMA_VERIFICA.get("sentences") or []:
-        box.label(text=line[:90], icon="BLANK1")
-    line = only_here_line(ULTIMA_VERIFICA.get("only_here") or [])
-    if line:
-        box.label(text=line[1], icon=line[0])
+    """In a room: the scene's counts, and Sync the scene…"""
+    if ULTIMA_VERIFICA.get("counts"):
+        layout.label(text=ULTIMA_VERIFICA["counts"])
+    layout.operator("em.scene_check", text="Sync the scene…", icon="FILE_REFRESH")

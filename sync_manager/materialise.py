@@ -111,7 +111,27 @@ def plan(graph: Any) -> Dict[str, Any]:
             "(wheels/cp3xx/s3dgraphy-*.whl) and re-enable the extension"
         ) from exc
 
-    return geometry_summary(graph)
+    return superseded_out(graph, geometry_summary(graph))
+
+
+def superseded_out(graph: Any, summary: Dict[str, Any]) -> Dict[str, Any]:
+    """P2 · a resource with a newer revision is not owed to the scene.
+
+    A model sent again by «Sync the scene…» becomes a revision of its resource
+    (``new ──was_revision_of──▶ old``) and the old one stays in the graph, as
+    it was and citable. Its bytes are history, not something the scene is
+    missing: without this the next check listed the old revision as «missing»
+    beside the new one that the scene holds."""
+    edges = getattr(graph, "edges", None) or []
+    old = {e.edge_target for e in edges
+           if getattr(e, "edge_type", "") == "was_revision_of"}
+    if not old:
+        return summary
+    out = dict(summary)
+    out["resident"] = [r for r in summary.get("resident") or []
+                       if r.get("resource_id") not in old]
+    out["superseded"] = len(summary.get("resident") or []) - len(out["resident"])
+    return out
 
 
 def scene_digests(objects: Any = None) -> Dict[str, Any]:
@@ -164,6 +184,13 @@ def _bind_objects(objects: List[Any], record: Dict[str, Any]) -> List[str]:
         try:
             obj[PROP_DIGEST] = record["checksum"]
             obj[PROP_RESOURCE] = record["resource_id"]
+            # P2 · the mesh as its bytes made it: what «Sync the scene…»
+            # compares to know the model changed here
+            try:
+                from .scene_sync import record_fingerprint
+                record_fingerprint(obj)
+            except Exception:  # noqa: BLE001 — outside Blender (the suite)
+                pass
             obj[PROP_CARRIER] = record["node_id"]
             if others:
                 obj[PROP_BIND] = ",".join(str(b.get("id")) for b in others)
