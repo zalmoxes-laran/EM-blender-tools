@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — the decisions of the evening (MICRO-LE-DECISIONI-DELLA-SERA, 5 October 2026)
+- **The interface speaks English.** The tab is **EM Room**, its panel **Room**,
+  «Il grafo» is **The graph**; the Activity Manager, the CSV export, the
+  pyArchInit table kinds, the EM menus' tooltips and the Heriverse export's
+  skipped/failed lines were still Italian. «Offset proxy» stays; the Visual
+  Manager stays in EM. A test reads every label, property, report and tooltip.
+- **Re-import a table**, beside Import from tables, out of the experimental
+  state: the newer version of the table a graph came from (an Excel through a
+  mapping or the unified em_data.xlsx, an Excel sheet, pyArchInit with its
+  filters) updates the active graph that already has work on it — each
+  difference field by field in Conflict Resolution, the epochs of the new units
+  checked, what is applied written to the graph's em.json. Not an auxiliary:
+  an auxiliary is not saved into the graph, it is grafted on it at each load.
+  Each conflict row now resolves its own conflict (from the second choice on it
+  resolved the next one), and the epoch check reads the epochs' dates (it asked
+  for a GraphML drawing's `min_y`).
+- **Tapestry is an add-on of its own**, EM Tapestry (local repository
+  `EM-Tapestry-blender`): its settings are `scene.em_tapestry`, `requests` is in
+  its wheels, it leans on EM Tools for epochs and proxies. EM Tools no longer
+  carries it; EM ▸ About says whether it is installed.
+- **Edit in EMStudio lands on the unit**: through the Sidecar with EMStudio
+  connected, or in a room with `stratigraph://open?…&node=<id>`; otherwise the
+  button is grey and says how to turn it on.
+- **The geometries of pyArchInit find their US** (482 of 482 on the test
+  database, was 1): the US keep the label of the mapping (`1.US10`), an adapter
+  outside Enzo Cocca's reader resolves each polygon by `node_uuid`, then by the
+  label composed with the mapping's rule, then by the bare number.
+- **Remove link** for an image linked to a unit by mistake (the resource stays).
+- Disabling and enabling EM Tools in one session no longer says «already
+  registered» (seven modules were left out of the unregistration).
+
 ### Changed — em.json everywhere (MICRO-EMJSON-DAPPERTUTTO, 4 October 2026)
 - **A GraphML comes in once.** Loading a GraphML slot asks where its em.json
   goes (beside the GraphML, a name never taken), puts the scene's models (their
