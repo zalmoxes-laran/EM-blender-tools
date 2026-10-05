@@ -286,16 +286,9 @@ def _random_epoch_hex_color():
     return "#{:02X}{:02X}{:02X}".format(*(random.randint(50, 230) for _ in range(3)))
 
 
-class EM_OT_import_from_table(_TableImport, bpy.types.Operator):
-    """A new graph from a table — an Excel read through a mapping, an Excel
-    sheet, a pyArchInit database (SQLite or PostgreSQL, with its filters) —
-    saved as em.json and listed with the other graphs; for pyArchInit, the
-    US geometries too when asked"""
-    bl_idname = "em.import_from_table"
-    bl_label = "Import from tables"
-    bl_description = ("A new graph from a table (Excel with a mapping, an Excel sheet, pyArchInit), "
-                      "saved as em.json beside the table and listed with the other graphs")
-    bl_options = {'REGISTER', 'UNDO'}
+class _TableFromPanel(_TableImport):
+    """The table as the panel describes it (Import from tables and Re-import
+    a table share the same fields)."""
 
     def settings(self, context):
         em_tools = context.scene.em_tools
@@ -324,6 +317,18 @@ class EM_OT_import_from_table(_TableImport, bpy.types.Operator):
                     if em_tools.generic_xlsx_desc_column != "none" else None}
         return {'import_type': "emdb_xlsx", 'filepath': bpy.path.abspath(em_tools.emdb_xlsx_file),
                 'mapping_name': em_tools.emdb_mapping}
+
+
+class EM_OT_import_from_table(_TableFromPanel, bpy.types.Operator):
+    """A new graph from a table — an Excel read through a mapping, an Excel
+    sheet, a pyArchInit database (SQLite or PostgreSQL, with its filters) —
+    saved as em.json and listed with the other graphs; for pyArchInit, the
+    US geometries too when asked"""
+    bl_idname = "em.import_from_table"
+    bl_label = "Import from tables"
+    bl_description = ("A new graph from a table (Excel with a mapping, an Excel sheet, pyArchInit), "
+                      "saved as em.json beside the table and listed with the other graphs")
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         import os
@@ -406,11 +411,104 @@ class EM_OT_import_from_table(_TableImport, bpy.types.Operator):
             return {'CANCELLED'}
 
 
+class EM_OT_reimport_table(_TableFromPanel, bpy.types.Operator):
+    """E2 · «Re-import a table» (E.D., 4 Oct 2026): the newer version of the
+    table a graph was made from, read with the same settings as Import from
+    tables, updates the ACTIVE graph, which already has work on it. Every
+    difference is shown field by field in Conflict Resolution, the epochs of
+    the new units are checked first, and what is applied is written to the
+    graph's em.json. Not an auxiliary file: an auxiliary is not saved into
+    the graph, it is grafted on top of it each time the graph is loaded."""
+    bl_idname = "em.reimport_table"
+    bl_label = "Re-import a table"
+    bl_description = ("Update the active graph with a newer version of its table: each difference "
+                      "field by field, the epochs of the new units checked, the result written to "
+                      "the graph's em.json")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        if not (0 <= em_tools.active_file_index < len(em_tools.graphml_files)):
+            cls.poll_message_set("Load the graph to update first")
+            return False
+        if not get_graph(em_tools.graphml_files[em_tools.active_file_index].name):
+            cls.poll_message_set("Load the graph to update first")
+            return False
+        return True
+
+    def _incoming(self, settings):
+        """The table read into a graph of its own, never listed: the unified
+        em_data.xlsx (five sheets) is read by its own importer, as before."""
+        if settings['import_type'] == "emdb_xlsx":
+            try:
+                import pandas as _pd
+                with _pd.ExcelFile(settings['filepath'], engine='openpyxl') as xl:
+                    sheets = set(xl.sheet_names)
+            except Exception:  # noqa: BLE001
+                sheets = set()
+            if {'Units', 'Epochs', 'Claims', 'Authors', 'Documents'}.issubset(sheets):
+                from s3dgraphy.importer.unified_xlsx_importer import UnifiedXLSXImporter
+                return UnifiedXLSXImporter(
+                    filepath=settings['filepath'],
+                    graph_id="incoming_reimport").parse()
+        importer = self._create_importer(settings, None)
+        if not importer:
+            return None
+        return self._parse(importer)
+
+    def execute(self, context):
+        import os
+        from .. import graph_origins
+        from ..operators.merge_conflict_ui import begin_merge, is_merge_active
+        em_tools = context.scene.em_tools
+        row = em_tools.graphml_files[em_tools.active_file_index]
+        origin = graph_origins.origin_of(row, abspath=bpy.path.abspath)
+        if origin.is_room:
+            self.report({'ERROR'}, "this graph lives in a room, where a re-import would not reach the "
+                                   "others: re-import the table into its em.json, then put that in the room")
+            return {'CANCELLED'}
+        if em_tools.merge_active or is_merge_active():
+            self.report({'ERROR'}, "a re-import is waiting for its choices in Conflict Resolution: "
+                                   "apply it or cancel it first")
+            return {'CANCELLED'}
+        try:
+            settings = self.settings(context)
+            if settings is None:
+                return {'CANCELLED'}
+            if settings['import_type'] == "pyarchinit" and (
+                    not settings.get('mapping_name') or settings['mapping_name'] == 'none'):
+                self.report({'ERROR'}, "choose the mapping the graph was made with")
+                return {'CANCELLED'}
+            if not self._validate_settings(settings):
+                return {'CANCELLED'}
+            incoming = self._incoming(settings)
+            if incoming is None or not getattr(incoming, "nodes", None):
+                self.report({'ERROR'}, "the table gave no node: nothing to compare (check the mapping and the filters)")
+                return {'CANCELLED'}
+            # the epoch report goes beside the table, or beside the graph's
+            # em.json when the table is a PostgreSQL database
+            source = settings.get('filepath') or ""
+            if not source or not os.path.isfile(source):
+                base = origin.path if origin.is_file else (bpy.data.filepath or os.path.join(
+                    bpy.app.tempdir, "reimport"))
+                stem = base[:-len(".em.json")] if base.endswith(".em.json") else os.path.splitext(base)[0]
+                source = stem + "_reimport"
+            return begin_merge(self, context, incoming, source)
+        except Exception as e:  # noqa: BLE001
+            self.report({'ERROR'}, f"Re-import failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
+
+
 def register():
     bpy.utils.register_class(EM_OT_import_auxiliary_table)
     bpy.utils.register_class(EM_OT_import_from_table)
+    bpy.utils.register_class(EM_OT_reimport_table)
 
 
 def unregister():
+    bpy.utils.unregister_class(EM_OT_reimport_table)
     bpy.utils.unregister_class(EM_OT_import_from_table)
     bpy.utils.unregister_class(EM_OT_import_auxiliary_table)

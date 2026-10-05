@@ -31,6 +31,10 @@ _incoming_graph = None       # The graph imported from XLSX for comparison
 _merger = None               # GraphMerger instance
 # Epoch remap plan: {strat_node_id: existing_epoch_node_id}
 _epoch_remap_plan = {}
+#: E2 · the conflict behind each row of `em_tools.merge_conflicts`, same order.
+#: The rows used to be matched to «the unresolved ones» recomputed at each
+#: choice, so from the second choice on a row resolved another conflict
+_ui_conflicts = []
 
 
 def get_active_conflicts():
@@ -128,10 +132,14 @@ def _build_epoch_report(existing_graph, incoming_graph):
     from s3dgraphy.nodes.epoch_node import EpochNode
     from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
-    # Collect existing epochs (from GraphML — they have min_y/max_y)
+    # Collect existing epochs: those with their dates. E2 · it used to ask
+    # for `min_y`, which only a GraphML drawing gives: on a graph born from a
+    # table or an em.json there was no epoch, and every new unit was refused
     existing_epochs = [
         n for n in existing_graph.nodes
-        if isinstance(n, EpochNode) and hasattr(n, 'min_y') and n.min_y is not None
+        if isinstance(n, EpochNode)
+        and getattr(n, 'start_time', None) is not None
+        and getattr(n, 'end_time', None) is not None
     ]
 
     # Collect incoming stratigraphic nodes
@@ -345,7 +353,7 @@ def _export_epoch_report(xlsx_path, report_items):
 class EM_OT_merge_xlsx_start(bpy.types.Operator):
     """Merge an em_data.xlsx file with the active graph"""
     bl_idname = "em.merge_xlsx_start"
-    bl_label = "Merge em_data.xlsx into active graph"
+    bl_label = "Re-import an em_data.xlsx into the active graph"
     bl_description = (
         "Import an em_data.xlsx (5-sheet unified schema) and compare it "
         "with the active graph. Per-claim differences are surfaced in the "
@@ -432,125 +440,149 @@ class EM_OT_merge_xlsx_start(bpy.types.Operator):
                 )
                 return {'CANCELLED'}
 
-            _incoming_graph = temp_graph
-
         except Exception as e:
             self.report({'ERROR'}, f"Error importing XLSX: {str(e)}")
             return {'CANCELLED'}
 
-        # ── Epoch Compatibility Check ──
-        epoch_report = _build_epoch_report(existing_graph, _incoming_graph)
+        return begin_merge(self, context, temp_graph, self.filepath)
 
-        has_blocking = any(
-            r['category'] in ('STRADDLING', 'NO_EPOCH', 'NO_MATCH')
-            for r in epoch_report
-        )
 
-        # Populate epoch report in UI
-        em_tools.epoch_report.clear()
-        for r in epoch_report:
-            item = em_tools.epoch_report.add()
-            item.node_name = r['node_name']
-            item.category = r['category']
-            item.us_start = r['us_start']
-            item.us_end = r['us_end']
-            item.epoch_level = r['epoch_level']
-            item.matched_epoch = r['matched_epoch_name']
-            item.message = r['message']
+def begin_merge(op, context, temp_graph, source_path):
+    """E2 · the table read again (`temp_graph`) against the active graph,
+    which already has work on it: the epochs of its NEW units checked first
+    (a blocking issue stops here, with its report beside the table), then
+    every difference field by field in the Conflict Resolution panel; with no
+    difference to decide the changes are applied at once. Whatever is applied
+    is written to the graph's em.json. Shared by «Re-import a table» and the
+    old em_data.xlsx operator."""
+    global _active_conflicts, _incoming_graph, _merger, _epoch_remap_plan, _ui_conflicts
+    self = op
+    em_tools = context.scene.em_tools
+    graphml_file = em_tools.graphml_files[em_tools.active_file_index]
+    existing_graph = get_graph(graphml_file.name)
+    if existing_graph is None:
+        self.report({'ERROR'}, "No active graph loaded")
+        return {'CANCELLED'}
+    _incoming_graph = temp_graph
+    # ── Epoch Compatibility Check ──
+    epoch_report = _build_epoch_report(existing_graph, _incoming_graph)
 
-        if has_blocking:
-            # Show epoch report and block the merge
-            em_tools.epoch_report_active = True
-            em_tools.epoch_report_has_errors = True
-            _incoming_graph = None
+    has_blocking = any(
+        r['category'] in ('STRADDLING', 'NO_EPOCH', 'NO_MATCH')
+        for r in epoch_report
+    )
 
-            # Auto-export conflict report next to the XLSX file
-            report_path = _export_epoch_report(self.filepath, epoch_report)
-            em_tools.epoch_report_file = report_path
+    # Populate epoch report in UI
+    em_tools.epoch_report.clear()
+    for r in epoch_report:
+        item = em_tools.epoch_report.add()
+        item.node_name = r['node_name']
+        item.category = r['category']
+        item.us_start = r['us_start']
+        item.us_end = r['us_end']
+        item.epoch_level = r['epoch_level']
+        item.matched_epoch = r['matched_epoch_name']
+        item.message = r['message']
 
-            errors = [r for r in epoch_report
-                      if r['category'] in ('STRADDLING', 'NO_EPOCH', 'NO_MATCH')]
+    if has_blocking:
+        # Show epoch report and block the merge
+        em_tools.epoch_report_active = True
+        em_tools.epoch_report_has_errors = True
+        _incoming_graph = None
 
-            self.report({'ERROR'},
-                        f"Merge blocked: {len(errors)} epoch issues. "
-                        f"Report saved to {os.path.basename(report_path)}. "
-                        f"See Conflict Resolution panel (scroll down in EM sidebar).")
-            return {'CANCELLED'}
+        # Auto-export conflict report next to the XLSX file
+        report_path = _export_epoch_report(source_path, epoch_report)
+        em_tools.epoch_report_file = report_path
 
-        # Build epoch remap plan for non-blocking results
+        errors = [r for r in epoch_report
+                  if r['category'] in ('STRADDLING', 'NO_EPOCH', 'NO_MATCH')]
+
+        self.report({'ERROR'},
+                    f"Merge blocked: {len(errors)} epoch issues. "
+                    f"Report saved to {os.path.basename(report_path)}. "
+                    f"See the Conflict Resolution panel (EM tab).")
+        return {'CANCELLED'}
+
+    # Build epoch remap plan for non-blocking results
+    _epoch_remap_plan = {}
+    from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+    incoming_name_to_id = {
+        n.name: n.node_id for n in _incoming_graph.nodes
+        if isinstance(n, StratigraphicNode)
+    }
+
+    for r in epoch_report:
+        if r['matched_epoch_node'] is not None:
+            strat_id = incoming_name_to_id.get(r['node_name'])
+            if strat_id:
+                _epoch_remap_plan[strat_id] = r['matched_epoch_node'].node_id
+
+    # If there are WIDER_EPOCH warnings, show report (non-blocking)
+    has_warnings = any(r['category'] == 'WIDER_EPOCH' for r in epoch_report)
+    if has_warnings:
+        em_tools.epoch_report_active = True
+        em_tools.epoch_report_has_errors = False
+
+    # ── Graph comparison ──
+    _merger = GraphMerger()
+    _active_conflicts = _merger.compare(existing_graph, _incoming_graph)
+
+    user_conflicts = _merger.get_unresolved_conflicts(_active_conflicts)
+
+    if not user_conflicts:
+        # No conflicts - apply all changes directly
+        _merger.apply_resolutions(existing_graph, _active_conflicts, _incoming_graph)
+
+        # Apply epoch remapping
+        _apply_epoch_remap(existing_graph, _incoming_graph, _epoch_remap_plan)
+
+        _active_conflicts = []
+        _incoming_graph = None
         _epoch_remap_plan = {}
-        from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
-        incoming_name_to_id = {
-            n.name: n.node_id for n in _incoming_graph.nodes
-            if isinstance(n, StratigraphicNode)
-        }
+        em_tools.epoch_report_active = False
 
-        for r in epoch_report:
-            if r['matched_epoch_node'] is not None:
-                strat_id = incoming_name_to_id.get(r['node_name'])
-                if strat_id:
-                    _epoch_remap_plan[strat_id] = r['matched_epoch_node'].node_id
+        # the changes go to the graph's em.json, as Apply does
+        from ..em_setup.graph_tree import persist_active
+        try:
+            ok, said = persist_active(context)
+        except Exception as e:  # noqa: BLE001
+            ok, said = False, f"not saved: {e}"
 
-        # If there are WIDER_EPOCH warnings, show report (non-blocking)
-        has_warnings = any(r['category'] == 'WIDER_EPOCH' for r in epoch_report)
-        if has_warnings:
-            em_tools.epoch_report_active = True
-            em_tools.epoch_report_has_errors = False
+        # Refresh UI
+        EM_OT_merge_xlsx_start._refresh_ui(context, existing_graph, graphml_file)
 
-        # ── Graph comparison ──
-        _merger = GraphMerger()
-        _active_conflicts = _merger.compare(existing_graph, _incoming_graph)
-
-        user_conflicts = _merger.get_unresolved_conflicts(_active_conflicts)
-
-        if not user_conflicts:
-            # No conflicts - apply all changes directly
-            _merger.apply_resolutions(existing_graph, _active_conflicts, _incoming_graph)
-
-            # Apply epoch remapping
-            _apply_epoch_remap(existing_graph, _incoming_graph, _epoch_remap_plan)
-
-            _active_conflicts = []
-            _incoming_graph = None
-            _epoch_remap_plan = {}
-            em_tools.epoch_report_active = False
-
-            # Refresh UI
-            self._refresh_ui(context, existing_graph, graphml_file)
-
-            n_ok = sum(1 for r in epoch_report if r['category'] == 'EXACT_FIT')
-            n_warn = sum(1 for r in epoch_report if r['category'] == 'WIDER_EPOCH')
-            msg = f"XLSX merged successfully: {n_ok} nodes matched epochs"
-            if n_warn:
-                msg += f", {n_warn} with wider epoch (check report)"
-            self.report({'INFO'}, msg)
-            return {'FINISHED'}
-
-        # Populate Blender property for UI display
-        em_tools.merge_conflicts.clear()
-        for conflict in _active_conflicts:
-            if conflict.resolved:
-                continue
-            item = em_tools.merge_conflicts.add()
-            item.node_name = conflict.node_name
-            item.field_name = conflict.display_field
-            item.current_value = conflict.current_value[:200]
-            item.incoming_value = conflict.incoming_value[:200]
-            item.conflict_type = conflict.conflict_type
-            item.resolved = False
-            item.accepted = False
-
-        em_tools.merge_conflict_index = 0
-        em_tools.merge_active = True
-
-        stats = _merger.get_statistics(_active_conflicts)
-        self.report({'WARNING'},
-                    f"Found {stats['unresolved']} conflicts to resolve "
-                    f"({stats.get('by_type', {}).get('value_changed', 0)} value changes, "
-                    f"{stats.get('by_type', {}).get('edge_added', 0)} new edges, "
-                    f"{stats.get('by_type', {}).get('edge_removed', 0)} removed edges)")
-
+        n_ok = sum(1 for r in epoch_report if r['category'] == 'EXACT_FIT')
+        n_warn = sum(1 for r in epoch_report if r['category'] == 'WIDER_EPOCH')
+        msg = f"Table re-imported with nothing to decide: {n_ok} new units in their epochs"
+        if n_warn:
+            msg += f", {n_warn} with a wider epoch (see the report)"
+        self.report({'INFO'} if ok else {'WARNING'}, f"{msg} — {said}")
         return {'FINISHED'}
+
+    # Populate Blender property for UI display
+    _ui_conflicts = [c for c in _active_conflicts if not c.resolved]
+    em_tools.merge_conflicts.clear()
+    for conflict in _ui_conflicts:
+        item = em_tools.merge_conflicts.add()
+        item.node_name = conflict.node_name
+        item.field_name = conflict.display_field
+        item.current_value = conflict.current_value[:200]
+        item.incoming_value = conflict.incoming_value[:200]
+        item.conflict_type = conflict.conflict_type
+        item.resolved = False
+        item.accepted = False
+
+    em_tools.merge_conflict_index = 0
+    em_tools.merge_active = True
+
+    stats = _merger.get_statistics(_active_conflicts)
+    self.report({'WARNING'},
+                f"Found {stats['unresolved']} conflicts to resolve "
+                f"({stats.get('by_type', {}).get('value_changed', 0)} value changes, "
+                f"{stats.get('by_type', {}).get('edge_added', 0)} new edges, "
+                f"{stats.get('by_type', {}).get('edge_removed', 0)} removed edges)")
+
+    return {'FINISHED'}
 
 
 class EM_OT_resolve_conflict(bpy.types.Operator):
@@ -582,10 +614,9 @@ class EM_OT_resolve_conflict(bpy.types.Operator):
         item.resolved = True
         item.accepted = (self.action == 'ACCEPT')
 
-        unresolved = [c for c in _active_conflicts if not c.resolved]
-        if idx < len(unresolved):
-            unresolved[idx].resolved = True
-            unresolved[idx].accepted = (self.action == 'ACCEPT')
+        if idx < len(_ui_conflicts):
+            _ui_conflicts[idx].resolved = True
+            _ui_conflicts[idx].accepted = (self.action == 'ACCEPT')
 
         self._advance_to_next_unresolved(context)
         return {'FINISHED'}
@@ -685,7 +716,7 @@ class EM_OT_apply_merge(bpy.types.Operator):
         return all(item.resolved for item in em_tools.merge_conflicts)
 
     def execute(self, context):
-        global _active_conflicts, _incoming_graph, _merger, _epoch_remap_plan
+        global _active_conflicts, _incoming_graph, _merger, _epoch_remap_plan, _ui_conflicts
         em_tools = context.scene.em_tools
         graphml_file = em_tools.graphml_files[em_tools.active_file_index]
         existing_graph = get_graph(graphml_file.name)
@@ -717,6 +748,7 @@ class EM_OT_apply_merge(bpy.types.Operator):
         EM_OT_merge_xlsx_start._refresh_ui(context, existing_graph, graphml_file)
 
         # Clean up
+        _ui_conflicts = []
         _active_conflicts = []
         _incoming_graph = None
         _merger = None
@@ -735,8 +767,9 @@ class EM_OT_cancel_merge(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        global _active_conflicts, _incoming_graph, _merger, _epoch_remap_plan
+        global _active_conflicts, _incoming_graph, _merger, _epoch_remap_plan, _ui_conflicts
 
+        _ui_conflicts = []
         _active_conflicts = []
         _incoming_graph = None
         _merger = None
@@ -782,7 +815,7 @@ class EM_OT_open_epoch_report(bpy.types.Operator):
 # ---------------------------------------------------------------------------
 
 class EMTOOLS_PT_conflict_resolution(bpy.types.Panel):
-    """Conflict resolution panel for XLSX merge"""
+    """The differences of «Re-import a table», field by field"""
     bl_label = "Conflict Resolution"
     bl_idname = "EMTOOLS_PT_conflict_resolution"
     bl_space_type = 'VIEW_3D'
@@ -804,12 +837,13 @@ class EMTOOLS_PT_conflict_resolution(bpy.types.Panel):
         header_row = layout.row(align=True)
         header_row.label(text="Conflict Resolution", icon='ERROR')
         help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
-        help_op.title = "Merge Conflict Resolution"
+        help_op.title = "Re-import a table: conflicts"
         help_op.text = (
-            "Resolve conflicts when merging a stratigraphy\n"
-            "XLSX with an existing graph: keep existing,\n"
-            "use incoming, or apply per-field choices. Also\n"
-            "shows epoch compatibility reports."
+            "The differences between the active graph and\n"
+            "the newer table re-imported into it (EM Data\n"
+            "Tree ▸ Re-import a table): keep what the graph\n"
+            "has, or take the table's, field by field. Also\n"
+            "the epoch check of the new units."
         )
         help_op.url = "panels/em_setup.html#graphml-merge-conflict"
         help_op.project = 'em_tools'

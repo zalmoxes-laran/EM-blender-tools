@@ -865,9 +865,9 @@ class EM_SetupPanel(bpy.types.Panel):
         # Merge (experimental). G1 · «Save GraphML» and «Save As…» to GraphML
         # are gone: a GraphML is read once and the graph lives in em.json
         # (decision of E.D., 4 Oct 2026); Save and Save As above write it.
+        # E2 · the merge of an updated table is «Re-import a table», a
+        # sub-panel of its own and no longer experimental
         if em_tools.experimental_features:
-            row = layout.row(align=True)
-            row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
 
             # Hybrid-C Phase 4: Bake auxiliaries into the graph. Shown only
             # when the active graph carries any injected content
@@ -1457,6 +1457,55 @@ def draw_import_from_tables(layout, context, em_tools):
     (Enzo Cocca's reader, unchanged). It took the place of the 3D GIS mode,
     whose fields these are."""
     box = layout.column()
+    _say(box, "Makes a NEW graph from a table, saved as its own em.json.")
+    can_import = draw_table_source(box, context, em_tools, geometries=True)
+
+    # the new graph: its code and its em.json (both may stay empty)
+    out = box.column(align=True)
+    out.prop(em_tools, "table_graph_code", text="Graph code")
+    out.prop(em_tools, "table_output_path", text="Save as")
+    row = box.row(align=True)
+    row.scale_y = 1.5
+    row.enabled = can_import
+    row.operator("em.import_from_table", text="New graph from the table", icon='IMPORT')
+
+
+def _say(layout, sentence, icon='INFO'):
+    """A sentence of a panel, wrapped by hand: Blender does not wrap labels."""
+    import textwrap
+    col = layout.column(align=True)
+    for i, line in enumerate(textwrap.wrap(sentence, 46)):
+        col.label(text=line, icon=icon if i == 0 else 'BLANK1')
+
+
+def draw_reimport_table(layout, context, em_tools):
+    """E2 · «Re-import a table»: the newer version of the table the active
+    graph was made from updates that graph, which already has work on it."""
+    box = layout.column()
+    graph_ok = (0 <= em_tools.active_file_index < len(em_tools.graphml_files))
+    _say(box, "Updates the active graph, which already has work on it, with a "
+              "newer version of its table: each difference field by field, the "
+              "epochs of the new units checked, the result written to its em.json.")
+    _say(box, "Not an auxiliary file: an auxiliary is not saved into the graph, "
+              "it is grafted on top of it each time the graph is loaded.", icon='BLANK1')
+    if not graph_ok:
+        box.label(text="Load the graph to update first", icon='ERROR')
+        return
+    can_import = draw_table_source(box, context, em_tools, geometries=False)
+    row_g = em_tools.graphml_files[em_tools.active_file_index]
+    row = box.row(align=True)
+    row.scale_y = 1.5
+    row.enabled = can_import and not em_tools.merge_active
+    row.operator("em.reimport_table",
+                 text=f"Update {row_g.graph_code or 'the graph'} from the table",
+                 icon='FILE_REFRESH')
+    if em_tools.merge_active:
+        box.label(text="Choices waiting in Conflict Resolution", icon='ERROR')
+
+
+def draw_table_source(box, context, em_tools, geometries=True):
+    """The table: its kind and its fields, shared by Import from tables and
+    Re-import a table (the same properties, so set once). → can it be read."""
     row = box.row()
     row.prop(em_tools, "table_import_type", expand=True)
 
@@ -1511,8 +1560,9 @@ def draw_import_from_tables(layout, context, em_tools):
                     text="",
                     icon='PREFERENCES')
         row = options_box.row()
-        row.prop(em_tools, "pyarchinit_import_geometries")
-        if em_tools.pyarchinit_import_geometries:
+        if geometries:
+            row.prop(em_tools, "pyarchinit_import_geometries")
+        if geometries and em_tools.pyarchinit_import_geometries:
             sub = options_box.row()
             sub.alignment = 'RIGHT'
             sub.prop(em_tools, "pyarchinit_geom_force_update")
@@ -1623,14 +1673,7 @@ def draw_import_from_tables(layout, context, em_tools):
             em_tools.emdb_mapping != "none"
         )
 
-    # the new graph: its code and its em.json (both may stay empty)
-    out = box.column(align=True)
-    out.prop(em_tools, "table_graph_code", text="Graph code")
-    out.prop(em_tools, "table_output_path", text="Save as")
-    row = box.row(align=True)
-    row.scale_y = 1.5
-    row.enabled = can_import
-    row.operator("em.import_from_table", text="New graph from the table", icon='IMPORT')
+    return can_import
 
 
 class VIEW3D_PT_auxiliary_files(bpy.types.Panel):
@@ -1643,7 +1686,7 @@ class VIEW3D_PT_auxiliary_files(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = "EM"
     bl_parent_id = "VIEW3D_PT_EM_Tools_Setup"
-    bl_order = 2
+    bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -1652,6 +1695,9 @@ class VIEW3D_PT_auxiliary_files(bpy.types.Panel):
             self.layout.label(text="Add and load a graph first: the auxiliary files enrich it", icon='INFO')
             return
         active_file = em_tools.graphml_files[em_tools.active_file_index]
+        _say(self.layout, "Not saved into the graph: grafted on top of the loaded "
+                          "graph each time it is loaded. To change the graph "
+                          "itself, Re-import a table.")
         EM_SetupPanel._draw_auxiliary_files(self, context, self.layout, active_file)
 
 
@@ -1667,6 +1713,22 @@ class VIEW3D_PT_import_from_tables(bpy.types.Panel):
 
     def draw(self, context):
         draw_import_from_tables(self.layout, context, context.scene.em_tools)
+
+
+class VIEW3D_PT_reimport_table(bpy.types.Panel):
+    """E2 · beside Import from tables: the same table, newer, into the graph
+    that came from it (E.D., 4 Oct 2026)."""
+    bl_label = "Re-import a table"
+    bl_idname = "VIEW3D_PT_reimport_table"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM"
+    bl_parent_id = "VIEW3D_PT_EM_Tools_Setup"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        draw_reimport_table(self.layout, context, context.scene.em_tools)
 
 
 class AUXILIARY_MT_context_menu(bpy.types.Menu):
@@ -1699,6 +1761,7 @@ classes = (
     EMTOOLS_UL_files,
     EM_SetupPanel,
     VIEW3D_PT_import_from_tables,
+    VIEW3D_PT_reimport_table,
     VIEW3D_PT_auxiliary_files,
     AUXILIARY_MT_context_menu,
 )

@@ -186,10 +186,12 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     (`VIEW3D_PT_import_from_tables`, figlio di EM Data Tree), che prende il
     posto della modalità 3D GIS: 30. U6 divide l'EM Data Tree nei suoi tre
     mestieri, e gli ausiliari diventano il figlio `VIEW3D_PT_auxiliary_files`:
-    31.
+    31. E2 (decisioni della sera) aggiunge «Re-import a table»
+    (`VIEW3D_PT_reimport_table`), accanto a Import from tables: 32.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 31, sorted(PANNELLI)
+    assert len(PANNELLI) == 32, sorted(PANNELLI)
+    assert PANNELLI["VIEW3D_PT_reimport_table"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert PANNELLI["VIEW3D_PT_auxiliary_files"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert PANNELLI["VIEW3D_PT_import_from_tables"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert not any(n.startswith("GRAPHEDIT_PT_") or n == "VIEW3D_PT_graphedit_sync" for n in PANNELLI)
