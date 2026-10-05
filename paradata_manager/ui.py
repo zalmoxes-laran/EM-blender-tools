@@ -96,6 +96,17 @@ class EM_ParadataPanel:
             op = control_box.operator("em.open_in_emstudio", text=f"Edit {_unit.name} in EMStudio",
                                       icon='URL')
             op.node_id, op.unit_name = _unit.id_node, _unit.name
+            # E4 · grey when no way lands on the unit: the sentence says how
+            from ..sync_manager.open_in_emstudio import OFF as _off
+            from ..sync_manager import operators as _sync
+            from ..sync_manager import room as _room
+            _r = _room.room()
+            if not ((_sync.is_running() and _sync.client_count() > 0)
+                    or (_r.get("base_url") and _r.get("room_id"))):
+                import textwrap
+                _col = control_box.column(align=True)
+                for _i, _line in enumerate(textwrap.wrap(_off, 46)):
+                    _col.label(text=_line, icon='INFO' if _i == 0 else 'BLANK1')
         row = layout.row()
 
         if scene.em_tools.paradata_streaming_mode:
