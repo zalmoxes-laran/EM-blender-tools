@@ -284,6 +284,10 @@ def check_scene(context, graph, *, download: bool,
         report["why_not"] = "; ".join(sorted({r["reason"] for r in skipped}))[:120]
         report["fetch"] = fetched
     ULTIMA_VERIFICA.clear()
+    # V3 · what the node holds and this scene does not, after this check: the
+    # panel offers «Download the geometry now» while it is more than zero
+    ULTIMA_VERIFICA["missing_left"] = (len(report.get("missing") or [])
+                                       - int(report.get("downloaded") or 0))
     lines = sentences(report)
     from .residence import sentence as origin_sentence
     said = origin_sentence(summary.get("origins") or {})
@@ -340,10 +344,12 @@ def _operator_classes():  # pragma: no cover — bpy
         send: bpy.props.BoolProperty(name="Send", default=False)  # type: ignore
 
     class EM_OT_scene_check(bpy.types.Operator):
-        """Sync the scene with the room: download the models the graph cites
-        that are not here, check the files, and offer to send the models linked
-        to the graph that changed here or are new (a changed one goes as a new
-        revision of its resource). Objects only here never go"""
+        """Sync the scene with the room: download the proxies and the models
+        the graph cites that are not here (what «Materialise geometry» did),
+        check the files, and offer to send the models linked to the graph that
+        changed here or are new (a changed one goes as a new revision of its
+        resource). Outside the room it reconnects first. Objects only here
+        never go"""
 
         bl_idname = "em.scene_check"
         bl_label = "Sync the scene…"
@@ -438,6 +444,9 @@ def _operator_classes():  # pragma: no cover — bpy
         def draw(self, context):
             layout = self.layout
             layout.label(text=ULTIMA_VERIFICA.get("counts") or "", icon="VIEWZOOM")
+            # V3 · where «Materialise geometry» went: said where it is done
+            layout.label(text="The proxies and models missing here were downloaded "
+                              "from the room.", icon="IMPORT")
             rows = context.window_manager.em_sync_rows
             from .scene_sync import human_size
             layout.label(text="Linked to the graph, not yet in the room as they are here:")

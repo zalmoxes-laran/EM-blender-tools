@@ -166,7 +166,9 @@ class EMToolsMappingPreferences(AddonPreferences):
         name="Materialise geometry when adopting a room",
         description=("Download the room's meshes into this file as soon as its "
                      "document is adopted. Off by default: adopting a document "
-                     "is reading, downloading somebody's meshes is more"),
+                     "is reading, downloading somebody's meshes is more. Off, "
+                     "«Sync the scene…» downloads them when you ask, and the "
+                     "panel offers «Download the geometry now» at the entry"),
         default=False,
     )
 

@@ -10,7 +10,7 @@ in a tab of the sidebar (the EM Data Tree with its sub-panels). COPIES only.
     "/Applications/Blender 520.app/Contents/MacOS/Blender" --python-use-system-env \\
         --enable-event-simulate <copy>.blend \\
         --python ~/Documents/GitHub/EM-blender-tools/tests/blender_shots_panel_truth.py \\
-        -- <out_dir> places|reopened
+        -- <out_dir> places|reopened|entry
 """
 import json
 import os
@@ -121,11 +121,16 @@ def act(what):
             ops.leave_room()
         elif what == "token":
             mod("sync_manager.room").set_room(sc.em_room_url, sc.em_room_id, TOKEN)
+        elif what == "reconnect":
+            bpy.ops.em.room_reconnect()
         elif what == "sync":
             bpy.ops.em.scene_check(download=True)
 
 
-if WHICH == "reopened":
+if WHICH == "entry":
+    Q = [("act", "token"), ("act", "reconnect"), ("wait", 6),
+         ("shot", "4_entry_geometry_offered.png", "side:both")]
+elif WHICH == "reopened":
     Q = [("shot", "0_reopened_not_connected.png", "side:both"),
          ("act", "token"), ("act", "sync"), ("wait", 8),
          ("shot", "0_reopened_after_sync.png", "side:both")]

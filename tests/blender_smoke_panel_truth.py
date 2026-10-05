@@ -90,12 +90,22 @@ check("a failed reconnection keeps the room the file saved",
 
 # ── (3) the access held: Sync reconnects by itself and downloads ───────────
 room_cfg.set_room(BASE, ROOM, TOKEN)
+if os.environ.get("TV3"):
+    # V3 · an entry with the preference off: the geometry is offered, not taken
+    bpy.ops.em.room_reconnect()
+    left = scene_check.ULTIMA_VERIFICA.get("missing_left")
+    check("V3: at the entry the missing geometry is counted, not downloaded",
+          bool(left) and left > 0, str(left))
+    check("V3: the preference is off", not ops._preferenza("materialise_on_adopt", False))
 t0 = time.time()
 r = bpy.ops.em.scene_check(download=True)
 dt = time.time() - t0
 said = " ".join(scene_check.ULTIMA_VERIFICA.get("sentences") or [])
 print("[SMOKE]   sync:", said[:400])
 check("Sync reconnected by itself", rs.any_joined() and ops.current_session(bpy.context).joined)
+check("nothing left to offer after the Sync",
+      not scene_check.ULTIMA_VERIFICA.get("missing_left"),
+      str(scene_check.ULTIMA_VERIFICA.get("missing_left")))
 check("…and downloaded what was missing", "downloaded" in said and "not downloaded" not in said,
       f"{dt:.1f}s")
 z, tree = halves()

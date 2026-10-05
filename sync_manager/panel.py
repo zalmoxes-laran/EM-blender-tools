@@ -130,6 +130,14 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         col = layout.column(align=True)
         if scene_check.ULTIMA_VERIFICA.get("counts"):
             col.label(text=scene_check.ULTIMA_VERIFICA["counts"][:90])
+        # V3 · «Materialise geometry» is a preference now; with it off, the
+        # geometry the node holds and this scene does not is offered here
+        left = int(scene_check.ULTIMA_VERIFICA.get("missing_left") or 0)
+        if left and not offline and not ops._preferenza("materialise_on_adopt", False):
+            row = col.row(align=True)
+            row.label(text=f"✕ {left} on the node, not here", icon="IMPORT")
+            op = row.operator("em.scene_check", text="Download the geometry now")
+            op.download = True
         row = col.row(align=True)
         row.operator("em.scene_check", text="Sync the scene…", icon="FILE_REFRESH")
         row = col.row(align=True)
