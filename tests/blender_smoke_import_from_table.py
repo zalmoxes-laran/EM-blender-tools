@@ -87,12 +87,18 @@ if row is not None:
     check("the graph code says the site", "Scavo_archeologico" in row.graph_code, row.graph_code)
 new_objs = set(bpy.data.objects.keys()) - before_objs
 check("their geometries are in the scene", len(new_objs) > 10, f"{len(new_objs)} new objects, e.g. {sorted(new_objs)[:4]}")
-# measured on 4 Oct 2026, NOT a failure of this gesture: s3Dgraphy names the US
-# «1.US10» (area + type + number, the mapping's _comment_template) and Enzo's
-# reader looks for the bare «10», so the polygons land as orphans — the same in
-# the 3D GIS flow before. His code is not changed here: said in the report.
+# N1 (5 Oct 2026): the US keep the label of the mapping («1.US10») and the
+# geometries find them through the adapter (pyarchinit_us_adapter), Enzo's
+# reader unchanged. Measured: every polygon of the site on its US.
+orphans = sorted(n for n in new_objs if n.startswith("orphan_"))
 linked = [n for n in new_objs if not n.startswith("orphan_")]
-print(f"[SMOKE] INFO: geometries linked to their US: {len(linked)} of {len(new_objs)}")
+print(f"[SMOKE] INFO: geometries linked to their US: {len(linked)} objects, "
+      f"{len(orphans)} orphan polygons {orphans[:6]}")
+_polys_on_us = len(_polys) - len(orphans)
+check("every polygon of the site finds its US (N1)", len(orphans) == 0 and len(linked) > 0,
+      f"{_polys_on_us} of {len(_polys)} polygons, {len(linked)} objects")
+_names = sorted(linked)[:3]
+check("the US keep the label of the mapping", all(".US" in n or ".USM" in n for n in linked), str(_names))
 
 # ── (2) an xlsx through a mapping ───────────────────────────────────────────
 src = os.path.expanduser("~/Documents/GitHub/s3Dgraphy/example_stratigraphy.xlsx")

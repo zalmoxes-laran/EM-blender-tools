@@ -85,11 +85,15 @@ class _TableImport:
         None for a new graph."""
         from .importer_registry import create_importer
         try:
-            return create_importer(
+            importer = create_importer(
                 import_type=settings['import_type'],
                 settings=settings,
                 existing_graph=graph_to_use
             )
+            # the rule that names the US, for the geometries to find them (N1)
+            mapping = getattr(importer, "mapping", None) or {}
+            self._name_template = (mapping.get("table_settings") or {}).get("node_name_template")
+            return importer
         except ValueError as e:
             self.report({'ERROR'}, str(e))
             return None
@@ -138,15 +142,23 @@ class _TableImport:
             show_popup_message(context, title=f"Geometry import {level}",
                                message=msg, icon=icon)
 
-        report = _pyarchinit_import_geometries(
-            context=context,
-            db_path=db_path,
-            graph=graph,
-            graph_code=graph_code,
-            force_update=force_update,
-            show_warning_callback=show_warning,
-            filters=filters,
-        )
+        # N1 · the US keep the label of the mapping (area.settore.tipoNumero)
+        # and the reader finds them through the adapter, its own code unchanged
+        from .pyarchinit_us_adapter import resolving_us_by_label
+        with resolving_us_by_label(db_path, getattr(self, "_name_template", None),
+                                   filters) as resolver:
+            report = _pyarchinit_import_geometries(
+                context=context,
+                db_path=db_path,
+                graph=graph,
+                graph_code=graph_code,
+                force_update=force_update,
+                show_warning_callback=show_warning,
+                filters=filters,
+            )
+        if resolver is not None:
+            report["matched_by"] = {k: list(resolver.how.values()).count(k)
+                                    for k in ("uuid", "label", "bare", "orphan")}
         self._show_geom_summary(context, report)
         return report
 
@@ -159,6 +171,10 @@ class _TableImport:
             f"Polygon orphans:       {report['polygon_orphans']}",
             f"US without geometry:   {len(report['us_without_geometry'])}",
         ]
+        if report.get("matched_by"):
+            m = report["matched_by"]
+            lines.append(f"Matched by UUID/label/number: {m['uuid']}/{m['label']}/{m['bare']} "
+                         f"(keys; {m['orphan']} without US)")
         if report["malformed_geometries"]:
             lines.append(
                 f"Malformed geometries:  {len(report['malformed_geometries'])}"
