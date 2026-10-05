@@ -56,6 +56,8 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
     bl_region_type = "UI"
     bl_category = "EM"
     bl_order = 0
+    #: the width when it is called as a popover (the shots of the report)
+    bl_ui_units_x = 22
 
     def draw_header(self, context):
         # closed, the panel is one line: the place's sign
