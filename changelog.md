@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — the panel tells the truth (MICRO-IL-PANNELLO-DICE-IL-VERO, 5 October 2026)
+- **One source for the room.** «Where you work», the EM Data Tree, Sync and the
+  commands read the same session: the active graph's room, else the room the
+  file saved. A file reopened in its room says «not connected» with
+  **Reconnect**; **Sync the scene…** reconnects by itself, and when it cannot it
+  says why in one sentence.
+- **The EM Data Tree says what is mounted**: the study (a file, or «the study
+  in the room»), its graphs, «Writing in: <graph>» by the graph's name, and the
+  commands on the graphs with their names (Add graph, Reload, Save, Save as…,
+  Multigraph, Remove graph). No room, node or role repeated from Where you work.
+- **Where the geometry went**: Sync says it downloads the proxies and models
+  missing here; with the preference «Materialise geometry when adopting a room»
+  off, a room entered with geometry on the node offers **Download the geometry
+  now**.
+- **Where it comes from**: the DTC is a card for the selected asset (RM list,
+  Asset versions, Document Manager, Files) — the step that made it, who, when,
+  the tool, its inputs with their signs — and «Open in EMStudio»; Files has no
+  DTC section any more.
+- **⇄** is in the common list of signs (`room.paired`).
+- A **source-based model with versions** goes into a library like the others.
+- The **Heriverse exporter** has no optimisation of its own (no Draco, no
+  texture compression): Heriverse receives the version made by «Prepare for a
+  use…».
+
 ### Changed — where you work and the collaborative room (MICRO-DOVE-LAVORI, 5 October 2026)
 - **Two tabs, EM and EM Scene.** The tab EM Room is gone: **Where you work**
   heads EM, above the EM Data Tree; Files and the Publication Deck are in EM
