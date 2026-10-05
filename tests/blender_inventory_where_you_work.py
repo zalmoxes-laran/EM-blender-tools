@@ -225,6 +225,23 @@ def run():
               not any("Create a collaborative room" in c for c in st["commands"]))
         check("4: no INFO line outside the zones", not st["info"], str(st["info"][:2]))
         RESULT["menu_room"] = draw_with(bpy.types.EM_MT_room_more)
+        files = draw_with(bpy.types.EM_PT_resources)
+        RESULT["files"] = files
+        check("F1: Files draws", not any(r["k"] == "EXC" for r in files), str(files[-1:]))
+        check("F1: the project folder is a menu",
+              any(r.get("id") == "EM_MT_project_folder" for r in files))
+        check("F1: no Promote to MinIO, no MinIO section",
+              not any("MinIO" in str(r.get("text")) or "minio" in str(r.get("id")) for r in files))
+        check("F1: no «EM Setup» left in its words",
+              not any("EM Setup" in str(r.get("text")) for r in files))
+        versions = draw_with(bpy.types.VIEW3D_PT_em_asset_versions)
+        check("F1: no scene package in Asset versions",
+              not any("package" in str(r.get("id")) or "package" in str(r.get("text")).lower()
+                      for r in versions), str([r.get("text") for r in versions][:6]))
+        blend = draw_with(bpy.types.EM_OT_room_blend)
+        check("F1: The .blend in the room has the snapshots and the package",
+              any(r.get("id") == "em.blend_backup_archive" for r in blend)
+              and any(r.get("id") == "em.scene_package_archive" for r in blend), str(blend[:3]))
         ops.leave_room()
     else:
         print("[INV] no EM_DEV_TOKEN: the room state is skipped")

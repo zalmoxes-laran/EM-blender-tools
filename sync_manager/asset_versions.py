@@ -1461,8 +1461,8 @@ def _operator_classes():  # pragma: no cover — bpy
                         layout.label(text=line, icon="BLANK1")
             # U1 · the one box of the levels, the same in RM Manager and Anastylosis
             draw_levels(layout, obj, scope="SCENE")
-            from . import scene_package
-            scene_package.draw(layout)
+            # F1 · the starting package is in «The .blend in the room…», with
+            # the snapshots (`windows.EM_OT_room_blend`)
 
     return (EM_OT_asset_add_version, EM_OT_asset_lod_step, EM_OT_asset_set_level,
             EM_OT_asset_level_menu, EM_MT_asset_levels_selected, VIEW3D_PT_em_asset_versions)

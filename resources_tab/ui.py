@@ -1,4 +1,12 @@
-"""`Files` (tab EM Room; once `Resources & Shelf`) — the face of the shared Resource layer.
+"""`Files` (tab EM Scene since 5 Oct 2026; once `Resources & Shelf`, then in EM
+Room) — the face of the shared Resource layer.
+
+F1 (MICRO-DOVE-LAVORI, 5 Oct 2026): Set DosCo folder, Scan, New EM project and
+Reorder are one menu, «Project folder…»; «Promote to MinIO» went (the upload is
+one: Upload, per file — the operator is in `_dead_code/resources_tab/`); the
+outer «DTC» box that only wrapped the DTC section went, the DTC consultation
+itself stays (B6 took it out of the EM Data Tree: this is the one place EM Tools
+draws it).
 
 EM16-UX (11-09-2026). This panel used to be labelled "EM Scene", i.e. it was
 named after the tab that contains it, which said nothing about what it holds.
@@ -42,14 +50,13 @@ class EM_PT_resources(bpy.types.Panel):
     bl_category = "EM Scene"
     bl_order = 10
     bl_options = {"DEFAULT_CLOSED"}
+    bl_description = "The shared Resource layer of this graph: where each file is"
 
     def draw(self, context):
         layout = self.layout
         p = getattr(context.scene, "em_resources", None)
         if p is None:
             return
-
-        layout.label(text="The shared Resource layer for this graph.", icon='ASSET_MANAGER')
 
         # Blocker surface: the bundled s3dgraphy may be too old for R0/R1.
         if not resource_backend.resources_supported():
@@ -63,22 +70,21 @@ class EM_PT_resources(bpy.types.Panel):
         from ..functions import check_active_graph
         ok, graph = check_active_graph(context, show_message=False)
         if not (ok and graph is not None):
-            layout.label(text="No graph selected in EM Setup.", icon='INFO')
+            layout.label(text="No graph selected in the EM Data Tree.", icon='INFO')
             return
 
         # `backend` e `graph_code` servivano alla sezione Shelf, che è diventata
         # un pannello figlio: qui resta solo la cartella.
         _ok2, _graph, folder, _graph_code = operators._active(context)
 
-        # DosCo / scan folder — folder picker + current path, then Scan.
-        fbox = layout.box()
-        fbox.operator("em.resources_set_dosco_folder", icon='FILE_FOLDER')
-        fbox.label(text=(folder if folder else "— no DosCo folder set —"),
-                   icon='CHECKMARK' if folder else 'INFO')
-        srow = fbox.row(align=True)
-        srow.operator("em.resources_scan", icon='FILE_REFRESH')
+        # F1 · the project folder in ONE row: where it is, and its menu (Set
+        # DosCo folder, Scan, New EM project, Reorder)
+        frow = layout.row(align=True)
+        frow.label(text=(folder if folder else "no DosCo folder set"),
+                   icon='FILE_FOLDER')
+        frow.menu("EM_MT_project_folder", text="Project folder…")
         if p.status:
-            srow.label(text=p.status)
+            layout.label(text=p.status)
 
         # R1/R2 · where each file is, with ONE resolver and the common signs
         try:
@@ -115,10 +121,9 @@ class EM_PT_resources(bpy.types.Panel):
         if sigilli:
             self._section(layout, p, "show_seals", f"Seals ({len(sigilli)})",
                           lambda box: self._draw_seals(box, p, sigilli))
-        self._section(layout, p, "show_dtc", "DTC",
-                      lambda box: self._draw_dtc(box, context))
-        self._section(layout, p, "show_minio", "Object store (MinIO)",
-                      lambda box: self._draw_minio(box, graph))
+        # the DTC consultation, drawn once (its own toggle): F1 took away the
+        # box that only wrapped it, and «Object store (MinIO)» — one upload
+        self._draw_dtc(layout, context)
 
     # ── section helper ──────────────────────────────────────────────────────────
     def _section(self, layout, p, prop, title, body):
@@ -240,35 +245,29 @@ class EM_PT_resources(bpy.types.Panel):
             op = body.operator("em.seal_copy_json", icon='COPYDOWN')
             op.resource_id = r["id"]
 
-    # ── DTC (reuse the authoring renderer) ────────────────────────────────────────
-    def _draw_dtc(self, box, context):
+    # ── DTC (the consultation, B6: its one place in EM Tools) ────────────────
+    def _draw_dtc(self, layout, context):
         try:
             from ..dtc_authoring.ui import draw_dtc_section
-            draw_dtc_section(box, context)
-        except Exception:
-            box.label(text="DTC authoring available in the EM Data Tree.", icon='NODETREE')
+            draw_dtc_section(layout, context)
+        except Exception as exc:                   # noqa: BLE001
+            layout.label(text=f"DTC: {exc}", icon='ERROR')
 
-    # ── Object store (MinIO) — Promote local resources (mirrors EMStudio) ─────────
-    def _draw_minio(self, box, graph):
-        box.label(text="Upload a local resource; keeps its stable ID.", icon='EXPORT')
-        supported = resource_backend.minio_supported()
-        if not supported:
-            draw_s3dgraphy_too_old(box, "MinIO promote unavailable", "MinIO promote",
-                              extra="Also needs the 'minio' extra and the S3_* "
-                                    "environment (source dev-stack/.env).",
-                              alert=False)
-        resources = resource_backend.list_link_resources(graph)
-        if not resources:
-            box.label(text="— no resources (link nodes) yet")
-            return
-        for r in resources:
-            row = box.row(align=True)
-            row.label(text=f"{r['name'] or r['id'][:8]}  ·  {r['kind']}", icon='FILE')
-            if r["kind"] == "local_path":
-                sub = row.row(align=True)
-                sub.enabled = supported
-                op = sub.operator("em.resources_promote_minio", text="Promote")
-                op.resource_id = r["id"]
+
+class EM_MT_project_folder(bpy.types.Menu):
+    """F1 · the project folder: where the DosCo is, the scan, a new EM project
+    with the standard tree, and the reorder by the EM standard"""
+
+    bl_idname = "EM_MT_project_folder"
+    bl_label = "Project folder"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("em.resources_set_dosco_folder", icon='FILE_FOLDER')
+        layout.operator("em.resources_scan", icon='FILE_REFRESH')
+        layout.separator()
+        layout.operator("em.new_em_project", icon="NEWFOLDER")
+        layout.operator("em.reorder_em_project", icon="SORTALPHA")
 
 
 def _chars(seal_column=False, card_width=False):
@@ -309,7 +308,7 @@ def _wrap(text, width, hard=False):
     return lines
 
 
-classes = (EM_PT_resources,)
+classes = (EM_MT_project_folder, EM_PT_resources)
 
 
 def register():

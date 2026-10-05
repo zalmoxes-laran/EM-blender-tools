@@ -480,9 +480,7 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
     """The «Files» section: one sign per resource, a filter per state, the
     gestures on each file."""
     from ..state_symbols import sign
-    proj = layout.row(align=True)
-    proj.operator("em.new_em_project", icon="NEWFOLDER")
-    proj.operator("em.reorder_em_project", icon="SORTALPHA")
+    # F1 · New EM project and Reorder are in «Project folder…» (resources_tab)
     box = layout.box()
     head = box.row(align=True)
     results = ULTIMI.get("results") or []

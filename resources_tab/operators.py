@@ -179,38 +179,6 @@ class EM_OT_resources_set_dosco_folder(Operator):
         return {'FINISHED'}
 
 
-class EM_OT_resources_promote_minio(Operator):
-    bl_idname = "em.resources_promote_minio"
-    bl_label = "Promote to MinIO"
-    bl_description = ("Upload this local resource into the shared MinIO object "
-                      "store (keeps its stable ID) and repoint its locator")
-    bl_options = {'REGISTER', 'UNDO'}
-
-    resource_id: bpy.props.StringProperty()  # type: ignore
-
-    def execute(self, context):
-        if not resource_backend.minio_supported():
-            self.report({'ERROR'},
-                        "MinIO unavailable: needs the dev s3dgraphy (./em.sh s3d) "
-                        "AND the 'minio' extra (pip install s3dgraphy[minio]).")
-            return {'CANCELLED'}
-        ok, graph, _folder, _gc = _active(context)
-        if not ok:
-            self.report({'WARNING'}, "No active graph.")
-            return {'CANCELLED'}
-        if not self.resource_id:
-            return {'CANCELLED'}
-        try:
-            res = resource_backend.promote_resource_to_minio(graph, self.resource_id)
-        except Exception as exc:
-            self.report({'ERROR'}, f"Promote failed: {exc}")
-            return {'CANCELLED'}
-        context.scene.em_resources.status = f"Promoted → {res['s3_uri']}"
-        for area in context.screen.areas:
-            area.tag_redraw()
-        return {'FINISHED'}
-
-
 class EM_OT_publish_distribution(Operator):
     """R6 · IL GESTO CHE MANCAVA: una distribution diventa PUBBLICATA.
 
@@ -559,7 +527,6 @@ classes = (
     EM_OT_resources_scan,
     EM_OT_resources_set_dosco_folder,
     EM_OT_resources_hat_document,
-    EM_OT_resources_promote_minio,
     EM_OT_publish_distribution,
 )
 
