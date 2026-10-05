@@ -791,12 +791,6 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
 
-    multigraph_mode: BoolProperty(
-        name="Multigraph Mode",
-        description="Enable multigraph mode for handling multiple graphs simultaneously",
-        default=False
-    )  # type: ignore
-
     # ============================================
     # MERGE / CONFLICT RESOLUTION
     # ============================================

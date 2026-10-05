@@ -1106,9 +1106,17 @@ def _drain_inbox():
 
 
 def _drena_stanza(session, context, graph, ok):
-    """Drain ONE room's inbox into `graph` (M2: the graph of that room)."""
+    """Drain ONE room's inbox into `graph` (M2: the graph of that room) — or,
+    G1, into the graph of the study the envelope names (I-2)."""
     from . import room_session as _rs
     for message in session.drain():
+        named = _rs.graph_of_message(session, message)
+        if named:
+            from s3dgraphy import get_graph as _get_graph
+            other = _get_graph(named)
+            if other is not None and other is not graph:
+                _sicuro(json.dumps(message), context, other, True)
+                continue
         # C3 · I TRE CASI, adesso distinti invece che scartati insieme.
         #
         # Qui c'era un `continue` su OGNI `select` con un `connection_id`. Non
@@ -1942,6 +1950,10 @@ def _lega_grafo_alla_stanza(context, session, room_doc, base_url, room_id,
             ids = [graph.graph_id]
     em_tools = getattr(context.scene, "em_tools", None)
     rows = list(getattr(em_tools, "graphml_files", ()) or ())
+    # G1 · the graphs the ROOM holds (only when its document was adopted): the
+    # ones an operation may name, out and in
+    session.room_graphs = set(g for g in ids if g) if room_doc else set()
+    session.writing_graph = ids[0] if ids else None
     for gid in [g for g in ids if g]:
         _rs.bind(gid, session, base_url, room_id, token)
         for row in rows:

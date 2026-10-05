@@ -131,6 +131,14 @@ class RoomSession:
         #: addon instead of as a study somebody let you read.
         self.role: Optional[str] = None
         self.can_write: bool = True
+        #: G1 (5 Oct 2026, I-2) · THE GRAPHS OF THE ROOM'S STUDY, as its
+        #: document holds them (set when the room's graphs are adopted), and the
+        #: one the edits are for (`activate`). An operation names its graph
+        #: only when the room has it: a room seeded from this scene holds one
+        #: graph under its own id, and naming the local id there would be
+        #: refused, where today the op lands on the room's graph.
+        self.room_graphs: set = set()
+        self.writing_graph: Optional[str] = None
         #: I1 · the sync, counted off the room's answers: every operation sent
         #: gets one `op_result` (or a `denied`). Counted per membership.
         self.sent_ops: int = 0
@@ -229,7 +237,10 @@ class RoomSession:
         # NOT touched — in an edge op they are the endpoints, and since WIRE 2
         # they live in the payload where no envelope word can reach them.
         body = {k: v for k, v in op.items() if k not in ("author", "type")}
-        sent = self.send("op", body)
+        # G1 · the graph in the ENVELOPE, the wire's word (the server reads it,
+        # `ws.py`): the room holds the study, the op says which graph
+        graph = self.writing_graph if self.writing_graph in self.room_graphs else None
+        sent = self.send("op", body, graph_id=graph)
         if sent:
             self.sent_ops += 1
         return sent
@@ -359,6 +370,15 @@ def bind(graph_id: str, session: RoomSession, base_url: Optional[str],
                         "room_id": room_id or None, "token": token}
 
 
+def graph_of_message(session: RoomSession, message: Dict[str, Any]) -> Optional[str]:
+    """G1 · the graph an operation from the room is for: the one its envelope
+    names, when it is a graph of the room's study; None otherwise (a frame from
+    a peer that does not name graphs, or a room seeded from this scene), and
+    then the caller keeps the graph the session is bound to (D-A)."""
+    named = message.get("graph_id")
+    return str(named) if named and str(named) in session.room_graphs else None
+
+
 def unbind_session(session: RoomSession) -> List[str]:
     """Forget the graphs a session served (it left its room). Returns them."""
     gone = [g for g, s in _by_graph.items() if s is session]
@@ -421,6 +441,7 @@ def activate(graph_id: Optional[str]) -> RoomSession:
     target = _by_graph.get(graph_id or "")
     if target is not None:
         SESSION = target
+        target.writing_graph = graph_id
         w = _where.get(graph_id or "") or {}
         room.set_room(w.get("base_url"), w.get("room_id"), w.get("token"))
     elif SESSION in _by_graph.values():
