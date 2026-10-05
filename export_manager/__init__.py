@@ -8,8 +8,9 @@ Organization:
                           the panel went to _dead_code/export_manager/panel.py)
     providers/         -> one subpackage per exporter UI section
         tabular/       -> CSV export (US/USV, Sources, Extractors)
-        heriverse/     -> Heriverse Export UI (delegates to export.heriverse op
-                          defined in export_operators.heriverse)
+        heriverse/     -> only the scene.heriverse_* properties: the Heriverse
+                          exporter left (H4, 5 Oct 2026, _dead_code/); the
+                          package is a version on disk (Publication Deck)
 
 Dead EMviq/ATON operators (EM_runaton, EM_export, EM_openemviq, the legacy
 export.emjson) were removed: they were only reached through a commented-out UI

@@ -18,8 +18,9 @@ import ast
 import pathlib
 import re
 
-_REPO = pathlib.Path(__file__).resolve().parent.parent
-_OPERATOR = _REPO / "export_operators" / "heriverse" / "operator.py"
+# H4 (E.D., 5 ott 2026): l'operatore è in `_dead_code/`, e la sua prova con
+# lui, accanto — fuori da `testpaths`, si legge e si lancia a mano
+_OPERATOR = pathlib.Path(__file__).resolve().parent / "operator.py"
 _SORGENTE = _OPERATOR.read_text(errors="replace")
 
 

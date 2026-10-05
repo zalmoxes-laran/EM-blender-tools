@@ -4,7 +4,8 @@ DECK2 aveva legato la spunta del deck a `RMItem.is_publishable`, con
 l'argomento giusto — **non inventare uno stato di UI parallelo a uno che
 esiste** — e il bersaglio sbagliato. `is_publishable` vive su `RMItem`
 (`rm_manager/data.py`) e chi lo legge è l'**exporter Heriverse**
-(`export_operators/heriverse/operator.py`, `json_export.py`): il suo
+(allora `export_operators/heriverse/operator.py` e `json_export.py`, oggi in
+`_dead_code/`; dal 5 ott 2026, H4, `publication_deck_ui/heriverse.py`): il suo
 significato reale è *«questo RM entra nel bundle dell'export»*, cioè
 un'**inclusione per un consumatore**.
 

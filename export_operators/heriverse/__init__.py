@@ -1,46 +1,31 @@
-"""
-Heriverse exporter subpackage.
+"""What is left of the Heriverse exporter: the pieces a VERSION ON DISK uses.
 
-Organization:
+H4 (E.D., 5 Oct 2026, the correction of the evening): the mesh re-exporter
+dedicated to Heriverse does not come back as it was. A package for Heriverse /
+ATON is a VERSION ON DISK — use ``heriverse``/``aton``, made by «Prepare for a
+use…» (``sync_manager/asset_versions.py``) and registered with its sha256 —
+and the Publication Deck writes the folder with the em.json and those versions
+(``publication_heriverse.py``, ``publication_deck_ui/heriverse.py``).
+
+What the old engine had and the version uses stays here:
+
     utils.py           -> clean_filename, find_layer_collection, get_collection_for_object
-    gltf.py            -> export_gltf_with_animation_support (thin bpy.ops.export_scene.gltf wrapper)
-    json_export.py     -> HERIVERSE_OT_export_json (bl_idname 'export.heriversejson')
-    collections_op.py  -> HERIVERSE_OT_make_collections_visible (pre-export visibility helper)
-    operator.py        -> EXPORT_OT_heriverse (the main 'export.heriverse' operator)
+    gltf.py            -> export_gltf_with_animation_support: the glTF writing
+                          (its settings, no Draco of its own — Q5)
+    dissemination.py   -> who is published and who is not (bpy-free)
 
-The monolithic operator.py is intentionally kept as a single file for now;
-internal splitting can be tackled separately.
+The rest — the operator ``export.heriverse`` and its project tree, the JSON
+writer ``export.heriversejson``, the collections helper, the threaded export —
+is in ``_dead_code/`` with a note (``_dead_code/README.md``, H4). No operator
+is registered from here.
 """
 
-from . import utils, gltf, json_export, collections_op, operator
-
-# Re-exports used by other modules (export_threaded.py, addon root __init__.py)
 from .utils import clean_filename, find_layer_collection, get_collection_for_object
 from .gltf import export_gltf_with_animation_support
-from .json_export import HERIVERSE_OT_export_json
-from .collections_op import HERIVERSE_OT_make_collections_visible
-from .operator import EXPORT_OT_heriverse
 
 __all__ = [
-    'register',
-    'unregister',
     'clean_filename',
     'find_layer_collection',
     'get_collection_for_object',
     'export_gltf_with_animation_support',
-    'HERIVERSE_OT_export_json',
-    'HERIVERSE_OT_make_collections_visible',
-    'EXPORT_OT_heriverse',
 ]
-
-
-def register():
-    operator.register()
-    json_export.register()
-    collections_op.register()
-
-
-def unregister():
-    collections_op.unregister()
-    json_export.unregister()
-    operator.unregister()

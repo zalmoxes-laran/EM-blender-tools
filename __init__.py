@@ -682,7 +682,6 @@ def _core_independent_modules():
     disabling and enabling EM Tools said «already registered» five times."""
     from .import_operators import importer_graphml
     from .import_operators import importer_emjson
-    from .export_operators import heriverse as exporter_heriverse
     from .export_operators import exporter_emjson
     from .export_operators import rdf as exporter_rdf
     from .import_operators import import_EMdb
@@ -721,7 +720,6 @@ def _core_independent_modules():
         graph2geometry,
         importer_graphml,
         importer_emjson,
-        exporter_heriverse,
         exporter_emjson,
         exporter_rdf,
         import_EMdb,
@@ -743,7 +741,6 @@ def register_modules():
     # Import statements
     from .import_operators import importer_graphml
     from .import_operators import importer_emjson
-    from .export_operators import heriverse as exporter_heriverse
     from .export_operators import exporter_emjson
     from .export_operators import rdf as exporter_rdf
     from .import_operators import import_EMdb
@@ -856,7 +853,6 @@ def unregister_modules():
         logger.warning("Skipping module unregistration - modules not loaded")
         return
     
-    from .export_operators import heriverse as exporter_heriverse
     from .export_operators import exporter_emjson
     from .export_operators import rdf as exporter_rdf
     from .import_operators import importer_graphml, importer_emjson, import_EMdb

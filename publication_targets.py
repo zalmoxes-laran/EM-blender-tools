@@ -180,6 +180,12 @@ def _come_nodo(dati):
     return _ComeNodo(dati)
 
 
+def _detti(usi) -> str:
+    """«heriverse, aton, web or realtime»."""
+    usi = list(usi)
+    return f"{', '.join(usi[:-1])} or {usi[-1]}" if len(usi) > 1 else "".join(usi)
+
+
 def giudice(capacita: dict, mancante: str = "", tipi=None, usi=None) -> callable:
     """Un giudice per una destinazione, dalle sue capacità. → `(dati) -> {ok, why}`.
 
@@ -206,7 +212,7 @@ def giudice(capacita: dict, mancante: str = "", tipi=None, usi=None) -> callable
                 and not set(map(str, dichiarati)) & set(usi):
             return {"ok": False, "state": NA,
                     "why": f"a version for {', '.join(map(str, dichiarati))}: this "
-                           f"reader takes the {' or '.join(usi)} ones"}
+                           f"reader takes the {_detti(usi)} ones"}
         # D5 · LA PORTA D'INGRESSO, che qui mancava. Un pdf non chiede nessuna
         # capacità nota, quindi la regola di chiusura lo faceva passare per un
         # endpoint e la colonna diceva `ready = yes` a diciannove documenti —
@@ -262,9 +268,11 @@ def giudice(capacita: dict, mancante: str = "", tipi=None, usi=None) -> callable
     return giudica
 
 
-#: U1 · gli usi delle versioni che Heriverse prende (i nomi di
-#: `livelli-e-usi-delle-versioni-3d`: web e realtime)
-USI_HERIVERSE = ("web", "realtime")
+#: U1 · gli usi delle versioni che Heriverse prende, nell'ordine in cui li
+#: chiede (`s3dgraphy.resources.versions.VIEWER_USES`): H4 (E.D., 5 ott 2026)
+#: mette davanti la versione fatta per lui — heriverse, poi aton — e poi web e
+#: realtime, i nomi di `livelli-e-usi-delle-versioni-3d`
+USI_HERIVERSE = ("heriverse", "aton", "web", "realtime")
 
 
 def destinazioni(radice_heriverse=None) -> dict:

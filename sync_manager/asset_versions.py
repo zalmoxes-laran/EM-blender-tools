@@ -107,7 +107,16 @@ USES = (("analysis", "Analysis", "Study and measure: autopsy of the units, secti
         ("mobile_ar", "Mobile / AR", "Augmented reality and mobile devices"),
         ("print", "Print", "3D printing, a physical replica"),
         ("render", "Render", "Plates, sections, reconstructive views, video"),
-        ("preview", "Preview", "A light preview for catalogues and records"))
+        ("preview", "Preview", "A light preview for catalogues and records"),
+        # H4 (E.D., 5 Oct 2026) · a version made FOR a viewer: the package on
+        # disk Heriverse or another ATON app opens (datamodel 1.6.26)
+        ("heriverse", "Heriverse", "The package Heriverse opens, on disk or from "
+                                   "the node: the model as it is"),
+        ("aton", "ATON", "The same package, for another ATON app"))
+
+#: H4 · the uses of a version made for a viewer: its glb is written by the glTF
+#: writer of the old Heriverse exporter (`export_operators/heriverse/gltf.py`)
+VIEWER_PACKAGE_USES = ("heriverse", "aton")
 
 
 def version_measures(*, tris: int, area_m2: float, texture_count: int = 0,
@@ -1151,9 +1160,12 @@ def _version_info(context, obj) -> Optional[Dict[str, Any]]:  # pragma: no cover
         return None
 
 
-def _export_glb(mesh, path: str, *, draco: bool = False) -> None:  # pragma: no cover — bpy
+def _export_glb(mesh, path: str, *, draco: bool = False,
+                viewer: bool = False) -> None:  # pragma: no cover — bpy
     """The version's bytes when the mesh was made here: a glb of that mesh
-    (U1 · Draco-compressed when the use asks for it)."""
+    (U1 · Draco-compressed when the use asks for it). ``viewer`` (H4, a version
+    for Heriverse/ATON): written by the glTF writer of the old Heriverse
+    exporter, with its settings — the same glTF Heriverse always received."""
     bpy = _bpy()
     tmp = bpy.data.objects.new("_em_version_export", mesh)
     bpy.context.scene.collection.objects.link(tmp)
@@ -1167,9 +1179,15 @@ def _export_glb(mesh, path: str, *, draco: bool = False) -> None:  # pragma: no 
         with bpy.context.temp_override(selected_objects=[tmp], active_object=tmp):
             for o in bpy.context.view_layer.objects:
                 o.select_set(o == tmp)
-            bpy.ops.export_scene.gltf(filepath=path, use_selection=True,
-                                      export_format="GLB",
-                                      export_draco_mesh_compression_enable=bool(draco))
+            if viewer:
+                from ..export_operators.heriverse import export_gltf_with_animation_support
+                export_gltf_with_animation_support(
+                    path, bpy.context.window_manager.export_vars, bpy.context.scene,
+                    use_selection=True, format_file="GLB")
+            else:
+                bpy.ops.export_scene.gltf(filepath=path, use_selection=True,
+                                          export_format="GLB",
+                                          export_draco_mesh_compression_enable=bool(draco))
     finally:
         bpy.data.objects.remove(tmp)
         for o in was_selected:
@@ -1450,10 +1468,12 @@ def _operator_classes():  # pragma: no cover — bpy
                 tag = "-".join(sorted(self.use))
                 path = os.path.join(folder, f"{safe(obj.name)}{SEP}"
                                             f"{safe(self.computed or 'version')}-{safe(tag)}.glb")
-                _export_glb(mesh, path, draco=self.draco)
+                viewer = bool(set(self.use) & set(VIEWER_PACKAGE_USES))
+                _export_glb(mesh, path, draco=self.draco and not viewer, viewer=viewer)
                 size = os.path.getsize(path)
                 step = prepare_step(ratio=self.ratio, max_side=self.max_texture,
-                                    draco=self.draco, resized=resized, size_bytes=size)
+                                    draco=self.draco and not viewer, resized=resized,
+                                    size_bytes=size)
                 files = [{"path": os.path.basename(path), "url": path,
                           "checksum": _digest(sha256_of_file(path)), "size_bytes": size}]
                 out = add_version_from_mesh(

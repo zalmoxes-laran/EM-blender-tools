@@ -41,11 +41,10 @@ _CONSUMATORI = {
 #: accorge perché è un `AttributeError` a tempo di esecuzione — dentro un
 #: `try/except` che lo trasforma in un warning, che è come il ramo del tileset
 #: è rimasto morto per un commit intero.
+#:
+#: H4 (E.D., 5 ott 2026): l'operatore dell'export Heriverse che li usava è in
+#: `_dead_code/`; la mappa resta, per il prossimo consumatore per alias.
 _CONSUMATORI_MODULI = {
-    "export_operators/heriverse/operator.py": {
-        "_rl": "resource_levels.py",
-        "_ps": "rm_manager/publication_strategy.py",
-    },
     "resource_levels.py": {},
 }
 
@@ -141,10 +140,15 @@ def test_nessun_sito_d_export_conia_piu_un_nodo_risorsa_a_mano():
     commit intero e nessuno se n'era accorto, perché il suo `NameError` veniva
     trasformato in un warning fra gli altri.
     """
-    codice = _codice(_REPO / "export_operators" / "heriverse" / "operator.py")
-    assert "ResourceNode(" not in codice.replace("\n", ""), (
-        "un sito d'export conia di nuovo un nodo risorsa a mano invece di "
-        "passare da `_registra_bake`")
+    # H4 (E.D., 5 ott 2026): l'operatore è in `_dead_code/`; per Heriverse
+    # una risorsa nasce come VERSIONE (`api.add_version`, «Prepare for a
+    # use…»), e i siti che restano non ne coniano nessuna a mano
+    siti = sorted((_REPO / "export_operators" / "heriverse").glob("*.py")) + [
+        _REPO / "publication_heriverse.py", _REPO / "publication_deck_ui" / "heriverse.py"]
+    for sito in siti:
+        codice = _codice(sito)
+        assert "ResourceNode(" not in codice.replace("\n", ""), (
+            f"{sito.name}: un sito d'export conia di nuovo un nodo risorsa a mano")
 
 
 def test_il_vocabolario_della_direzione_non_e_rimasto_indietro():

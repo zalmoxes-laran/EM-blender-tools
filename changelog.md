@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Heriverse reads the study (MICRO-HERIVERSE-LEGGE-LO-STUDIO, 5 October 2026)
+- **Nothing is re-exported for Heriverse.** Heriverse reads the em.json and
+  picks, for each representation model, the version to load with the rule of
+  s3dgraphy (`version_for`: a version for heriverse, then aton, then web, then
+  realtime; none → the master, said). The exporter `export.heriverse`, its JSON
+  writer and its settings section are in `_dead_code/` with a note.
+- **The Publication Deck, destination Heriverse: two roads.** «Heriverse…»
+  says, for each published model, the version the rule will pick (name, level,
+  use, sha256) and which models have none. **On the node**: whether the bytes
+  are there. **On disk**: «Write the package on disk» makes a folder with the
+  em.json (the study as the Heriverse surface shows it: removed nodes absent),
+  `project.json` (the name Heriverse's upload reads) and `versions/`, the bytes
+  of each chosen version copied and checked against their sha256, the urls
+  relative to the em.json — also as a zip. Heriverse and ATON open it offline.
+- **A version for Heriverse is a version on disk**: «Prepare for a use…» has
+  the uses **Heriverse** and **ATON**; such a version is written by the glTF
+  writer of the old exporter, as the model is (no decimation, no texture cap, no
+  Draco), registered in the graph with its sha256 and in the asset's library.
+  «Make the missing versions» in the Deck makes one for each published model
+  that has none.
+
 ### Changed — the panel tells the truth (MICRO-IL-PANNELLO-DICE-IL-VERO, 5 October 2026)
 - **One source for the room.** «Where you work», the EM Data Tree, Sync and the
   commands read the same session: the active graph's room, else the room the

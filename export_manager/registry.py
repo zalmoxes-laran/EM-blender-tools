@@ -7,7 +7,7 @@ exporter is added.
 
 To add a new exporter UI:
     1. Create export_manager/providers/<name>/ (as a subpackage)
-    2. Build an ExportProvider (see providers/tabular or providers/heriverse)
+    2. Build an ExportProvider (see providers/tabular or providers/rdf)
     3. Call register_provider(PROVIDER) from the subpackage register()
     4. Import the subpackage from providers/__init__.py
 """
@@ -18,7 +18,7 @@ from typing import Callable, Optional
 
 @dataclass
 class ExportProvider:
-    id: str                               # must match the expand-toggle attr on ExportVars (e.g. "heriverse" -> heriverse_expanded)
+    id: str                               # must match the expand-toggle attr on ExportVars (e.g. "tabular" -> tabular_expanded)
     label: str                            # section header text
     order: int = 100                      # lower = drawn earlier
     icon: str = 'EXPORT'                  # Blender icon for the section header

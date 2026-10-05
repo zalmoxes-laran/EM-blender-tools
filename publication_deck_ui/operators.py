@@ -3,8 +3,9 @@
 Il principale è **Bake & publish** sulla selezione. Tre pezzi, tutti già
 esistenti e provati:
 
-1. il bake è l'export che c'è (`export.heriverse`) — se qui ricomparisse la
-   logica dell'export, vorrebbe dire essersi persi;
+1. il bake è «Prepare for a use…» (Asset versions) — H4 (E.D., 5 ott 2026):
+   l'export Heriverse non c'è più (`_dead_code/export_operators/heriverse/`),
+   e se qui ricomparisse la logica dell'export vorrebbe dire essersi persi;
 2. la registrazione è `publication.promote_resource`, in s3Dgraphy;
 3. la pubblicazione è `em.publish_distribution`, provata contro un MinIO vero
    la notte scorsa.
@@ -529,16 +530,20 @@ class EM_OT_deck_publish_one(Operator):
 
 
 class EM_OT_deck_rebake(Operator):
-    """**Re-bake** sulle stantie — e il bake è l'export che c'è.
+    """**Re-bake** sulle stantie — e il bake è «Prepare for a use…».
 
-    Non si riscrive niente: si chiama `export.heriverse`, che è il baker, e
-    poi si ricalcola. Il deck non sa esportare e non deve imparare.
+    Fino a H4 chiamava `export.heriverse`, il baker di allora. H4 (E.D., 5 ott
+    2026): da Blender non si esporta più niente per Heriverse, e una versione
+    per un uso si rifà col gesto che l'ha fatta, sull'oggetto che la mostra.
+    Qui si sceglie l'oggetto (la riga attiva se è stantia, se no la prima
+    stantia che ha un oggetto in scena) e si apre quel gesto: il deck non sa
+    esportare e non deve imparare.
     """
 
     bl_idname = "em.deck_rebake"
     bl_label = "Re-bake stale"
-    bl_description = ("Run the Heriverse export again so the stale "
-                      "distributions are remade from their sources")
+    bl_description = ("Make the stale version again: «Prepare for a use…» on "
+                      "the object that shows it")
 
     @classmethod
     def poll(cls, context):
@@ -548,17 +553,44 @@ class EM_OT_deck_rebake(Operator):
             return False
         return True
 
+    @staticmethod
+    def _oggetto(context, riga):
+        """L'oggetto della scena che mostra l'asset di questa riga, o None."""
+        from ..sync_manager.asset_versions import PROP_ASSET
+        ok, grafo = is_graph_available(context)
+        asset = riga.asset_id
+        if ok and grafo is not None:
+            try:
+                from s3dgraphy.resources.versions import asset_of
+                asset = asset_of(grafo, riga.asset_id)
+            except Exception:  # noqa: BLE001 — wheel vecchia, id fuori grafo
+                asset = riga.asset_id
+        for obj in context.scene.objects:
+            if obj.type == "MESH" and str(obj.get(PROP_ASSET) or "") in (asset, riga.asset_id):
+                return obj
+        obj = context.scene.objects.get(riga.name)
+        return obj if obj is not None and obj.type == "MESH" else None
+
     def execute(self, context):
-        try:
-            esito = bpy.ops.export.heriverse()
-        except DIFETTI_DI_PROGRAMMAZIONE:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            self.report({'ERROR'}, f"Re-bake failed: {exc}")
-            return {'CANCELLED'}
-        bpy.ops.em.deck_refresh()
-        self.report({'INFO'}, f"Re-bake: {esito}")
-        return {'FINISHED'}
+        deck = context.scene.em_publication_deck
+        righe = list(deck.righe)
+        attiva = righe[deck.riga_attiva] if 0 <= deck.riga_attiva < len(righe) else None
+        candidate = ([attiva] if attiva is not None and attiva.stato == "stale" else []) + \
+            [r for r in righe if r.stato == "stale" and r is not attiva]
+        for riga in candidate:
+            obj = self._oggetto(context, riga)
+            if obj is None:
+                continue
+            for o in context.view_layer.objects:
+                o.select_set(False)
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            self.report({'INFO'}, f"{riga.name}: stale — «Prepare for a use…» on {obj.name}")
+            return bpy.ops.em.asset_prepare_for_use('INVOKE_DEFAULT')
+        self.report({'WARNING'}, "A stale version is made again with «Prepare for a "
+                                 "use…» on the object that shows it: no stale row "
+                                 "has an object in this scene")
+        return {'CANCELLED'}
 
 
 class EM_OT_deck_reveal(Operator):

@@ -94,3 +94,28 @@ From MICRO-IL-PANNELLO-DICE-IL-VERO (5 October 2026), **Q5**:
   The properties (`heriverse_use_draco`, `heriverse_draco_level`,
   `heriverse_enable_compression`, …) stay registered: they are saved in .blend
   files; the panel no longer draws them.
+
+From MICRO-HERIVERSE-LEGGE-LO-STUDIO (5 October 2026), **H4**, with the
+correction E.D. gave the same evening (versions on disk too):
+
+- `export_operators/heriverse/` — `operator.py` (`export.heriverse`, the
+  re-exporter of a Heriverse project tree: models, proxies, tilesets, RMDoc,
+  RMSF, DosCo, panoramas, `project.json`, the zip), `json_export.py`
+  (`export.heriversejson`), `collections_op.py` and the old `__init__.py`
+  that registered them, with `test_export_esiti.py` beside its operator.
+  Heriverse reads the study and picks each model's version with the rule of
+  s3dgraphy (`version_for`, uses heriverse → aton → web → realtime); a package
+  for Heriverse/ATON is a VERSION ON DISK (use `heriverse`/`aton`, made by
+  «Prepare for a use…», registered with its sha256), and the Publication Deck
+  writes the folder — em.json, project.json, `versions/` — by
+  `publication_heriverse.py` and `publication_deck_ui/heriverse.py`. What the
+  version reuses stayed live in `export_operators/heriverse/`: the glTF writing
+  (`gltf.py`), `utils.py`, the dissemination filter (`dissemination.py`).
+  NOT carried into the package yet: proxies, tilesets, RMDoc/RMSF, DosCo and
+  panoramas — the methods that made them are here, to be read when they come
+  back as versions of their own.
+- `export_threaded.py` — the threaded variant of that export, called by nothing.
+- `export_manager/providers/heriverse/ui.py` — its settings section.
+- `publication_deck_ui/heriverse_package.py` — the Deck's «Package for
+  Heriverse», which showed the web versions and then ran `export.heriverse`;
+  replaced by `em.deck_heriverse` (two roads) in `publication_deck_ui/heriverse.py`.

@@ -6,8 +6,9 @@ and a dialog draws ONE of them, where the «Export Manager» panel drew them all
 (that panel is in `_dead_code/export_manager/panel.py`).
 
 The menu offers Tabular, RDF and PyArchInit (and Export statistics, from
-`em_statistics/dialog.py`). Heriverse is not here: its package is a
-destination of the Publication Deck (U1), which calls the same engine.
+`em_statistics/dialog.py`). Heriverse is not here: nothing is re-exported for
+it (H4) — the Publication Deck says what it will find, on the node or in the
+package on disk it writes.
 """
 
 import bpy
@@ -15,7 +16,7 @@ from bpy.types import Menu, Operator
 
 from .registry import get_providers
 
-#: the providers EM ▸ Export offers, in this order (Heriverse: the Deck, U1)
+#: the providers EM ▸ Export offers, in this order (Heriverse: the Deck, H4)
 MENU_PROVIDERS = ("tabular", "rdf", "pyarchinit")
 
 

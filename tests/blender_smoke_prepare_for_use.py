@@ -12,9 +12,8 @@ the copy): delete `em_cache/local/versions/ME_PODIO@lod*-web.glb` afterwards.
 textures capped at 1024 px, Draco; (2) a version `tier = distribution` with
 `use = [web]`, its `lod_level` computed by the chain, the numbers measured,
 the `lod_generation` step in the DTC with its technique and parameters;
-(3) the Deck lists it ready for Heriverse; «Package for Heriverse…» takes it
-for ME_PODIO and makes the package with the engine, then the level ME_PODIO
-showed comes back.
+(3) the Deck lists it ready for Heriverse, and the rule of the versions picks
+it for ME_PODIO (H4: no engine package any more).
 """
 import importlib
 import json
@@ -99,23 +98,24 @@ print("[SMOKE] deck row:", row and row.get("pronto_per"))
 check("the Deck lists the version", row is not None)
 check("…ready for Heriverse", row is not None and (row["pronto_per"].get("heriverse") or {}).get("ok"),
       str(row and row["pronto_per"]))
-plan = heri.versions_for(graph, scene.objects)
-check("Package for Heriverse takes ME_PODIO's web version",
-      any(p["object"] == "ME_PODIO" and "web" in p["use"] for p in plan), str(plan[:3]))
-level_before = av.current_level(obj)          # what it shows before packaging
-scene.heriverse_export_path = os.path.join(WORK, "heriverse")
-scene.heriverse_project_name = "TU1"
-os.makedirs(scene.heriverse_export_path, exist_ok=True)
-try:
-    r = bpy.ops.em.deck_heriverse_package(go=True)
-except RuntimeError as exc:
-    r = {"CANCELLED"}
-    print("[SMOKE] package refused:", str(exc)[:300])
-print("[SMOKE] package:", r, heri.LAST.get("result"))
-made = [f for f in os.listdir(scene.heriverse_export_path)] if os.path.isdir(scene.heriverse_export_path) else []
-check("the package is made by the engine", r == {"FINISHED"} and bool(made), f"{r} {made[:5]}")
-check("ME_PODIO shows its level again", av.current_level(obj) == level_before,
-      f"{level_before} → {av.current_level(obj)}")
+# H4 (E.D., 5 Oct 2026): no package made by an engine any more — the Deck
+# says what the rule of the versions picks (`em.deck_heriverse`), and the
+# package on disk is measured by `blender_smoke_heriverse_disk.py`
+PH = importlib.import_module(PKG + ".publication_heriverse")
+# the copy does not publish ME_PODIO (its RM list row): it is published here,
+# in memory, as the Deck's check of what Heriverse finds reads that flag
+for r in scene.rm_list:
+    if r.name == "ME_PODIO":
+        r.is_publishable = True
+print("[SMOKE] publishable graphs:", [g for g, _ in heri.publishable_graphs(bpy.context)],
+      "· ME_PODIO in the RM list publishable:",
+      [r.is_publishable for r in scene.rm_list if r.name == "ME_PODIO"])
+plan = heri.make_plan(bpy.context)
+print("[SMOKE] plan:", PH.summary(plan))
+podio = next((p for p in plan["ready"] if p["object"] == "ME_PODIO"), None)
+check("Heriverse will take ME_PODIO's web version", podio is not None
+      and podio["use"] == "web" and podio["version_id"] == vid, str(podio))
+made = [PH.row_line(p) for p in plan["ready"][:5]]
 with open(os.path.join(WORK, "u1.json"), "w") as fh:
     json.dump({"version": vid, "level": out.get("level"), "lod_level": out.get("lod_level"),
                "measures": measures, "step": step, "package": made[:20]}, fh, indent=1, default=str)
