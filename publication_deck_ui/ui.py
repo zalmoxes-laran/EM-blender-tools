@@ -387,6 +387,11 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
     def _destinazione(self, layout, deck, larghezza):
         riga = layout.row(align=True)
         riga.prop(deck, "destinazione", text="")
+        if deck.destinazione == "heriverse":
+            # U1 · Heriverse is a destination: its package takes the versions
+            # prepared for the web or realtime (`heriverse.py`)
+            riga.operator("em.deck_heriverse_package", text="Package…",
+                          icon="WORLD_DATA")
         if deck.destinazione_nota:
             #: T3, un livello più su: una capacità che non si è potuta leggere
             #: si dice `unknown` CON la ragione, non `no`.

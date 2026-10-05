@@ -45,6 +45,8 @@ SEP = "@"
 
 #: the last check of the libraries, for the panel (session state)
 ULTIMO: Dict[str, Any] = {}
+#: U1 · the last version «Prepare for a use…» made (session state)
+PREPARED: Dict[str, Any] = {}
 
 
 def _digest(value: Any) -> str:
@@ -138,6 +140,32 @@ def version_measures(*, tris: int, area_m2: float, texture_count: int = 0,
     if lod0_tris and tris:
         out["reduction_from_lod0"] = round(tris / lod0_tris, 4)
     return out
+
+
+def resized_side(side: int, max_side: int) -> int:
+    """U1 · the side a texture gets: `max_side` caps it, 0 keeps it."""
+    side, max_side = int(side or 0), int(max_side or 0)
+    return min(side, max_side) if max_side and side else side
+
+
+def prepare_step(*, ratio: float, max_side: int, draco: bool,
+                 resized: int, size_bytes: int) -> Dict[str, Any]:
+    """U1 · the `lod_generation` step «Prepare for a use…» records in the DTC:
+    its technique (what changed: the geometry, else the textures, else only
+    the encoding) and its parameters, with the numbers measured."""
+    if ratio < 1.0:
+        technique = "decimation"
+    elif resized:
+        technique = "texture_reduction"
+    else:
+        technique = "compression"
+    return {"technique": technique,
+            "parameters": {"ratio": round(float(ratio), 4),
+                           "max_texture_px": int(max_side or 0),
+                           "textures_resized": int(resized),
+                           "draco": bool(draco),
+                           "size_bytes": int(size_bytes),
+                           "tool": "EM Tools · Prepare for a use"}}
 
 
 def step_level(levels: List[str], current: Optional[str], direction: int
@@ -1123,8 +1151,9 @@ def _version_info(context, obj) -> Optional[Dict[str, Any]]:  # pragma: no cover
         return None
 
 
-def _export_glb(mesh, path: str) -> None:  # pragma: no cover — bpy
-    """The version's bytes when the mesh was made here: a glb of that mesh."""
+def _export_glb(mesh, path: str, *, draco: bool = False) -> None:  # pragma: no cover — bpy
+    """The version's bytes when the mesh was made here: a glb of that mesh
+    (U1 · Draco-compressed when the use asks for it)."""
     bpy = _bpy()
     tmp = bpy.data.objects.new("_em_version_export", mesh)
     bpy.context.scene.collection.objects.link(tmp)
@@ -1139,7 +1168,8 @@ def _export_glb(mesh, path: str) -> None:  # pragma: no cover — bpy
             for o in bpy.context.view_layer.objects:
                 o.select_set(o == tmp)
             bpy.ops.export_scene.gltf(filepath=path, use_selection=True,
-                                      export_format="GLB")
+                                      export_format="GLB",
+                                      export_draco_mesh_compression_enable=bool(draco))
     finally:
         bpy.data.objects.remove(tmp)
         for o in was_selected:
@@ -1306,6 +1336,149 @@ def _operator_classes():  # pragma: no cover — bpy
                                   f"{', '.join(out['levels'])}")
             return {"FINISHED"}
 
+    class EM_OT_asset_prepare_for_use(bpy.types.Operator):
+        """Prepare a version of what the object shows for a use (web,
+        realtime…): decimated, its textures capped, Draco-compressed — a
+        distribution version with its use, its computed level, the numbers
+        measured and the step recorded in the DTC. It takes the place of the
+        optimisation hidden in the Heriverse exporter"""
+
+        bl_idname = "em.asset_prepare_for_use"
+        bl_label = "Prepare for a use…"
+        bl_options = {"REGISTER", "UNDO"}
+
+        use: bpy.props.EnumProperty(  # type: ignore
+            name="For", options={"ENUM_FLAG"}, default={"web"},
+            description="What this version is for — one or more",
+            items=[(k, label, tip) for k, label, tip in USES])
+        ratio: bpy.props.FloatProperty(  # type: ignore
+            name="Decimate to", default=1.0, min=0.001, max=1.0,
+            description="The share of the triangles kept (1: no decimation)")
+        max_texture: bpy.props.IntProperty(  # type: ignore
+            name="Largest texture side", default=2048, min=0, soft_max=8192,
+            description="Textures larger than this are scaled down, px (0: kept)")
+        draco: bpy.props.BoolProperty(  # type: ignore
+            name="Draco compression", default=True,
+            description="Compress the geometry of the glb (Draco)")
+        computed: bpy.props.StringProperty(default="", options={"HIDDEN"})  # type: ignore
+
+        @classmethod
+        def poll(cls, context):
+            obj = context.active_object
+            return obj is not None and obj.type == "MESH"
+
+        def invoke(self, context, event):
+            obj = context.active_object
+            graph = _graph(context)
+            self.computed = ""
+            if graph is not None:
+                try:
+                    from s3dgraphy.resources.versions import lod_steps
+                    src = _shown_version(obj) or master_of(graph, obj, context.scene)
+                    if src:
+                        self.computed = f"lod{lod_steps(graph, src)}"
+                except Exception:  # noqa: BLE001
+                    pass
+            return context.window_manager.invoke_props_dialog(self, width=420)
+
+        def draw(self, context):
+            col = self.layout.column()
+            col.label(text=f"Level: {self.computed or 'computed from the chain'}, "
+                           f"from what the object shows", icon="SORTSIZE")
+            col.label(text="For")
+            col.prop(self, "use")
+            col.prop(self, "ratio")
+            col.prop(self, "max_texture")
+            col.prop(self, "draco")
+
+        def execute(self, context):
+            graph = _graph(context)
+            if graph is None:
+                self.report({"ERROR"}, "no graph loaded: a version is written "
+                                       "into the graph of its asset")
+                return {"CANCELLED"}
+            if not self.use:
+                self.report({"ERROR"}, "say what the version is for")
+                return {"CANCELLED"}
+            obj = context.active_object
+            if not self.computed:          # run without its dialog (a script)
+                try:
+                    from s3dgraphy.resources.versions import lod_steps
+                    src = _shown_version(obj) or master_of(graph, obj, context.scene)
+                    if src:
+                        self.computed = f"lod{lod_steps(graph, src)}"
+                except Exception:  # noqa: BLE001
+                    pass
+            room = _room_id()
+            folder = os.path.join(cache_folder(), CACHE_DIR, safe(room or "local"),
+                                  "versions")
+            os.makedirs(folder, exist_ok=True)
+            made = []          # the copies made here, removed if it fails
+            try:
+                deps = context.evaluated_depsgraph_get()
+                mod = None
+                if self.ratio < 1.0:
+                    mod = obj.modifiers.new("_em_prepare", "DECIMATE")
+                    mod.ratio = self.ratio
+                    deps = context.evaluated_depsgraph_get()
+                mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(deps))
+                if mod is not None:
+                    obj.modifiers.remove(mod)
+                resized = 0
+                if self.max_texture:
+                    for i, mat in enumerate(list(mesh.materials)):
+                        if mat is None or mat.node_tree is None:
+                            continue
+                        copy = mat.copy()
+                        made.append(copy)
+                        for node in copy.node_tree.nodes:
+                            img = getattr(node, "image", None)
+                            if img is None or not img.size[0]:
+                                continue
+                            side = max(img.size[0], img.size[1])
+                            want = resized_side(side, self.max_texture)
+                            if want >= side:
+                                continue
+                            small = img.copy()
+                            made.append(small)
+                            k = want / float(side)
+                            small.scale(max(1, int(img.size[0] * k)),
+                                        max(1, int(img.size[1] * k)))
+                            node.image = small
+                            resized += 1
+                        mesh.materials[i] = copy
+                tag = "-".join(sorted(self.use))
+                path = os.path.join(folder, f"{safe(obj.name)}{SEP}"
+                                            f"{safe(self.computed or 'version')}-{safe(tag)}.glb")
+                _export_glb(mesh, path, draco=self.draco)
+                size = os.path.getsize(path)
+                step = prepare_step(ratio=self.ratio, max_side=self.max_texture,
+                                    draco=self.draco, resized=resized, size_bytes=size)
+                files = [{"path": os.path.basename(path), "url": path,
+                          "checksum": _digest(sha256_of_file(path)), "size_bytes": size}]
+                out = add_version_from_mesh(
+                    graph, obj, mesh, files=files, room=room,
+                    technique=step["technique"], parameters=step["parameters"],
+                    use=sorted(self.use), made_from=_shown_version(obj))
+            except Exception as exc:  # noqa: BLE001 — the reason is the user's
+                for block in made:
+                    try:
+                        (bpy.data.images if hasattr(block, "pixels")
+                         else bpy.data.materials).remove(block)
+                    except Exception:  # noqa: BLE001
+                        pass
+                self.report({"ERROR"}, f"could not prepare the version: {exc}")
+                return {"CANCELLED"}
+            PREPARED.clear()
+            PREPARED.update({**out, "step": step, "glb": path})
+            for w in out["warnings"]:
+                self.report({"WARNING"}, w)
+            self.report({"INFO"}, f"{obj.name}: {out['level']} = {out.get('lod_level') or '?'} "
+                                  f"for {', '.join(out.get('use') or [])} · "
+                                  f"{step['technique']} · {size // 1024} kB · "
+                                  f"{_measures_line(out.get('measures') or {})}")
+            return {"FINISHED"}
+
     #: U1 · where a change of level applies: one object (a list's row), the
     #: selection, every object of the scene with levels, or the objects of RM
     #: Manager's / Anastylosis's list
@@ -1449,6 +1622,8 @@ def _operator_classes():  # pragma: no cover — bpy
             obj = context.active_object
             row = layout.row(align=True)
             row.operator("em.asset_add_version", icon="ADD")
+            # U1 · beside it: a version prepared for a use (web, realtime…)
+            row.operator("em.asset_prepare_for_use", icon="MOD_DECIM")
             if obj is not None and obj.get(PROP_ASSET):
                 # D1 · what the shown version IS: computed level, uses, measures
                 info = _version_info(context, obj)
@@ -1464,7 +1639,7 @@ def _operator_classes():  # pragma: no cover — bpy
             # F1 · the starting package is in «The .blend in the room…», with
             # the snapshots (`windows.EM_OT_room_blend`)
 
-    return (EM_OT_asset_add_version, EM_OT_asset_lod_step, EM_OT_asset_set_level,
+    return (EM_OT_asset_add_version, EM_OT_asset_prepare_for_use, EM_OT_asset_lod_step, EM_OT_asset_set_level,
             EM_OT_asset_level_menu, EM_MT_asset_levels_selected, VIEW3D_PT_em_asset_versions)
 
 

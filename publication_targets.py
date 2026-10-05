@@ -180,7 +180,7 @@ def _come_nodo(dati):
     return _ComeNodo(dati)
 
 
-def giudice(capacita: dict, mancante: str = "", tipi=None) -> callable:
+def giudice(capacita: dict, mancante: str = "", tipi=None, usi=None) -> callable:
     """Un giudice per una destinazione, dalle sue capacità. → `(dati) -> {ok, why}`.
 
     `mancante` è la ragione per cui le capacità non si sono potute leggere: se
@@ -194,8 +194,19 @@ def giudice(capacita: dict, mancante: str = "", tipi=None) -> callable:
     """
     capacita = dict(capacita or {})
     tipi = [str(t) for t in (tipi or [])]
+    usi = [str(u) for u in (usi or [])]
 
     def giudica(dati):
+        # U1 (5 ott 2026) · una VERSIONE dice a che cosa serve (`use`): una
+        # destinazione che legge solo certi usi prende quelle, e le altre
+        # sono fuori dal discorso, non «non pronte» — una versione per la
+        # stampa non è un difetto del visore web
+        dichiarati = dict(dati or {}).get("use")
+        if usi and isinstance(dichiarati, list) and dichiarati \
+                and not set(map(str, dichiarati)) & set(usi):
+            return {"ok": False, "state": NA,
+                    "why": f"a version for {', '.join(map(str, dichiarati))}: this "
+                           f"reader takes the {' or '.join(usi)} ones"}
         # D5 · LA PORTA D'INGRESSO, che qui mancava. Un pdf non chiede nessuna
         # capacità nota, quindi la regola di chiusura lo faceva passare per un
         # endpoint e la colonna diceva `ready = yes` a diciannove documenti —
@@ -251,6 +262,11 @@ def giudice(capacita: dict, mancante: str = "", tipi=None) -> callable:
     return giudica
 
 
+#: U1 · gli usi delle versioni che Heriverse prende (i nomi di
+#: `livelli-e-usi-delle-versioni-3d`: web e realtime)
+USI_HERIVERSE = ("web", "realtime")
+
+
 def destinazioni(radice_heriverse=None) -> dict:
     """Il registro: `{nome: {"giudice", "da", "perche"}}`.
 
@@ -264,7 +280,7 @@ def destinazioni(radice_heriverse=None) -> dict:
     return {
         "heriverse": {
             "giudice": giudice(heri["capacita"], heri["perche"],
-                               heri.get("tipi")),
+                               heri.get("tipi"), usi=USI_HERIVERSE),
             "da": heri["da"],
             "perche": heri["perche"],
             "capacita": heri["capacita"],

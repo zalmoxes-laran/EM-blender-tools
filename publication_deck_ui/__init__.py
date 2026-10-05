@@ -1,4 +1,4 @@
-"""publication_deck_ui — il Publication Deck (EM Room).
+"""publication_deck_ui — il Publication Deck (EM Scene, dal 5 ottobre 2026).
 
 Il posto che risponde a **una domanda sola**: *cosa manca perché questo em.json
 sia consumabile fuori da Blender?* Guarda la soglia fra il dentro e il fuori e
@@ -26,7 +26,7 @@ niente. Ciò che un lettore non sa aprire resta pubblicabile.
 
 from __future__ import annotations
 
-from . import flags, properties, operators, ui
+from . import flags, heriverse, properties, operators, ui
 
 
 def register():
@@ -36,11 +36,13 @@ def register():
     flags.register()
     properties.register()
     operators.register()
+    heriverse.register()
     ui.register()
 
 
 def unregister():
     ui.unregister()
+    heriverse.unregister()
     operators.unregister()
     properties.unregister()
     flags.unregister()

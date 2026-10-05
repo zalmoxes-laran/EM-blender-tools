@@ -114,3 +114,19 @@ def test_il_registro_porta_i_tipi_di_ogni_destinazione():
     #: la stanza non dichiara nemmeno CHE COSA consuma: nessun filtro, e la
     #: ragione la porta già `perche`
     assert registro["room"]["tipi"] == [] and registro["room"]["perche"]
+
+
+def test_U1_Heriverse_prende_le_versioni_per_il_web_o_il_tempo_reale():
+    """U1 · «Prepare for a use…» fa una versione col suo `use`: il Deck la
+    offre a Heriverse se è per web o realtime, e una per la stampa è fuori dal
+    discorso (n/a), non un difetto."""
+    giudica = PT.giudice({"gltf": "yes"}, "", ["3d_model"], usi=PT.USI_HERIVERSE)
+    web = {"url_type": "3d_model", "url": "x.glb", "tier": "distribution",
+           "use": ["web"]}
+    assert giudica(web)["ok"] is True
+    stampa = dict(web, use=["print"])
+    out = giudica(stampa)
+    assert out["ok"] is False and out["state"] == PT.NA
+    assert "web or realtime" in out["why"]
+    # una risorsa che non dichiara usi non si filtra
+    assert giudica({"url_type": "3d_model", "url": "x.glb", "tier": "distribution"})["ok"]

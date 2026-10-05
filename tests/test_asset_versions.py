@@ -194,3 +194,22 @@ def test_the_same_sentences_from_every_panel():
     assert said == [("WARNING", "no LOD4 for ME_X: LOD2 shown"), ("INFO", "ME_TM038_LOD3 → LOD2")]
     many = av.said_moves([f"o{i} → LOD1" for i in range(9)], [])
     assert many[0][1].endswith("(and 3 more)")
+
+
+def test_U1_prepare_for_a_use_records_what_changed_with_its_numbers():
+    """«Prepare for a use…»: the step's technique says what changed (the
+    geometry, else the textures, else only the encoding), with its numbers."""
+    assert av.resized_side(4096, 2048) == 2048
+    assert av.resized_side(1024, 2048) == 1024
+    assert av.resized_side(4096, 0) == 4096
+    step = av.prepare_step(ratio=0.25, max_side=2048, draco=True, resized=2,
+                           size_bytes=123456)
+    assert step["technique"] == "decimation"
+    assert step["parameters"] == {"ratio": 0.25, "max_texture_px": 2048,
+                                  "textures_resized": 2, "draco": True,
+                                  "size_bytes": 123456,
+                                  "tool": "EM Tools · Prepare for a use"}
+    assert av.prepare_step(ratio=1.0, max_side=1024, draco=True, resized=1,
+                           size_bytes=1)["technique"] == "texture_reduction"
+    assert av.prepare_step(ratio=1.0, max_side=0, draco=True, resized=0,
+                           size_bytes=1)["technique"] == "compression"
