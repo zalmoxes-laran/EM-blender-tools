@@ -673,13 +673,12 @@ def setup_pointer_properties():
         delattr(bpy.types.Object, 'EM_ep_belong_ob_index')
     bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
 
-def register_modules():
-    """Register all addon modules in correct dependency order"""
-    if not MODULE_IMPORT_SUCCESS:
-        logger.warning("Skipping module registration due to missing dependencies")
-        return
-    
-    # Import statements
+def _core_independent_modules():
+    """FASE 1 of `register_modules`, in its order. E5 · ONE list: the
+    unregistration walks it backwards, where it used to keep a list of its own
+    that had lost seven modules (graph_info, dtc_authoring, resources_tab,
+    publication_deck_ui, proxy_surface_tools, em_header_menu, shelf_tool), so
+    disabling and enabling EM Tools said «already registered» five times."""
     from .import_operators import importer_graphml
     from .import_operators import importer_emjson
     from .export_operators import heriverse as exporter_heriverse
@@ -687,18 +686,8 @@ def register_modules():
     from .export_operators import rdf as exporter_rdf
     from .import_operators import import_EMdb
     from .operators import graphml_converter
-    from . import unit_images  # U5 · the images of the units (the old thumbnails are in _dead_code)
-    
-    # FASE 0: Preferenze (devono essere registrate per prime)
-    try:
-        mapping_preferences.register()
-        logger.debug("Registered mapping preferences")
-    except Exception as e:
-        logger.warning(f"Error registering mapping preferences: {e}")
-
-    # FASE 1: Moduli core indipendenti (nessuna dipendenza UI)
-    # NOTE: em_setup is registered separately BEFORE em_props in main register()
-    core_independent_modules = [
+    from . import unit_images
+    return [
         icons_manager,
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
@@ -741,6 +730,34 @@ def register_modules():
         viewport_overlay,  # Viewport overlay for epoch/US display
         debug_graph_connections  # Debug operator
     ]
+
+
+def register_modules():
+    """Register all addon modules in correct dependency order"""
+    if not MODULE_IMPORT_SUCCESS:
+        logger.warning("Skipping module registration due to missing dependencies")
+        return
+    
+    # Import statements
+    from .import_operators import importer_graphml
+    from .import_operators import importer_emjson
+    from .export_operators import heriverse as exporter_heriverse
+    from .export_operators import exporter_emjson
+    from .export_operators import rdf as exporter_rdf
+    from .import_operators import import_EMdb
+    from .operators import graphml_converter
+    from . import unit_images  # U5 · the images of the units (the old thumbnails are in _dead_code)
+    
+    # FASE 0: Preferenze (devono essere registrate per prime)
+    try:
+        mapping_preferences.register()
+        logger.debug("Registered mapping preferences")
+    except Exception as e:
+        logger.warning(f"Error registering mapping preferences: {e}")
+
+    # FASE 1: Moduli core indipendenti (nessuna dipendenza UI)
+    # NOTE: em_setup is registered separately BEFORE em_props in main register()
+    core_independent_modules = _core_independent_modules()
     
     for module in core_independent_modules:
         try:
@@ -921,33 +938,10 @@ def unregister_modules():
     except Exception as e:
         logger.warning(f"Error unregistering viewport overlay: {e}")
     
-    # FASE 4: Moduli core in ordine inverso
-    core_modules = [
-        debug_graph_connections,  # Debug operator
-        unit_images,
-        cronofilter,
-        operators,
-        graphml_converter,
-        import_EMdb,
-        exporter_rdf,
-        exporter_emjson,
-        exporter_heriverse,
-        importer_emjson,
-        importer_graphml,
-        graph2geometry,
-        em_statistics,
-        export_manager,
-        rm_manager,
-        anastylosis_manager,
-        document_manager,
-        paradata_manager,
-        epoch_manager,
-        stratigraphy_manager,
-        activity_manager,
-        EMdb_excel,
-        icons_manager,
-
-    ]
+    # FASE 4: Moduli core in ordine inverso — the list of the registration,
+    # backwards (E5); the Visual Manager and the overlay went above
+    core_modules = [m for m in reversed(_core_independent_modules())
+                    if m not in (visual_manager, viewport_overlay)]
     
     for module in core_modules:
         try:
