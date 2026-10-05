@@ -156,7 +156,6 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     # EM Room · dove lavori e con chi (U6: era EM Bridge)
     ("VIEW3D_PT_ExportPanel", "EM Room"),
     ("EM_PT_ExportPanel", "EM Room"),
-    ("TAPESTRY_PT_main_panel", "EM Room"),
     ("VIEW3D_PT_em_sync", "EM Room"),
     ("VIEW3D_PT_ServerPanel", "EM Room"),
     # NIGHT-DECK · il Publication Deck, prima dell'Export Manager: la domanda
@@ -187,10 +186,12 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     posto della modalità 3D GIS: 30. U6 divide l'EM Data Tree nei suoi tre
     mestieri, e gli ausiliari diventano il figlio `VIEW3D_PT_auxiliary_files`:
     31. E2 (decisioni della sera) aggiunge «Re-import a table»
-    (`VIEW3D_PT_reimport_table`), accanto a Import from tables: 32.
+    (`VIEW3D_PT_reimport_table`), accanto a Import from tables: 32; E3 porta
+    Tapestry fuori, add-on suo (`TAPESTRY_PT_main_panel` non è più qui): 31.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 32, sorted(PANNELLI)
+    assert len(PANNELLI) == 31, sorted(PANNELLI)
+    assert "TAPESTRY_PT_main_panel" not in PANNELLI
     assert PANNELLI["VIEW3D_PT_reimport_table"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert PANNELLI["VIEW3D_PT_auxiliary_files"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert PANNELLI["VIEW3D_PT_import_from_tables"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
@@ -607,7 +608,6 @@ def test_D_NESSUN_TITOLO_DICE_PIU_EXPERIMENTAL():
 @pytest.mark.parametrize("rel,classe", [
     ("em_statistics/ui.py", "EM_PT_ExportPanel"),
     ("proxy_to_rm_projection/ui.py", "VIEW3D_PT_proxy_projection_panel"),
-    ("tapestry_integration/ui.py", "TAPESTRY_PT_main_panel"),
 ])
 def test_D_MA_L_ICONA_C_E_nell_header(rel, classe):
     """L'icona c'era GIÀ in tutti e cinque: la parola nel titolo era un
@@ -624,8 +624,7 @@ def test_D_E_NIENTE_ROSSO_per_sperimentale():
     """In Blender il rosso è l'errore, e questo repository lo usa sul serio nei
     box di indisponibilità. Estenderlo a «sperimentale» insegnerebbe a non
     leggere il rosso, e il giorno dopo si perde un errore vero."""
-    for rel, classe in (("em_statistics/ui.py", "EM_PT_ExportPanel"),
-                        ("tapestry_integration/ui.py", "TAPESTRY_PT_main_panel")):
+    for rel, classe in (("em_statistics/ui.py", "EM_PT_ExportPanel"),):
         t = (_REPO / rel).read_text()
         m = re.search(rf'^class\s+{classe}\s*\(', t, re.M)
         i = t.index("def draw_header", m.end())

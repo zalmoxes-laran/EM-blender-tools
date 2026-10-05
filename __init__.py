@@ -401,7 +401,6 @@ if DEPENDENCIES_LOADED:
             em_base_props,  # ← Base PropertyGroup classes
             em_props,
             debug_graph_connections,  # Debug operator
-            tapestry_integration,  # Tapestry AI reconstruction
             surface_areale,  # Surface Areale proxy creation
             readings_view,  # 3D readings (point/line/polyline) via s3Dgraphy glTF, read-only
             georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
@@ -780,12 +779,8 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering landscape system: {e}")
 
-    # FASE 5: Tapestry Integration (experimental feature)
-    try:
-        tapestry_integration.register()
-        logger.debug(f"Registered tapestry integration")
-    except Exception as e:
-        logger.error(f"Error registering tapestry integration: {e}")
+    # FASE 5: Tapestry is an add-on of its own since E3 (EM Tapestry, it
+    # leans on EM Tools for epochs and proxies): see companions.py
 
     # FASE 6: Surface Areale system
     try:
@@ -891,12 +886,6 @@ def unregister_modules():
     except Exception as e:
         logger.warning(f"Error unregistering surface areale: {e}")
 
-    # FASE 1: Tapestry Integration (va rimosso per primo - experimental feature)
-    try:
-        tapestry_integration.unregister()
-        logger.debug(f"Unregistered tapestry integration")
-    except Exception as e:
-        logger.warning(f"Error unregistering tapestry integration: {e}")
 
     # FASE 2: Landscape system
     try:

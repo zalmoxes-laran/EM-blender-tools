@@ -162,6 +162,10 @@ class EM_MT_about(bpy.types.Menu):
         # …e s3dgraphy SOTTO IL COFANO: è la libreria che fa il lavoro, e dopo
         # un `./em.sh s3d` sapere quale sta girando è la prima domanda.
         layout.label(text=f"s3dgraphy {_s3dgraphy_version()}", icon='SCRIPTPLUGINS')
+        # E3 · Tapestry is an add-on of its own: said, never needed
+        from .companions import tapestry_state
+        _on, _said = tapestry_state()
+        layout.label(text=_said, icon='CHECKMARK' if _on else 'BLANK1')
 
         urls = _docs_urls()
         layout.separator()
