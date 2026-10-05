@@ -1634,7 +1634,8 @@ def _operator_classes():  # pragma: no cover — bpy
         bl_space_type = "VIEW_3D"
         bl_region_type = "UI"
         bl_category = "EM Scene"
-        bl_order = 9
+        bl_parent_id = "EM_PT_scene_space"  # P3: EMStudio's Space
+        bl_order = 2
         bl_options = {"DEFAULT_CLOSED"}
 
         def draw(self, context):

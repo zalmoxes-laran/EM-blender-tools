@@ -43,12 +43,15 @@ from ..ui_helpers import draw_s3dgraphy_too_old
 
 
 class EM_PT_resources(bpy.types.Panel):
-    bl_label = "Files"
+    # P3 · named after EMStudio's window (the space is Contents, its
+    # window of the files is Storage)
+    bl_label = "Storage"
     bl_idname = "EM_PT_resources"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM Scene"
-    bl_order = 10
+    bl_parent_id = "EM_PT_scene_contents"  # P3: EMStudio's Contents
+    bl_order = 1
     bl_options = {"DEFAULT_CLOSED"}
     bl_description = "The shared Resource layer of this graph: where each file is"
 

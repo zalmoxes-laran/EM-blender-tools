@@ -350,8 +350,9 @@ class EM_OT_manage_object_prefixes(Operator):
 class EMToolsAddFile(Operator):
     bl_idname = "em_tools.add_file"
     bl_label = "Add graph"
-    bl_description = ("Add a graph to the study: a new slot, whose Path you set "
-                      "to a .graphml or an .em.json")
+    bl_description = ("Add a graph to the study: a new slot. To see a content: "
+                      "add the graph, set its Path (in its row) to a .graphml "
+                      "or an .em.json, then Load")
 
     def execute(self, context):
 

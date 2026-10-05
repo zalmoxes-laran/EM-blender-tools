@@ -191,7 +191,20 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     `_dead_code/`: 28.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 28, sorted(PANNELLI)
+    assert len(PANNELLI) == 31, sorted(PANNELLI)
+    # P3 · the two heads of EM Scene (EMStudio's Contents and Space) and P2 ·
+    # Graph info as a sub-panel: 28 + 3 = 31
+    assert PANNELLI["EM_PT_scene_contents"]["label"] == "Contents"
+    assert PANNELLI["EM_PT_scene_space"]["label"] == "Space"
+    for child in ("EM_PT_resources", "EM_PT_shelf", "VIEW3D_PT_3DDocumentManager"):
+        assert PANNELLI[child]["parent"] == "EM_PT_scene_contents", child
+    for child in ("VIEW3D_PT_RM_Manager", "VIEW3D_PT_RMDoc_Manager",
+                  "VIEW3D_PT_Anastylosis_Manager", "EM_PT_proxy_surface_tools",
+                  "EM_PT_georef"):
+        assert PANNELLI[child]["parent"] == "EM_PT_scene_space", child
+    assert PANNELLI["VIEW3D_PT_em_publication_deck"]["parent"] == ""
+    assert int(PANNELLI["VIEW3D_PT_em_publication_deck"]["order"]) > \
+        int(PANNELLI["EM_PT_scene_space"]["order"]), "the Deck is the last step"
     for gone in ("VIEW3D_PT_ExportPanel", "EM_PT_ExportPanel", "VIEW3D_PT_ServerPanel"):
         assert gone not in PANNELLI, gone
     assert "TAPESTRY_PT_main_panel" not in PANNELLI
@@ -210,7 +223,8 @@ def test_PROXY_E_SURFACE_TOOLS_e_un_contenitore_con_TRE_figli():
     cont = PANNELLI["EM_PT_proxy_surface_tools"]
     assert cont["label"] == "Proxy & surface tools"
     assert cont["categoria"] == "EM Scene"
-    assert not cont["parent"], "il contenitore non è figlio di nessuno"
+    # P3 (6 Oct 2026) · in EMStudio's Space, with the models it draws on
+    assert cont["parent"] == "EM_PT_scene_space", cont
 
     figli = {n for n, p in PANNELLI.items()
              if p["parent"] == "EM_PT_proxy_surface_tools"}
@@ -248,10 +262,20 @@ def test_E_CRONOFILTER_E_ADIACENTE_A_EPOCHS():
 
 
 def test_E_IL_DOCUMENT_MANAGER_E_PRIMO_in_EM_Scene():
-    """La sequenza è la scala documenti → modelli → gruppi."""
-    ordini = {n: int(p["order"]) for n, p in PANNELLI.items()
-              if p["categoria"] == "EM Scene" and p["order"] and not p["parent"]}
-    assert min(ordini, key=ordini.get) == "VIEW3D_PT_3DDocumentManager", ordini
+    """P3 (6 Oct 2026) · EM Scene follows EMStudio's spaces: Contents first
+    (Storage, Shelf, Document Manager), then Space (RM first, its versions
+    next), then the Publication Deck, the last step."""
+    top = {n: int(p["order"]) for n, p in PANNELLI.items()
+           if p["categoria"] == "EM Scene" and p["order"] and not p["parent"]}
+    assert sorted(top, key=top.get) == ["EM_PT_scene_contents", "EM_PT_scene_space",
+                                        "VIEW3D_PT_em_publication_deck"], top
+
+    def kids(parent):
+        k = {n: int(p["order"]) for n, p in PANNELLI.items() if p["parent"] == parent}
+        return sorted(k, key=k.get)
+    assert kids("EM_PT_scene_contents") == ["EM_PT_resources", "EM_PT_shelf",
+                                            "VIEW3D_PT_3DDocumentManager"]
+    assert kids("EM_PT_scene_space")[:1] == ["VIEW3D_PT_RM_Manager"]
 
 
 # ═══ A2 · FILES E SCAFFALE (U6: erano «Resources & Shelf») ═══════════════════
@@ -260,7 +284,9 @@ def test_IL_PANNELLO_NON_SI_CHIAMA_PIU_COME_LA_SUA_TAB():
     """U6 · «Files», come nella barra di EMStudio; T1 · nel 3D (EM Scene),
     dopo Asset versions."""
     p = PANNELLI["EM_PT_resources"]
-    assert p["label"] == "Files", p["label"]
+    # P3 · named after EMStudio's window: the space is Contents, the window
+    # of the files is Storage
+    assert p["label"] == "Storage", p["label"]
     assert p["categoria"] == "EM Scene"
     assert p["label"] != p["categoria"]
 
@@ -272,7 +298,7 @@ def test_LO_SHELF_E_UN_PANNELLO_SUO_e_conserva_la_sua_UIList():
     `template_list` annidato in un box perde spazio, e il funnel del filtro è
     la prima cosa che lo perde."""
     p = PANNELLI["EM_PT_shelf"]
-    assert not p["parent"], p
+    assert p["parent"] == "EM_PT_scene_contents", p  # P3: EMStudio's Contents
     assert p["categoria"] == "EM Scene"
     src = (_REPO / "shelf_tool" / "ui.py").read_text()
     assert 'template_list("SHELF_UL_resources"' in src, "la UIList è sparita"
@@ -335,104 +361,58 @@ def test_A_IL_PANNELLO_EM_OVERVIEW_E_STATO_RIMOSSO():
 
 
 def test_B2_GRAPH_INFO_e_collassabile_chiuso_e_si_chiama_cosi():
-    assert '"show_graph_info"' in SETUP
-    assert 'text="Graph info"' in SETUP
+    """P2 (6 Oct 2026) · Graph info is a SUB-PANEL of the EM Data Tree, closed
+    by default: the toggle `show_graph_info` was saved in the .blend, and a
+    file saved open greeted every reopening with the numbers of the graph
+    (measured on the copy of Templu Mare). The property stays, nothing draws
+    it."""
+    p = PANNELLI["VIEW3D_PT_em_graph_info"]
+    assert p["label"] == "Graph info"
+    assert p["parent"] == "VIEW3D_PT_EM_Tools_Setup"
+    assert p["order"] == "0", "first of the tree's sub-panels"
+    i = SETUP.index("class VIEW3D_PT_em_graph_info")
+    corpo = SETUP[i:SETUP.index("\nclass ", i + 10)]
+    assert "bl_options = {'DEFAULT_CLOSED'}" in corpo
+    assert '"show_graph_info"' not in _codice(_data_tree()), "the old toggle is not drawn"
     props = (_REPO / "em_props.py").read_text()
     m = re.search(r'show_graph_info: BoolProperty\((.*?)\)  # type: ignore',
                   props, re.S)
-    assert m, "la proprietà non c'è"
-    assert "default=False" in m.group(1), "aperto di default"
-    assert "not of the scene" in m.group(1).lower(), (
-        "la descrizione non dice la distinzione fra grafo e scena")
-
+    assert m and "default=False" in m.group(1)
 
 def test_C1_LA_RIGA_DI_COMANDI_RIEMPIE_LA_RIGA():
-    """AGGIORNATA DUE VOLTE, e la seconda per una misura che mi ha smentito.
-
-    B3 asseriva la PRESENZA di `ui_units_x`: quello fissava la larghezza di
-    ogni bottone, e a video erano sei quadratini ammucchiati a sinistra con
-    mezza riga di vuoto a destra. Via `ui_units_x`, quindi, e la prova ne
-    asseriva l'assenza — con la motivazione che «i bottoni di una riga si
-    spartiscono da soli la larghezza».
-
-    Quella motivazione è FALSA, e lo dice lo scatto del pannello in un Blender
-    vero: togliere `ui_units_x` non ha cambiato nulla, i sei bottoni erano
-    ancora ammucchiati a sinistra. Un bottone icona-sola (`text=""`) prende la
-    sua larghezza naturale — quadrata — e un `row()` piatto non gli passa lo
-    spazio che avanza.
-
-    Quello che la distribuisce è un contenitore a CELLE: `grid_flow` con
-    `even_columns=True` dà a ognuno la stessa frazione della riga, e nello
-    scatto successivo i sei bottoni arrivano da bordo a bordo. È lo stesso
-    meccanismo delle quattro celle della scala (C2), che nello stesso scatto
-    riempivano già la larghezza.
-
-    AGGIORNATA da UX3/B: le colonne sono **sette** e non sei, perché il
-    separatore che stacca il comando distruttivo (Remove graph) occupa una
-    cella come gli altri. Con `columns=6` la riga andrebbe a capo — ed è il
-    genere di cosa che si vede solo guardando.
-    """
-    i = SETUP.index("cmd = layout.grid_flow(")
-    #: fino alla fine del metodo: da UX3 Remove viene DOPO il separatore,
-    #: cioè dopo il menu INFO che prima chiudeva la riga.
-    j = SETUP.index("    def draw(self, context):", i)
-    blocco = SETUP[i:j]
-
-    assert "ui_units_x" not in blocco, (
-        "ui_units_x fissa la larghezza: i bottoni non riempiono più la riga")
-    #: il contenitore a celle, che è ciò che DAVVERO riempie la riga
-    #: V2 (MICRO-IL-PANNELLO-DICE-IL-VERO): the commands carry their names,
-    #: two rows of three cells
-    assert "columns=3" in blocco, "two rows of three named commands"
-    for name in ('"Add graph"', '"Reload"', '"Save"', '"Save as…"', '"Multigraph"',
-                 '"Remove graph"'):
-        assert name in blocco, f"{name} has its name on the button"
-    assert "even_columns=True" in blocco, (
-        "senza even_columns le celle si dimensionano sul contenuto e i "
-        "bottoni tornano stretti")
-    #: ogni bottone in una cella sua, sennò finiscono tutti nella prima
-    assert blocco.count("cmd.row(align=True)") >= 5, (
-        "un bottone per cella: `cmd.operator(...)` diretto li impila in una")
-    assert "cmd.scale_y" in blocco, "senza scale_y i bottoni sono bassi"
-    #: the six commands (V2: named; the ⓘ of Multigraph alone stays an icon)
-    for idname in ("em_tools.add_file", "em_tools.remove_file",
-                   "export.em_save", "export.em_saveas",
-                   "em.toggle_landscape_mode", "wm.call_menu"):
-        assert idname in blocco, idname
-    assert 'text=""' in blocco
-    #: il separatore stacca il distruttivo, che viene per ULTIMO — e sta
-    #: DENTRO la sua cella: come cella a sé mandava la riga a capo su due
-    #: righe (misurato: `grid_flow` decideva quattro colonne e ne impilava
-    #: tre sotto).
-    assert "via.separator()" in blocco, "Remove non è staccato"
-    assert "cmd.separator()" not in blocco, (
-        "il separatore come CELLA manda la riga a capo")
-    assert blocco.index("via.separator()") < blocco.index("em_tools.remove_file")
-    assert blocco.index("em_tools.add_file") < blocco.index("via.separator()")
-
-    #: V2 (MICRO-IL-PANNELLO-DICE-IL-VERO, E.D. 5 Oct 2026): the names CAME
-    #: BACK on purpose — beside «Where you work», whose commands say what they
-    #: do, seven bare icons were a riddle. What stays fenced is the old
-    #: capitalisation «Save As…».
-    assert 'text="Save As…"' not in blocco
-
+    """P2 (6 Oct 2026) · the six named buttons in equal columns (grid_flow)
+    became a compact bar of icons ABOVE the tree, like the toolbar of
+    EMStudio's EMtree: + Add graph, ↻ Reload, Save, − Remove, and the rest in
+    the ▾ menu (Save as…, Save all files, Multigraph)."""
+    tree = (_REPO / "em_setup" / "graph_tree.py").read_text()
+    i = tree.index("def draw_toolbar(")
+    bar = tree[i:tree.index("class EM_MT_graph_more", i)]
+    assert "grid_flow" not in bar
+    for idname in ("em_tools.add_file", "export.em_save", "em_tools.remove_file"):
+        assert f'"{idname}", text=""' in bar, idname
+    assert "load_op(sub," in bar, "↻ Reload, with the one dispatch"
+    assert bar.index("em_tools.add_file") < bar.index("load_op(sub,") \
+        < bar.index("export.em_save") < bar.index("em_tools.remove_file")
+    assert 'bar.menu("EM_MT_graph_more"' in bar
+    menu = tree[tree.index("class EM_MT_graph_more"):tree.index("CLASSES = (")]
+    for idname in ("export.em_saveas", "em.graph_save_all",
+                   "em.toggle_landscape_mode", "EM_MT_LandscapeInfo"):
+        assert idname in menu, idname
+    corpo = _data_tree()
+    j = corpo.index("draw_toolbar(layout, context, em_tools, _stato)")
+    assert j < corpo.index("draw_graph_tree(layout, context, em_tools)"), "the bar is above"
+    assert "_riga_comandi" not in corpo
 
 def test_C1_E_I_TOOLTIP_VENGONO_DAGLI_OPERATORI_non_da_una_tupla_morta():
-    """B3 portava una tupla di descrizioni scritte a mano che NON venivano mai
-    usate: `layout.operator` non accetta un tooltip, e quelle stringhe erano
-    dati morti. Misurato in Blender che tutti e cinque gli operatori hanno un
-    `bl_description` parlante, quindi la tupla è andata via e i tooltip veri
-    restano — senza testo sono l'unica etichetta."""
-    i = SETUP.index("cmd = layout.grid_flow(")
-    j = SETUP.index('_iop.name = "EM_MT_LandscapeInfo"', i)
-    blocco = SETUP[i:j]
-    #: nessun ciclo su una tupla di descrizioni
-    assert "descrizione" not in blocco
-    assert "for idname, icona" not in blocco
-    #: …e gli operatori sono chiamati direttamente, uno per cella (C1 li ha
-    #: spostati da `cmd.operator(...)` a `cmd.row(align=True).operator(...)`)
-    assert blocco.count(".operator(") >= 5
-
+    """The bar's icons carry no text: their names are the operators'
+    descriptions, never a tuple of strings written by hand."""
+    tree = (_REPO / "em_setup" / "graph_tree.py").read_text()
+    i = tree.index("def draw_toolbar(")
+    bar = tree[i:tree.index("class EM_MT_graph_more", i)]
+    assert "descrizione" not in bar and "for idname" not in bar
+    ops = (_REPO / "em_setup" / "operators.py").read_text()
+    k = ops.index('bl_idname = "em_tools.add_file"')
+    assert "To see a content" in ops[k:k + 400], "the steps went to Add graph's tooltip"
 
 def test_C3_LA_VERSIONE_E_A_DESTRA_col_titolo_intero():
     """AGGIORNATA da EM16-UX2/C3, e la ragione è che B4 era sbagliata a video.
@@ -694,96 +674,46 @@ def _data_tree():
 
 
 def test_B_STATO_VUOTO_una_strada_sola_e_col_testo():
-    """Con zero grafi la riga dei sei bottoni NON si disegna.
-
-    Cinque su sei non hanno nulla su cui agire, e sei icone uguali di cui una
-    sola funziona sono un indovinello. Al suo posto un bottone largo CON IL
-    TESTO: è l'unico punto del pannello dove il testo torna, perché è l'unica
-    cosa da fare e non c'è una riga da riempire.
-    """
+    """With zero graphs: one road, Add graph with its TEXT. The bar is drawn
+    only when there are rows (its commands need a graph to act on)."""
     corpo = _data_tree()
-    assert 'if not _stato["ha_grafo"]:' in corpo
     i = corpo.index('if not _stato["ha_grafo"]:')
-    j = corpo.index("else:", i)
-    vuoto = corpo[i:j]
-    assert 'text="Add graph"' in vuoto, "lo stato vuoto vuole il TESTO"
-    assert "em_tools.add_file" in vuoto
-    #: e la riga dei sei sta nell'`else`, cioè non si disegna quando è vuoto
-    assert "_riga_comandi" in corpo[j:j + 200]
-    assert "_riga_comandi" not in vuoto
-
+    vuoto = corpo[i:i + 600]
+    assert 'text="Add graph"' in vuoto and "em_tools.add_file" in vuoto
+    k = corpo.index("if len(em_tools.graphml_files):")
+    assert "draw_toolbar(" in corpo[k:k + 300]
 
 def test_B_LA_GUIDA_USA_draw_requirement_row_e_SPARISCE():
-    """Tre passi numerati, col loro stato, e `inactive` per quelli non ancora
-    valutabili — che è la distinzione fra «sbagliato» e «tocca più tardi».
-
-    `ui_helpers.draw_requirement_row` esiste già e fa esattamente questo:
-    scriverne una seconda vorrebbe dire tenerne allineate due.
-    """
-    corpo = _data_tree()
-    #: AGGIORNATA: la condizione non è più «l'attivo non è caricato» ma
-    #: «nessun grafo caricato in tutto», cioè SOLO PER IL PRIMO GRAFO. Con la
-    #: condizione di prima la guida tornava quando si aggiungeva il secondo
-    #: grafo, e lì è pleonastica: la sequenza la si è appena fatta.
-    #: V2 · and not for a study that comes from a room (no Path to set there)
-    assert ('if (not _stato["grafi_caricati"] and not _da_stanza\n'
-            '                and self._guida_richiesta()):') in corpo
-    i = corpo.index('if (not _stato["grafi_caricati"]')
-    assert "self._guida(layout, _stato)" in corpo[i:i + 200]
-    assert 'if not _stato["caricato"]:' not in corpo, (
-        "la guida non deve tornare per il secondo grafo")
-
-    i = corpo.index("def _guida")
-    j = corpo.index("def _op_carica", i)
-    guida = corpo[i:j]
-    assert "from ..ui_helpers import draw_requirement_row" in guida, (
-        "la guida deve riusare l'aiuto che esiste")
-    #: tre chiamate. L'`import` non ha la parentesi, quindi non conta qui.
-    assert guida.count("draw_requirement_row(") == 3, "tre passi"
-    #: i tre passi, nell'ordine della catena
-    for n, etichetta in ((1, '"Add graph"'), (2, '"Set path"'), (3, '"Load"')):
-        assert f"{n}, {etichetta}" in guida, f"passo {n}"
-    #: …e i passi 2 e 3 si dimmano finché il precedente non è fatto
-    assert 'inactive=not stato["ha_grafo"]' in guida
-    assert 'inactive=not stato["ha_path"]' in guida
-
+    """P2 (6 Oct 2026) · the step guide «To see a content: 1 Add graph · 2 Set
+    path · 3 Load» is GONE (E.D.: Add graph alone, the explanation in its
+    tooltip)."""
+    corpo = _codice(_data_tree())
+    for gone in ("_guida", "To see a content", "draw_requirement_row", '"Set path"'):
+        assert gone not in corpo, gone
 
 def test_B_IL_CARICAMENTO_E_IN_EVIDENZA_finche_non_e_fatto():
-    """Con il path dato e il grafo non caricato, Load è a tutta larghezza e
-    col testo; a grafo caricato torna icona nella riga, come Reload."""
-    corpo = _data_tree()
-    assert 'if _stato["ha_path"] and not _stato["caricato"]:' in corpo
-    i = corpo.index('if _stato["ha_path"] and not _stato["caricato"]:')
-    evidenza = corpo[i:i + 400]
-    assert 'testo="Load"' in evidenza
-    assert "scale_y" in evidenza, "in evidenza vuol dire anche più alto"
-    #: …e DOPO il Path, che è l'ordine in cui si legge la catena: a video il
-    #: bottone sopra il campo da riempire prima invertiva i due passi
-    assert corpo.index('"graphml_path", text="Path"') < i
-
-    #: and in the row, as «Reload» (V2: every command there has its name)
-    i = corpo.index("def _riga_comandi")
-    j = corpo.index("    def draw(self, context):", i)
-    riga = corpo[i:j]
-    assert 'self._op_carica(ricarica, stato, testo="Reload"' in riga
-
+    """P2 · the Path is inside the selected graph's row, not under the tree;
+    while the graph is not loaded, Load with its text is beside it."""
+    tree = (_REPO / "em_setup" / "graph_tree.py").read_text()
+    i = tree.index("def _draw_active_path(")
+    path = tree[i:tree.index("\ndef ", i + 10)]
+    assert 'line.prop(row, "graphml_path", text="")' in path
+    assert 'text="Load"' in path and "not present" in path
+    assert "_draw_active_path(col, row, i, present, origin)" in tree
+    assert '"graphml_path", text="Path"' not in _codice(_data_tree())
 
 def test_B_IL_DISPATCH_DEL_CARICAMENTO_STA_IN_UN_POSTO_SOLO():
-    """Due importer e non uno: un entry `em.json` passato all'importer GraphML
-    verrebbe parsato come XML. E il nome della proprietà dell'indice è
-    DIVERSO fra i due (`file_index` contro `graphml_index`), che è la ragione
-    per cui il dispatch sta in una funzione sola invece che copiato nei due
-    punti che lo usano."""
-    corpo = _data_tree()
-    i = corpo.index("def _op_carica")
-    j = corpo.index("def _riga_comandi", i)
-    op = corpo[i:j]
+    """Two importers and not one: an em.json given to the GraphML importer is
+    parsed as XML; the index property is named differently. The dispatch is
+    `graph_tree.load_op`, and the tree and the bar call nothing else."""
+    tree = (_REPO / "em_setup" / "graph_tree.py").read_text()
+    i = tree.index("def load_op(")
+    j = tree.index("\ndef ", i + 10)
+    op = tree[i:j]
     assert "import.em_emjson" in op and "import.em_graphml" in op
     assert "op.file_index" in op and "op.graphml_index" in op
-    #: e nessun altro punto del pannello chiama gli importer a mano
-    resto = corpo[:i] + corpo[j:]
-    assert "import.em_graphml" not in _codice(resto)
-
+    assert "import.em_graphml" not in _codice(tree[:i] + tree[j:])
+    assert "import.em_graphml" not in _codice(_data_tree())
 
 def test_B_SPENTO_CON_LA_RAGIONE_non_spento_muto():
     """`poll_message_set` è il modo di Blender per dire nel tooltip PERCHÉ un
@@ -804,7 +734,7 @@ def test_B_LO_STATO_DELLA_CATENA_SI_CALCOLA_UNA_VOLTA():
     corpo = _data_tree()
     assert corpo.count("self._catena(") == 1, "un solo calcolo per ridisegno"
     i = corpo.index("def _catena")
-    j = corpo.index("def _guida", i)
+    j = corpo.index("def draw(self, context)", i)
     catena = corpo[i:j]
     #: `caricato` usa lo stesso test della UIList: presente E con nodi
     assert "original_id" in catena, "ripiego della UIList dopo un rename"
@@ -957,7 +887,7 @@ def test_B_LA_GUIDA_E_SOLO_PER_IL_PRIMO_GRAFO_e_lo_stato_e_DERIVATO():
     """
     corpo = _data_tree()
     i = corpo.index("def _catena")
-    j = corpo.index("def _guida_richiesta", i)
+    j = corpo.index("def draw(self, context)", i)
     catena = corpo[i:j]
     assert '"grafi_caricati": len(_grafi_caricati(em_tools))' in catena, (
         "il conteggio si deriva dalla stessa funzione che usa l'Overview")
@@ -969,28 +899,13 @@ def test_B_LA_GUIDA_E_SOLO_PER_IL_PRIMO_GRAFO_e_lo_stato_e_DERIVATO():
 
 
 def test_B_LA_GUIDA_SI_SPEGNE_DALLE_PREFERENZE_e_in_dubbio_resta_accesa():
-    """La preferenza c'è, è raggiungibile, e il ripiego è il comportamento
-    di prima: una preferenza che non si riesce a leggere non deve cambiare
-    ciò che l'utente vede."""
+    """P2 · with the guide gone its preference is gone too, and the value kept
+    in the user preferences is dropped silently at registration."""
     prefs = (_REPO / "mapping_preferences.py").read_text()
-    i = prefs.index("show_setup_guide: BoolProperty(")
-    j = prefs.index(")", prefs.index("default=", i))
-    prop = prefs[i:j]
-    assert "default=True" in prop, (
-        "accesa di default: è il comportamento che c'è, e chi apre l'add-on "
-        "per la prima volta è chi ne ha bisogno")
-    #: …e si trova, cioè è disegnata nelle preferenze
-    assert 'ui_box.prop(self, "show_setup_guide")' in prefs
-
-    corpo = _data_tree()
-    i = corpo.index("def _guida_richiesta")
-    j = corpo.index("def _guida(", i)
-    lettore = corpo[i:j]
-    assert "from .. import get_addon_preferences" in lettore, (
-        "l'accessore deve venire dalla RADICE del pacchetto")
-    assert lettore.count("return True") == 2, (
-        "due ripieghi: eccezione e prefs assenti, entrambi verso «come prima»")
-
+    assert "show_setup_guide: BoolProperty(" not in prefs
+    assert 'RETIRED_PREFS = ("show_setup_guide",)' in prefs
+    k = prefs.index("def register():")
+    assert "forget_retired_prefs()" in prefs[k:k + 400]
 
 def test_B_LE_PREFERENZE_SI_LEGGONO_DA_UN_ACCESSORE_SOLO():
     """È il punto in cui questa cosa si romperebbe, quindi ha una prova sua.

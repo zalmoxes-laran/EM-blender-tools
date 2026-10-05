@@ -180,6 +180,55 @@ def peek_graph_ids(path: str) -> List[str]:
     return []
 
 
+#: `peek_graph_names` memo: normalised path → (mtime, size, {graph_id: (name, code)})
+_names: Dict[str, Tuple[float, int, Dict[str, Tuple[str, str]]]] = {}
+
+
+def _text(value: Any) -> str:
+    """A name as an em.json keeps it: a string, or a dict by language."""
+    if isinstance(value, dict):
+        for key in ("en", "it"):
+            if value.get(key):
+                return str(value[key])
+        return next((str(v) for v in value.values() if v), "")
+    return str(value or "")
+
+
+def peek_graph_names(path: str) -> Dict[str, Tuple[str, str]]:
+    """`{graph_id: (name, code)}` of the graphs an em.json holds, read once per
+    version of the file (mtime and size), without building the graphs.
+
+    P2 (6 Oct 2026): the graphs of a file that are listed and not loaded showed
+    their UUIDs in the EM Data Tree (A_sanpietro's two graphs); the name is in
+    the file, a line away. A file that cannot be read gives `{}`."""
+    key = _norm_path(path)
+    try:
+        st = os.stat(key)
+    except OSError:
+        return {}
+    memo = _names.get(key)
+    if memo and memo[0] == st.st_mtime and memo[1] == st.st_size:
+        return memo[2]
+    out: Dict[str, Tuple[str, str]] = {}
+    try:
+        with open(key, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        graphs = doc.get("graphs") if isinstance(doc, dict) else None
+        for member_id, section in (graphs or {}).items():
+            if not isinstance(section, dict):
+                continue
+            data = section.get("data") if isinstance(section.get("data"), dict) else {}
+            attrs = (section.get("attributes")
+                     if isinstance(section.get("attributes"), dict) else {})
+            code = str(attrs.get("graph_code") or data.get("graph_code") or "")
+            gid = str(section.get("graph_id") or member_id)
+            out[gid] = (_text(section.get("name")), code)
+    except (OSError, ValueError):
+        out = {}
+    _names[key] = (st.st_mtime, st.st_size, out)
+    return out
+
+
 def conflicts(incoming_ids: Iterable[str], entries: Iterable[Any],
               target: Origin, *, abspath=None) -> List[Tuple[str, Origin]]:
     """Graph ids that are already open from ANOTHER origin.

@@ -125,23 +125,9 @@ class EMToolsMappingPreferences(AddonPreferences):
     """Preferenze per i percorsi di mapping personalizzati"""
     bl_idname = __package__
     
-    # UX3 · la guida a tre passi dell'EM Data Tree.
-    #
-    # È un'istruzione, e un'istruzione la si deve poter zittire quando si è
-    # imparata. Default ACCESO, perché è il comportamento che c'è adesso e
-    # perché chi apre l'add-on per la prima volta è esattamente chi ne ha
-    # bisogno.
-    #
-    # Spegnerla non lascia il pannello muto: lo stato vuoto conserva il suo
-    # bottone largo `Add graph`, e i comandi spenti continuano a dire la
-    # ragione nel tooltip (`poll_message_set`). La guida è la forma più
-    # esplicita di quell'informazione, non l'unica.
-    show_setup_guide: BoolProperty(
-        name="Show setup guide",
-        description=("Show the three-step guide (Add graph → Set path → "
-                     "Load) in the EM Data Tree while no graph is loaded yet"),
-        default=True
-    )
+    # P2 (6 Oct 2026) · `show_setup_guide` is gone with the step guide of the
+    # EM Data Tree: Add graph alone, the steps in its tooltip. The value kept
+    # in the user preferences is dropped silently (`forget_retired_prefs`).
 
     # ── C5 · LIVE SYNC — le due cose che non cambiano quasi mai ───────────
     #
@@ -346,12 +332,6 @@ class EMToolsMappingPreferences(AddonPreferences):
     def draw(self, context):
         layout = self.layout
 
-        # ===== INTERFACCIA =====
-        # In cima perché è la preferenza che più probabilmente si cerca: le
-        # altre riguardano i percorsi dei mapping, questa quello che si vede.
-        ui_box = layout.box()
-        ui_box.label(text="Interface", icon='WINDOW')
-        ui_box.prop(self, "show_setup_guide")
 
         # ===== LIVE SYNC (C5) =====
         # Qui perché non cambiano quasi mai. Ciò che si guarda ogni sessione —
@@ -793,6 +773,24 @@ classes = [
 ]
 
 
+#: preferences that existed and are gone: their stored value is dropped
+RETIRED_PREFS = ("show_setup_guide",)
+
+
+def forget_retired_prefs():
+    """Drop the stored values of the retired preferences, silently. An
+    unregistered key would only sit unused in the user preferences; removing
+    it keeps them honest. Nothing to say to anybody either way."""
+    try:
+        addon = bpy.context.preferences.addons.get(__package__)
+        prefs = addon.preferences if addon else None
+        for key in RETIRED_PREFS:
+            if prefs is not None and key in prefs.keys():
+                del prefs[key]
+    except Exception:  # noqa: BLE001 — a migration never stops the add-on
+        pass
+
+
 def register():
     """Registra le classi"""
     for cls in classes:
@@ -802,6 +800,8 @@ def register():
             bpy.utils.unregister_class(cls)
             bpy.utils.register_class(cls)
     
+    forget_retired_prefs()
+
     # Assicura che user_mappings esista
     ensure_user_mappings_exist()
     

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Clean panels (MICRO pannelli puliti, 6 October 2026)
+- **Where you work says only what says something.** On this computer it is one
+  line, «□ On this computer · <file>» with Change… (and Log… as an icon):
+  «not signed in to a node — none needed here», «already standalone» and «no
+  refused edit» are no longer drawn. In a room the long line of the counts is
+  one word for the scene — «✓ aligned», «✕ N to download», «≠ N changed» — with
+  the numbers in its tooltip and in Log….
+- **EM Data Tree.** The step guide «To see a content» and its preference are
+  gone (the steps are Add graph's tooltip; the stored preference is dropped
+  silently). The six buttons in columns are a compact bar of icons above the
+  tree — + Add graph, ↻ Reload, Save, − Remove — with Save as…, Save all files
+  and Multigraph in the ▾ menu. One way of saving a branch: Save writes the
+  branch of the active graph (✓); the per-branch icon and «Save all files» left
+  the view. Graphs are shown by code or name, never by UUID (a graph listed and
+  not loaded takes its name from its em.json). The Path is in the selected
+  graph's row, with Load beside it; Graph info is a sub-panel, closed.
+- **EM Scene in EMStudio's spaces.** Contents (Storage — once «Files», named
+  after EMStudio's window —, Shelf, Document Manager), Space (Representation
+  Model, Asset versions, RMDoc, Anastylosis, Proxy & surface tools,
+  Georeferencing), and the Publication Deck last. No panel and no command lost.
+- **Visual Manager: the transparency answers.** The slider «Proxy
+  Transparency» changes the alpha of the proxies' materials in every display
+  mode; the default mode is EM, and a file saved with the old «select» gets the
+  mode its materials show.
+
 ### Changed — Heriverse reads the study (MICRO-HERIVERSE-LEGGE-LO-STUDIO, 5 October 2026)
 - **Nothing is re-exported for Heriverse.** Heriverse reads the em.json and
   picks, for each representation model, the version to load with the rule of

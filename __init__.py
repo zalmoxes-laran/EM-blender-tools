@@ -408,6 +408,7 @@ if DEPENDENCIES_LOADED:
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
             dtc_authoring,  # DTC (Digital Twin Chain) authoring panel (ECHOES)
             resources_tab,  # R4: EM Scene tab over the FS-index resource backend
+            scene_spaces,  # P3: Contents and Space, the heads of the tab EM Scene
             provenance_card,  # D1: «Where it comes from», the DTC of one asset as a card
             publication_deck_ui,  # NIGHT-DECK: the Publication Deck (EM Bridge)
             shelf_tool,  # Shelf v2 C1: absorbed into Resources & Shelf (EM16-UX)
@@ -689,6 +690,9 @@ def _core_independent_modules():
     from . import unit_images
     return [
         icons_manager,
+        # P3 · the two heads of EM Scene (Contents, Space): before every panel
+        # that names them as its parent
+        scene_spaces,
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
         resources_tab,  # EM Scene tab (Shelf/RM/DTC/MinIO over FS backend; Documents → Document Manager)

@@ -161,9 +161,12 @@ def test_e_nel_tab_della_scena_dopo_i_files():
     export sono dialoghi di EM ▸ Export): il Deck resta la casa della
     pubblicazione, e Heriverse è una sua destinazione (U1)."""
     assert 'bl_category = "EM Scene"' in _SORGENTE
-    assert "bl_order = 11" in _SORGENTE
+    # P3 (6 Oct 2026) · at the bottom of EM Scene, after Contents (1) and
+    # Space (2), where Storage — once «Files» — now lives
+    assert "bl_order = 3" in _SORGENTE and "bl_parent_id" not in _SORGENTE
     files = (_REPO / "resources_tab" / "ui.py").read_text()
-    assert 'bl_category = "EM Scene"' in files and "bl_order = 10" in files
+    assert 'bl_category = "EM Scene"' in files
+    assert 'bl_parent_id = "EM_PT_scene_contents"' in files
     assert not (_REPO / "export_manager" / "panel.py").exists()
 
 

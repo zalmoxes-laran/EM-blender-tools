@@ -300,7 +300,8 @@ class VIEW3D_PT_RM_Manager(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Scene"
-    bl_order = 2
+    bl_parent_id = "EM_PT_scene_space"  # P3: EMStudio's Space
+    bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
         
     def draw_header(self, context):
@@ -624,7 +625,7 @@ class VIEW3D_PT_RM_Manager(Panel):
             from ..sync_manager.file_states import ULTIMI as _files
             if len(scene.rm_list) and not _files.get("results"):
                 layout.label(text="Where each model's file is: «Check files» "
-                                  "in EM Scene ▸ Files", icon='INFO')
+                                  "in EM Scene ▸ Contents ▸ Storage", icon='INFO')
         except Exception:  # noqa: BLE001
             pass
 

@@ -71,12 +71,21 @@ def study_title(origin) -> str:
         return origin.room_id
 
 
+#: graph codes that are not codes (s3dgraphy's MISSINGCODE, the template's
+#: site_id): never a name
+_NO_CODE = ("", "site_id", "MISSINGCODE")
+
+
 def graph_name(row, origin=None) -> tuple:
     """V2 · `(name, note)` of a graph: its code, its own name, else its id.
     A room made before S1 holds its graph under the room's id: then the name
-    is the study's title, and `note` says so."""
+    is the study's title, and `note` says so.
+
+    P2 (6 Oct 2026) · never the bare UUID when a name exists: a graph listed
+    and not loaded (the other graphs of an em.json) takes its code or its name
+    from the file it is in (`graph_origins.peek_graph_names`)."""
     code = str(getattr(row, "graph_code", "") or "")
-    if code:
+    if code not in _NO_CODE:
         return code, ""
     try:
         from s3dgraphy import get_graph
@@ -86,6 +95,17 @@ def graph_name(row, origin=None) -> tuple:
     own = _text_of(getattr(graph, "name", "")) if graph is not None else ""
     if own and own != row.name:
         return own, ""
+    path = str(getattr(row, "graphml_path", "") or "")
+    if path.lower().endswith(".json"):
+        try:
+            name, peeked = graph_origins.peek_graph_names(_abspath(path)).get(
+                row.name, ("", ""))
+        except Exception:  # noqa: BLE001 — a name is never worth a failure
+            name, peeked = "", ""
+        if peeked not in _NO_CODE:
+            return peeked, ""
+        if name and name != row.name:
+            return name, ""
     if origin is not None and origin.is_room and row.name == origin.room_id:
         return study_title(origin), "the study's title, the graph has none"
     return row.name, ""
@@ -252,12 +272,11 @@ def draw_graph_tree(layout, context, em_tools) -> None:
         else:
             head.label(text="No file", icon="QUESTION")
         if origin.key == active_key:
-            # EMStudio's «⌘S» mark: the active graph is in this branch
+            # EMStudio's «⌘S» mark: the active graph is in this branch, and
+            # Save (the bar above) writes this branch. P2 · one way of saving
+            # a branch: the per-branch save icon and «Save all files» left the
+            # view (Save all files is in the ▾ menu)
             head.label(text="", icon="CHECKMARK")
-        if origin.is_emjson:
-            op = head.operator("em.graph_origin_save", text="", icon="FILE_TICK",
-                               emboss=False)
-            op.index = indices[0]
         writing = writing_in(origin, rows, active)
         if writing:
             sub = col.row()
@@ -285,14 +304,8 @@ def draw_graph_tree(layout, context, em_tools) -> None:
                 "SEQUENCE_COLOR_04" if present else "SEQUENCE_COLOR_01"))
             if getattr(row, "geo_applied", False) and getattr(row, "geo_note", ""):
                 line.label(text="", icon="ORIENTATION_GLOBAL")
-            if getattr(row, "file_format", "GRAPHML") == "EMJSON":
-                rl = line.operator("import.em_emjson", text="", icon="FILE_REFRESH",
-                                   emboss=False)
-                rl.file_index = i
-            else:
-                rl = line.operator("import.em_graphml", text="",
-                                   icon="FILE_REFRESH", emboss=False)
-                rl.graphml_index = i
+            load_op(line, getattr(row, "file_format", "GRAPHML") == "EMJSON", i,
+                    emboss=False)
             if hasattr(row, "is_publishable"):
                 try:
                     from .. import icons_manager
@@ -302,11 +315,99 @@ def draw_graph_tree(layout, context, em_tools) -> None:
                                   else "em_no_publish"))
                 except Exception:  # noqa: BLE001
                     line.prop(row, "is_publishable", text="")
-    if sum(1 for o, _ in branches if o.is_emjson) > 1:
-        box.operator("em.graph_save_all", icon="FILE_TICK")
+            if i == active:
+                _draw_active_path(col, row, i, present, origin)
 
 
-CLASSES = (EM_OT_graph_activate, EM_OT_graph_origin_save, EM_OT_graph_save_all)
+def load_op(layout, emjson: bool, index: int, text: str = "",
+            icon: str = "FILE_REFRESH", emboss: bool = True):
+    """The load command, with the dispatch on the format, in ONE place: an
+    em.json given to the GraphML importer is parsed as XML («not
+    well-formed»), and the index property is named differently in the two
+    (`file_index` against `graphml_index`)."""
+    if emjson:
+        op = layout.operator("import.em_emjson", text=text, icon=icon, emboss=emboss)
+        op.file_index = index
+    else:
+        op = layout.operator("import.em_graphml", text=text, icon=icon, emboss=emboss)
+        op.graphml_index = index
+    return op
+
+
+def _draw_active_path(col, row, index, present, origin) -> None:
+    """P2 · the Path of the selected graph inside its row, not under the tree;
+    with Load beside it while the graph is not loaded. In a room with no file
+    the Path is not drawn (V2: the study is the room's)."""
+    if origin.is_room and not row.graphml_path:
+        return
+    line = col.row(align=True)
+    line.separator(factor=4.0)
+    if row.graphml_path and not present:
+        line = line.split(factor=0.72, align=True)
+    line.prop(row, "graphml_path", text="")
+    if row.graphml_path and not present:
+        load_op(line, getattr(row, "file_format", "GRAPHML") == "EMJSON", index,
+                text="Load", icon="IMPORT")
+
+
+def emjson_branches(em_tools) -> int:
+    return sum(1 for o, _ in graph_origins.tree(_rows(em_tools), abspath=_abspath)
+               if o.is_emjson)
+
+
+def _loaded_count(em_tools) -> int:
+    from s3dgraphy import get_graph
+    return sum(1 for r in _rows(em_tools)
+               if getattr(r, "is_graph", False) or get_graph(r.name))
+
+
+def draw_toolbar(layout, context, em_tools, stato) -> None:
+    """P2 (6 Oct 2026) · the commands on the graphs as a compact bar of icons
+    above the tree, like the toolbar of EMStudio's EMtree: + Add graph,
+    ↻ Reload, Save, − Remove, and the rest in the ▾ menu (Save as…, Save all
+    files, Multigraph). The names are the tooltips (the operators'
+    descriptions; a button off says why with `poll_message_set`)."""
+    bar = layout.row(align=True)
+    bar.operator("em_tools.add_file", text="", icon="ADD")
+    sub = bar.row(align=True)
+    sub.enabled = bool(stato.get("ha_path"))
+    load_op(sub, bool(stato.get("emjson")), stato["indice"])
+    bar.operator("export.em_save", text="", icon="FILE_TICK")
+    bar.operator("em_tools.remove_file", text="", icon="REMOVE")
+    if getattr(context.scene, "landscape_mode_active", False):
+        # the one state of the bar worth seeing: the scene shows every graph
+        bar.label(text="Multigraph", icon="WORLD")
+    bar.separator()
+    bar.menu("EM_MT_graph_more", text="", icon="DOWNARROW_HLT")
+
+
+class EM_MT_graph_more(bpy.types.Menu):
+    """The rest of the commands on the graphs"""
+
+    bl_idname = "EM_MT_graph_more"
+    bl_label = "Graphs"
+
+    def draw(self, context):
+        layout = self.layout
+        em_tools = context.scene.em_tools
+        layout.operator("export.em_saveas", text="Save as…", icon="FILE_NEW")
+        row = layout.row()
+        row.enabled = emjson_branches(em_tools) > 1
+        row.operator("em.graph_save_all", icon="FILE_TICK")
+        layout.separator()
+        on = getattr(context.scene, "landscape_mode_active", False)
+        row = layout.row()
+        row.enabled = on or _loaded_count(em_tools) >= 2
+        op = row.operator("em.toggle_landscape_mode",
+                          text="Multigraph: off" if on else "Multigraph: on",
+                          icon="WORLD" if on else "WORLD_DATA")
+        op.enable = not on
+        layout.operator("wm.call_menu", text="What is Multigraph?",
+                        icon="INFO").name = "EM_MT_LandscapeInfo"
+
+
+CLASSES = (EM_OT_graph_activate, EM_OT_graph_origin_save, EM_OT_graph_save_all,
+           EM_MT_graph_more)
 
 
 def register():

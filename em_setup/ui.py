@@ -626,122 +626,12 @@ class EM_SetupPanel(bpy.types.Panel):
                 stato["caricato"] = False
         return stato
 
-    @staticmethod
-    def _guida_richiesta():
-        """La guida è accesa nelle preferenze? In dubbio, SÌ.
+    # P2 (6 Oct 2026) · the step guide «To see a content: 1 Add graph · 2 Set
+    # path · 3 Load» is gone, and with it the preference `show_setup_guide`:
+    # the empty tree offers Add graph alone, the steps are its tooltip.
 
-        Il ripiego su `True` non è pigrizia: è il comportamento che c'era
-        prima della preferenza, e una preferenza che non si riesce a leggere
-        non deve cambiare quello che l'utente vede. L'accessore sta nella
-        radice del pacchetto perché da un sottomodulo `__package__` non è la
-        chiave giusta — vedi `get_addon_preferences`.
-        """
-        try:
-            from .. import get_addon_preferences
-            prefs = get_addon_preferences()
-        except Exception:                           # noqa: BLE001
-            return True
-        if prefs is None:
-            return True
-        return bool(getattr(prefs, "show_setup_guide", True))
-
-    @staticmethod
-    def _guida(layout, stato):
-        """I tre passi numerati, col loro stato.
-
-        `ui_helpers.draw_requirement_row` esiste già e fa esattamente questo
-        — numero, icona di stato, hint, riga dimmata per i passi non ancora
-        valutabili — quindi non ne scrivo una seconda: `inactive` è il
-        parametro che distingue «sbagliato» da «tocca più tardi», che è la
-        distinzione che rende una lista di passi leggibile.
-        """
-        from ..ui_helpers import draw_requirement_row
-        box = layout.box()
-        box.label(text="To see a content:", icon='INFO')
-        draw_requirement_row(
-            box, 1, "Add graph", stato["ha_grafo"],
-            hint="Press + to create an EM graph slot")
-        draw_requirement_row(
-            box, 2, "Set path", stato["ha_path"],
-            hint="Point Path to a .graphml or .em.json file",
-            inactive=not stato["ha_grafo"])
-        draw_requirement_row(
-            box, 3, "Load", stato["caricato"],
-            hint="Press Load to read the file into the graph",
-            inactive=not stato["ha_path"])
-
-    @staticmethod
-    def _op_carica(layout, stato, testo="", icona=None):
-        """Il comando di caricamento, col dispatch sul formato.
-
-        Due importer e non uno: un entry `em.json` passato all'importer
-        GraphML verrebbe parsato come XML («not well-formed»). È lo stesso
-        dispatch che fa la UIList sul bottone FILE_REFRESH — e il nome della
-        proprietà dell'indice è diverso fra i due (`file_index` contro
-        `graphml_index`), che è la ragione per cui questo pezzo sta in una
-        funzione sola invece che copiato nei due punti che lo usano.
-        """
-        if stato["emjson"]:
-            op = layout.operator("import.em_emjson", text=testo,
-                                 icon=icona or ('IMPORT' if testo else 'FILE_REFRESH'))
-            op.file_index = stato["indice"]
-        else:
-            op = layout.operator("import.em_graphml", text=testo,
-                                 icon=icona or ('IMPORT' if testo else 'FILE_REFRESH'))
-            op.graphml_index = stato["indice"]
-        return op
-
-    def _riga_comandi(self, context, layout, em_tools, scene, stato):
-        """The commands on the graphs, each with its name (V2).
-
-        The full width comes from `grid_flow(columns=…, even_columns=True)`.
-        Where a button is off the reason is in its tooltip (`poll_message_set`
-        in the polls of `export.em_save` / `export.em_saveas`): off with the
-        reason teaches, off and mute looks like a broken add-on. Remove graph,
-        the only destructive one, is last and keeps its confirmation.
-        """
-        # V2 (MICRO-IL-PANNELLO-DICE-IL-VERO) · the commands on the graphs with
-        # their NAMES: seven icons alone were a riddle beside «Where you work»,
-        # whose commands all say what they do. Two rows of three, the
-        # destructive one last and apart; the tooltips are the operators'.
-        cmd = layout.grid_flow(row_major=True, columns=3,
-                               even_columns=True, even_rows=False,
-                               align=True)
-        cmd.scale_y = 1.2
-        cmd.row(align=True).operator('em_tools.add_file', text="Add graph", icon='ADD')
-
-        # Reload: once a graph is loaded, loading is a repeatable action
-        ricarica = cmd.row(align=True)
-        ricarica.enabled = stato["ha_path"]
-        self._op_carica(ricarica, stato, testo="Reload", icona='FILE_REFRESH')
-
-        cmd.row(align=True).operator('export.em_save', text="Save", icon='FILE_TICK')
-        cmd.row(align=True).operator('export.em_saveas', text="Save as…", icon='FILE_NEW')
-
-        # Multigraph Mode is a command on the graphs like the others; its
-        # state is the depressed button, its explanation the ⓘ beside it
-        _loaded = []
-        for _gf in getattr(em_tools, "graphml_files", ()) or ():
-            if getattr(_gf, 'is_graph', False):
-                _loaded.append(_gf)
-            else:
-                from s3dgraphy import get_graph as _gg
-                if _gg(_gf.name):
-                    _loaded.append(_gf)
-        _attiva = getattr(scene, 'landscape_mode_active', False)
-        multi = cmd.row(align=True)
-        sub = multi.row(align=True)
-        sub.enabled = _attiva or len(_loaded) >= 2
-        _op = sub.operator("em.toggle_landscape_mode", text="Multigraph",
-                           icon='WORLD' if _attiva else 'WORLD_DATA',
-                           depress=_attiva)
-        _op.enable = not _attiva
-        _iop = multi.operator("wm.call_menu", text="", icon='INFO')
-        _iop.name = "EM_MT_LandscapeInfo"
-
-        via = cmd.row(align=True)
-        via.separator()
-        via.operator('em_tools.remove_file', text="Remove graph", icon='REMOVE')
+    # P2 · the load dispatch (em.json / GraphML) is `graph_tree.load_op`, in
+    # one place for the bar, the row's ↻ and the Load beside the Path.
 
     def draw(self, context):
         layout = self.layout
@@ -781,32 +671,14 @@ class EM_SetupPanel(bpy.types.Panel):
         # ogni passo l'unica cosa accesa sia quella giusta.
         _stato = self._catena(context, em_tools)
 
-        # PASSO 0 · la guida, e SOLO per il primo grafo.
-        #
-        # Prima compariva ogni volta che l'ATTIVO non era caricato,
-        # quindi tornava quando si aggiungeva il secondo grafo — e lì è
-        # pleonastica: la sequenza la si è appena fatta. La condizione è
-        # «nessun grafo caricato in tutto», cioè «non ho ancora mai visto
-        # un contenuto».
-        #
-        # Il secondo grafo non resta senza indicazioni: i comandi spenti
-        # dicono la ragione nel tooltip (`poll_message_set`) e il `Load`
-        # in evidenza compare comunque appena c'è un path.
-        # V2 · not in a room: there the study comes from the room, and «Set
-        # path» would teach the wrong thing (Where you work says Reconnect)
-        from .. import graph_origins as _go
-        _da_stanza = any(_go.origin_of(r, abspath=bpy.path.abspath).is_room
-                         for r in em_tools.graphml_files)
-        if (not _stato["grafi_caricati"] and not _da_stanza
-                and self._guida_richiesta()):
-            self._guida(layout, _stato)
-
         # M1 · the graphs as a tree «file or room → graphs», like EMStudio's
         # EMTree: each graph under the place it comes from, and «Save» on a
         # branch writes that file with its own graphs only. With no rows
         # the old list stays (empty state, same as before).
         if len(em_tools.graphml_files):
-            from .graph_tree import draw_graph_tree
+            from .graph_tree import draw_graph_tree, draw_toolbar
+            # P2 · the commands as a bar of icons ABOVE the tree, like EMStudio
+            draw_toolbar(layout, context, em_tools, _stato)
             draw_graph_tree(layout, context, em_tools)
         else:
             row = layout.row()
@@ -821,8 +693,7 @@ class EM_SetupPanel(bpy.types.Panel):
             vuoto.scale_y = 1.5
             vuoto.operator('em_tools.add_file', text="Add graph",
                            icon='ADD')
-        else:
-            self._riga_comandi(context, layout, em_tools, scene, _stato)
+
 
 
         # Merge (experimental). G1 · «Save GraphML» and «Save As…» to GraphML
@@ -864,50 +735,9 @@ class EM_SetupPanel(bpy.types.Panel):
 
             active_file = em_tools.graphml_files[em_tools.active_file_index]
 
-            # Path to the file. V2 · in a room the study is the room's: an
-            # empty Path there is not drawn
-            from .. import graph_origins as _go
-            _in_room = _go.origin_of(active_file, abspath=bpy.path.abspath).is_room
-            if not (_in_room and not active_file.graphml_path):
-                row = layout.row(align=True)
-                row.prop(active_file, "graphml_path", text="Path")
-
-            # PASSO 3 · il caricamento, in evidenza e CON IL TESTO, finché
-            # il grafo non è caricato. A grafo caricato torna icona nella
-            # riga (come `Reload`), che è dove stava e dove basta che sia.
-            #
-            # Sta DOPO il Path e non prima: la catena si legge lista →
-            # path → carica, e a video il bottone sopra il campo che deve
-            # riempire prima invertiva l'ordine dei due passi.
-            if _stato["ha_path"] and not _stato["caricato"]:
-                carica = layout.row()
-                carica.scale_y = 1.5
-                self._op_carica(carica, _stato, testo="Load")
-
-            # UX3/A · la scala NON sta più qui: è diventata il pannello
-            # `EM Overview`, primo del tab. Il motivo è di scope — i suoi
-            # quattro numeri venivano da posti diversi (scena / grafo
-            # attivo) e in multigrafo due cambiavano e due no. Vedi
-            # `VIEW3D_PT_EM_Overview` sopra.
-
-            # ── B2 (EM16-UX) · «Graph info», collassabile e chiuso ────
-            #
-            # Da qui al banner di versione: US/USV, Epochs, Properties,
-            # Author, License, Embargo, `GraphML · EM 1.5.4`. Erano sempre
-            # aperti in cima al pannello d'ingresso, e sono informazioni di
-            # servizio.
-            #
-            # «Graph info» e non «Info»: quei numeri riguardano il GRAFO,
-            # non la scena — ed è precisamente la distinzione che il
-            # riquadro della scala, qui sopra, rischia di confondere.
-            gi_box = layout.box()
-            gi_head = gi_box.row(align=True)
-            gi_head.prop(
-                em_tools, "show_graph_info", text="Graph info",
-                icon="TRIA_DOWN" if em_tools.show_graph_info else "TRIA_RIGHT",
-                emboss=False)
-            if em_tools.show_graph_info:
-                self._draw_graph_info(context, gi_box, active_file)
+            # P2 · the Path and Load are inside the selected graph's row
+            # (graph_tree._draw_active_path); «Graph info» is a sub-panel,
+            # closed by default (VIEW3D_PT_em_graph_info)
 
             # I warning NON entrano nel collassabile: un avviso che si può
             # chiudere resta chiuso, ed è lo stesso motivo per cui la riga
@@ -1643,6 +1473,33 @@ def draw_table_source(box, context, em_tools, geometries=True):
     return can_import
 
 
+class VIEW3D_PT_em_graph_info(bpy.types.Panel):
+    """P2 (6 Oct 2026) · «Graph info» as a sub-panel of the EM Data Tree,
+    closed by default. It was a box with a toggle (`em_tools.show_graph_info`)
+    saved in the .blend: a file saved with it open greeted every reopening
+    with the numbers of the graph. A sub-panel opens and closes like the
+    others, and a new one is closed. The property stays (it is in saved
+    files) and nothing draws it."""
+    bl_label = "Graph info"
+    bl_idname = "VIEW3D_PT_em_graph_info"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM"
+    bl_parent_id = "VIEW3D_PT_EM_Tools_Setup"
+    bl_order = 0
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        return 0 <= em_tools.active_file_index < len(em_tools.graphml_files)
+
+    def draw(self, context):
+        em_tools = context.scene.em_tools
+        active_file = em_tools.graphml_files[em_tools.active_file_index]
+        EM_SetupPanel._draw_graph_info(EM_SetupPanel, context, self.layout, active_file)
+
+
 class VIEW3D_PT_auxiliary_files(bpy.types.Panel):
     """U6 · the third job of EM Data Tree: the tables, DosCo and source lists
     that ENRICH the active graph (a table that makes a new graph is «Import
@@ -1727,6 +1584,7 @@ classes = (
     AUXILIARY_UL_files,
     EMTOOLS_UL_files,
     EM_SetupPanel,
+    VIEW3D_PT_em_graph_info,
     VIEW3D_PT_import_from_tables,
     VIEW3D_PT_reimport_table,
     VIEW3D_PT_auxiliary_files,

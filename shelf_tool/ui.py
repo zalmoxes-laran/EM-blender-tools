@@ -84,7 +84,8 @@ class EM_PT_shelf(bpy.types.Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM Scene"
-    bl_order = 5
+    bl_parent_id = "EM_PT_scene_contents"  # P3: EMStudio's Contents
+    bl_order = 2
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):

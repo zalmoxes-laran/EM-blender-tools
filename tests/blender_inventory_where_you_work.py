@@ -119,7 +119,8 @@ def measure(name):
     except StopIteration:
         sep = len(drawn)
     head, below = drawn[:sep], drawn[sep + 1:]
-    commands = [r for r in below if r["k"] == "op"]
+    # P1 · the scene's word in a room is Log… (em.sync_log): a zone, not a command
+    commands = [r for r in below if r["k"] == "op" and r.get("id") != "em.sync_log"]
     menus = [r for r in below if r["k"] == "menu"]
     labels_below = [r for r in below if r["k"] == "label"]
     # an explanatory line is an INFO label that is not one of the four zones
@@ -167,8 +168,14 @@ def run():
     check("two tabs, EM and EM Scene", set(found) == {"EM", "EM Scene"}, str(sorted(found)))
     check("no «EM Room»", "EM Room" not in found)
     check("Where you work is in EM", "Where you work" in found.get("EM", []))
-    check("Files and the Publication Deck are in EM Scene",
-          {"Files", "Publication Deck"} <= set(found.get("EM Scene", [])))
+    # P3 (6 Oct 2026) · EM Scene is EMStudio's two spaces, then the Deck
+    check("EM Scene: Contents, Space, then the Publication Deck",
+          found.get("EM Scene", []) and
+          set(found.get("EM Scene", [])) == {"Contents", "Space", "Publication Deck"},
+          str(found.get("EM Scene")))
+    check("Storage (once Files) is in Contents",
+          bpy.types.EM_PT_resources.bl_label == "Storage"
+          and bpy.types.EM_PT_resources.bl_parent_id == "EM_PT_scene_contents")
     check("no Export Manager, no Export statistics panel",
           not ({"Export Manager", "Export statistics"} & set(sum(found.values(), []))))
 
@@ -227,7 +234,7 @@ def run():
         RESULT["menu_room"] = draw_with(bpy.types.EM_MT_room_more)
         files = draw_with(bpy.types.EM_PT_resources)
         RESULT["files"] = files
-        check("F1: Files draws", not any(r["k"] == "EXC" for r in files), str(files[-1:]))
+        check("F1: Storage (Files) draws", not any(r["k"] == "EXC" for r in files), str(files[-1:]))
         check("F1: the project folder is a menu",
               any(r.get("id") == "EM_MT_project_folder" for r in files))
         check("F1: no Promote to MinIO, no MinIO section",

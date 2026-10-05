@@ -446,7 +446,7 @@ def draw_seal_button(layout, resource_id, *, path="", name=""):
 
 
 class EM_OT_seal_show(Operator):
-    """This resource is stamped: open its seal in EM Scene ▸ Files ▸ Seals"""
+    """This resource is stamped: open its seal in EM Scene ▸ Contents ▸ Storage ▸ Seals"""
     bl_idname = "em.seal_show"
     bl_label = "Show the seal"
     bl_options = {'INTERNAL'}

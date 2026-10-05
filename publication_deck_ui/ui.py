@@ -276,7 +276,7 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM Scene"
-    bl_order = 11
+    bl_order = 3  # P3: after Contents and Space, the last step
     #: APERTO di default, al contrario degli altri pannelli di questo tab.
     #: La riga di sintesi deve essere **sempre visibile**, e un pannello
     #: chiuso la nasconde.
