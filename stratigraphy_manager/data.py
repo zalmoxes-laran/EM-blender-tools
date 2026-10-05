@@ -112,6 +112,12 @@ class EMListItem(PropertyGroup):
         description="Associated epoch",
         default=""
     ) # type: ignore
+    alt_labels: StringProperty(
+        name="Also known as",
+        description="The other labels of this unit in its sources (alternative_label), "
+                    "each with its numbering: the list's search finds them too",
+        default=""
+    ) # type: ignore
     id_node: StringProperty(
         name="Node ID",
         description="Unique node identifier",

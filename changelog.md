@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outside Enzo Cocca's reader resolves each polygon by `node_uuid`, then by the
   label composed with the mapping's rule, then by the bare number.
 - **Remove link** for an image linked to a unit by mistake (the resource stays).
+- **Also known as**: the Stratigraphy Manager shows the alternative labels of
+  a unit with their numbering (s3dgraphy `alternative_label`, qualia 1.6.7),
+  and the list's search finds a unit by any of them («1004» finds 1.US10).
 - Disabling and enabling EM Tools in one session no longer says «already
   registered» (seven modules were left out of the unregistration).
 

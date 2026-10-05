@@ -78,6 +78,21 @@ def build_instance_chains(graph):
     return chains
 
 
+def alt_labels_line(graph, node_id):
+    """A1 · the alternative labels of a unit as one line, «US 1004 (scavo
+    2013) · A.12 (tesi Demetrescu)» — what the list's search reads and the
+    Stratigraphy Manager shows. Empty with an s3dgraphy that has none."""
+    try:
+        from s3dgraphy import api
+        if graph is None or not hasattr(api, "alternative_labels"):
+            return ""
+        return " · ".join(
+            x["label"] + (f" ({x['scheme']})" if x["scheme"] else "")
+            for x in api.alternative_labels(graph, node_id))
+    except Exception:  # noqa: BLE001 — a label line is never worth a broken list
+        return ""
+
+
 def populate_stratigraphic_node(scene, node, index, graph, instance_chains=None):
     """
     Popola la lista di unità stratigrafiche.
@@ -99,6 +114,7 @@ def populate_stratigraphic_node(scene, node, index, graph, instance_chains=None)
     em_item.border_style = node.attributes.get('border_style', "")
     em_item.id_node = node.node_id
     em_item.node_type = node.node_type
+    em_item.alt_labels = alt_labels_line(graph, node.node_id)
     
     # Icon con supporto prefisso grafo
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)

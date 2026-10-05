@@ -39,6 +39,23 @@ def _get_graph_icon(graph_code):
 
 class EM_STRAT_UL_List(UIList):
     """Custom UIList for displaying stratigraphic units with visibility toggle"""
+
+    def filter_items(self, context, data, propname):
+        """A1 · the search finds a unit by its name OR by one of its
+        alternative labels («1004» finds 1.US10 when the 2013 report calls it
+        US 1004); the order stays the list's."""
+        items = getattr(data, propname)
+        flt = (self.filter_name or "").strip().casefold()
+        if not flt:
+            return [], []
+        flags = []
+        for it in items:
+            hay = f"{it.name} {getattr(it, 'alt_labels', '')}".casefold()
+            ok = flt in hay
+            if self.use_filter_invert:
+                ok = not ok
+            flags.append(self.bitflag_filter_item if ok else 0)
+        return flags, []
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
@@ -539,7 +556,15 @@ class EM_ToolsPanel:
             return
 
         selected_us = strat.units[strat.units_index]
-        
+
+        # A1 · its other labels, each with its numbering (the sources are in
+        # the paradata: EMStudio shows them, and they are cited as any claim)
+        if getattr(selected_us, "alt_labels", ""):
+            alt = layout.box()
+            alt.label(text="Also known as", icon='SORTALPHA')
+            for part in selected_us.alt_labels.split(" · "):
+                alt.label(text=part)
+
         # Documents header box
         docs_box = layout.box()
         
