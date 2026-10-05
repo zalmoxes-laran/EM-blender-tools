@@ -534,6 +534,44 @@ def any_joined() -> bool:
     return any(s.joined for _g, s in sessions())
 
 
+def session_of_room(base_url: Optional[str], room_id: Optional[str]
+                    ) -> Optional[RoomSession]:
+    """The session that sits in this room (joined first, then seated over a
+    dropped connection), or None."""
+    if not room_id:
+        return None
+    base = (base_url or "").rstrip("/")
+    found = [s for _g, s in sessions()
+             if s.room_id == room_id and (s.joined or s.seated)
+             and (not base or not s.base_url or s.base_url.rstrip("/") == base)]
+    found.sort(key=lambda s: (not s.joined, not s.seated))
+    return found[0] if found else None
+
+
+def here(active_graph: Optional[str] = None, saved_base: Optional[str] = None,
+         saved_room: Optional[str] = None) -> RoomSession:
+    """V1 · THE session this scene is in: the one source every part of the
+    panel reads — «Where you work», the EM Data Tree, Sync, the commands' polls.
+
+    The active graph's room first; then the room the file saved; then any
+    session sitting in a room; else `SESSION` (in no room). Measured on 5 Oct
+    2026: `activate()` for a graph of a file puts a fresh session in `SESSION`
+    while the room's stays joined — «Where you work» read `SESSION` («no role
+    said · 0 present», Sync «not downloaded»), the tree read every session
+    («joined as owner · 1 here»): one scene, two answers at the same instant.
+    """
+    s = _by_graph.get(active_graph or "")
+    if s is not None and (s.joined or s.seated):
+        return s
+    s = session_of_room(saved_base, saved_room)
+    if s is not None:
+        return s
+    for _g, s in sessions():
+        if s.joined or s.seated:
+            return s
+    return SESSION
+
+
 def fresh_for_join() -> RoomSession:
     """The session a NEW join should use. The active one if it is free;
     otherwise a new one, so the room already joined (another graph's) stays."""

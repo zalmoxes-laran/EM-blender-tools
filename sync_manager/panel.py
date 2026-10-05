@@ -124,12 +124,13 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
 
     def _in_room(self, layout, context, state):
         from . import scene_check
-        offline = bool(state.get("offline"))
+        # V1 · not in the room now (a dropped connection, a file reopened):
+        # Sync reconnects by itself first, Open in EMStudio waits for the room
+        offline = bool(state.get("offline") or state.get("not_connected"))
         col = layout.column(align=True)
         if scene_check.ULTIMA_VERIFICA.get("counts"):
             col.label(text=scene_check.ULTIMA_VERIFICA["counts"][:90])
         row = col.row(align=True)
-        row.enabled = not offline
         row.operator("em.scene_check", text="Sync the scene…", icon="FILE_REFRESH")
         row = col.row(align=True)
         row.operator("em.blend_backup_archive", text="Archive this .blend", icon="EXPORT")

@@ -1350,11 +1350,47 @@ def _stop():
 # P4.4 · the ROOM (Blender as a client, not only as a host)
 # --------------------------------------------------------------------------- #
 
-def room_status(context=None) -> dict:
-    """What to show about the room: joined, who else is there, which room."""
-    from . import room as room_cfg
-    from .room_session import SESSION
+def current_session(context=None):
+    """V1 · the session this scene is in (`room_session.here`), read off the
+    active graph and the room the file saved: the one source of the panel."""
+    from . import room_session as _rs
+    try:
+        sc = (context or bpy.context).scene
+        em_tools = sc.em_tools
+        rows = em_tools.graphml_files
+        idx = em_tools.active_file_index
+        active = rows[idx].name if 0 <= idx < len(rows) else None
+        base = str(getattr(sc, "em_room_url", "") or "")
+        room_id = str(getattr(sc, "em_room_id", "") or "")
+    except Exception:  # noqa: BLE001 — no scene
+        active = base = room_id = None
+    return _rs.here(active, base, room_id)
 
+
+def saved_room(context=None) -> dict:
+    """V1 · the room this file says it works in (declared Room, with an id),
+    `{base_url, room_id}`, or {} — what a reopened file remembers."""
+    try:
+        sc = (context or bpy.context).scene
+    except Exception:  # noqa: BLE001
+        return {}
+    if modo_dichiarato(context) != MODE_HUB:
+        return {}
+    room_id = str(getattr(sc, "em_room_id", "") or "").strip()
+    if not room_id:
+        return {}
+    return {"base_url": str(getattr(sc, "em_room_url", "") or "").strip(),
+            "room_id": room_id}
+
+
+def room_status(context=None) -> dict:
+    """What to show about the room: joined, who else is there, which room.
+    V1 · read off the scene's session (`current_session`), the same one the
+    EM Data Tree, Sync and the commands read; `saved` is the room the file
+    remembers, `connected` whether this Blender is in it now."""
+    from . import room as room_cfg
+
+    SESSION = current_session(context)
     info = room_cfg.room()
     info.update({"joined": SESSION.joined,
                  "room_id": SESSION.room_id or info.get("room_id"),
@@ -1373,6 +1409,16 @@ def room_status(context=None) -> dict:
                  "waiting": SESSION.waiting(),
                  "offline": SESSION.offline,
                  "seated": SESSION.seated})
+    if SESSION.base_url and (SESSION.joined or SESSION.seated):
+        info["base_url"] = SESSION.base_url
+    saved = saved_room(context)
+    info["saved"] = saved
+    info["connected"] = SESSION.joined
+    # a file reopened in its room, no connection yet: «not connected»
+    info["not_connected"] = bool(saved) and not SESSION.joined and not SESSION.seated
+    if info["not_connected"]:
+        info["room_id"] = saved["room_id"]
+        info["base_url"] = saved["base_url"] or info.get("base_url")
     return info
 
 
@@ -1517,7 +1563,7 @@ def _lascia_tutte_le_stanze() -> list:
         if session.joined:
             lasciate.append(str(session.room_id or "the room"))
             _rs.SESSION = session
-            leave_room()
+            leave_room(session)
     return lasciate
 
 
@@ -2057,12 +2103,15 @@ def _lega_grafo_alla_stanza(context, session, room_doc, base_url, room_id,
     return ids
 
 
-def leave_room() -> None:
-    """Leave the ACTIVE graph's room (M2: the other rooms stay joined)."""
+def leave_room(session=None) -> None:
+    """Leave the ACTIVE graph's room (M2: the other rooms stay joined), or
+    `session`'s when one is given."""
     from . import room as room_cfg
     from . import room_session as _rs
-    from .room_session import SESSION
 
+    # V1 · the scene's room, which is not always `SESSION` (a graph of a file
+    # made active puts a fresh one there while the room's stays joined)
+    SESSION = session or current_session()
     SESSION.leave()
     # P1 · leaving does not throw away what the room never confirmed: it is
     # parked for this room (and saved with the .blend) until the next entry
@@ -2183,14 +2232,12 @@ class EM_OT_room_join(bpy.types.Operator):
                      "nothing here is replaced)"))
 
     def invoke(self, context, event):
-        from .room_session import SESSION
-        if SESSION.joined:
+        if current_session(context).joined:
             return self.execute(context)
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
-        from .room_session import SESSION
-        if SESSION.joined:
+        if current_session(context).joined:
             leave_room()
             self.report({"INFO"}, "left the room (token forgotten)")
             return {"FINISHED"}
@@ -2355,8 +2402,7 @@ class EM_OT_room_open_elsewhere(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        from .room_session import SESSION
-        return bool(SESSION.joined)
+        return bool(current_session(context).joined)
 
     def execute(self, context):
         import webbrowser
@@ -2458,6 +2504,33 @@ def _load_unconfirmed(*_args):
             print(f"[room] {count} edit(s) from this file wait for their room")
     except Exception as exc:  # noqa: BLE001
         print(f"[room] the waiting edits of this file were not read: {exc}")
+    try:
+        _sessions_follow_the_file()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[room] the rooms of the file before were not left: {exc}")
+
+
+def _sessions_follow_the_file() -> list:
+    """V1 · the sessions live in the process, a file in its .blend: after a
+    load, a session in a room this file does not work in is left (its waiting
+    edits parked for that room, the token kept in memory), so the panel never
+    shows the room of the file before. The same room stays joined."""
+    from . import room_session as _rs
+    saved = saved_room()
+    left = []
+    for _gid, session in list(_rs.sessions()):
+        if not (session.joined or session.seated):
+            continue
+        if saved and session.room_id == saved.get("room_id"):
+            continue
+        left.append(str(session.room_id))
+        session.leave()
+        _rs.park(session)
+        _rs.unbind_session(session)
+    if left:
+        _rs.activate(None)
+        print(f"[room] left {', '.join(left)}: not the room of this file")
+    return left
 
 
 def register():

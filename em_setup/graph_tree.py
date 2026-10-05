@@ -34,22 +34,21 @@ def _loaded(row) -> bool:
 
 
 def room_state(origin) -> tuple:
-    """`(sentence, icon)` for a room branch: joined or not, role, people."""
+    """`(sentence, icon)` for a room branch: joined or not, role, people.
+    V1 · through `room_session.session_of_room`, the same lookup «Where you
+    work» reads (`room_session.here`): the two never answer differently."""
     try:
         from ..sync_manager import room_session as _rs
     except Exception:  # noqa: BLE001
         return ("room state unknown", "QUESTION")
-    for gid, session in _rs.sessions():
-        where = _rs.where_of(gid) if gid else {}
-        if (where.get("room_id") or session.room_id) != origin.room_id:
-            continue
-        if session.joined:
-            role = f" as {session.role}" if session.role else ""
-            people = len(session.members or [])
-            return (f"joined{role} · {people} here", "LINKED")
-        if session.offline:
-            return (f"offline · {session.waiting()} edit(s) waiting", "TIME")
-    return ("not joined: enter it from Where you work to send edits", "UNLINKED")
+    session = _rs.session_of_room(None, origin.room_id)
+    if session is not None and session.joined:
+        role = f" as {session.role}" if session.role else ""
+        people = len(session.members or [])
+        return (f"joined{role} · {people} here", "LINKED")
+    if session is not None and session.offline:
+        return (f"offline · {session.waiting()} edit(s) waiting", "TIME")
+    return ("not connected: Reconnect in Where you work to send edits", "UNLINKED")
 
 
 def writing_in(origin, rows, active) -> str:

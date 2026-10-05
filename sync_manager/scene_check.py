@@ -132,8 +132,10 @@ def sentences(report: Dict[str, Any]) -> List[str]:
                       f"({report.get('why_not', '')})"
                       if report.get("not_downloaded") else ""))
     else:
+        # V1 · never «not downloaded» without why: the reason is the room's
         out.append(f"{len(report['missing'])} missing from the scene "
-                   f"(not downloaded: check with the room to fetch them)")
+                   f"(not downloaded: "
+                   f"{report.get('no_room') or 'Sync downloads them in a room'})")
     out.append(f"{len(report['changed'])} changed: the scene holds an older "
                f"version than the graph cites")
     out.append(f"{len(report['external'])} external reference(s), left where "
@@ -215,11 +217,41 @@ def mark_only_here(names: List[str]) -> None:  # pragma: no cover — bpy
             del obj[PROP_ONLY_HERE]
 
 
+def ensure_room(context) -> tuple:  # pragma: no cover — bpy
+    """V1 · Sync outside the room reconnects by itself. → `(joined, why)`:
+    `why` is the one sentence that says why nothing was downloaded."""
+    import bpy  # type: ignore
+    from . import operators as ops
+    session = ops.current_session(context)
+    if session.joined:
+        return True, ""
+    saved = ops.saved_room(context)
+    room_id = saved.get("room_id") or (session.room_id if session.seated else "")
+    if not room_id:
+        return False, ("this study is in no room on this computer: the models "
+                       "the graph cites come with a room")
+    try:
+        bpy.ops.em.room_reconnect()
+    except Exception as exc:  # noqa: BLE001 — said below
+        print(f"[sync] reconnecting to {room_id} failed: {exc}")
+    if ops.current_session(context).joined:
+        return True, ""
+    from . import signin_ui
+    running = signin_ui.PENDING.get("signin")
+    if running is not None and running.state == "waiting":
+        return False, (f"not connected to {room_id} yet: sign in in the browser, "
+                       f"then Sync again")
+    return False, (f"not connected to {room_id}, and reconnecting did not "
+                   f"succeed: Reconnect, then Sync downloads them")
+
+
 def check_scene(context, graph, *, download: bool,
                 materialise_fn: Optional[Callable[..., Dict[str, Any]]] = None,
-                fetch_fn: Optional[Callable[[str], Any]] = None
+                fetch_fn: Optional[Callable[[str], Any]] = None,
+                no_room: str = ""
                 ) -> Dict[str, Any]:  # pragma: no cover — bpy
-    """Read the scene, decide, mark, and (if asked and in a room) download."""
+    """Read the scene, decide, mark, and (if asked and in a room) download.
+    `no_room` is why nothing could be downloaded (V1), said in the sentences."""
     from .materialise import materialise, plan
 
     summary = plan(graph)
@@ -242,6 +274,7 @@ def check_scene(context, graph, *, download: bool,
     report = classify_scene(summary, scene_objects(context, graph))
     report["libraries"] = libraries
     report["rm"] = count_rms(context, graph)
+    report["no_room"] = no_room
     mark_only_here(report["only_here"])
     if download and report["missing"]:
         fetched = (materialise_fn or materialise)(graph, records=report["missing"])
@@ -334,11 +367,18 @@ def _operator_classes():  # pragma: no cover — bpy
             return graph if ok else None
 
         def _check(self, context, graph):
-            from .room_session import SESSION
+            from . import operators as ops
             from . import scene_sync
             import time
+            joined, why = (True, "")
+            if self.download:
+                joined, why = ensure_room(context)
+            SESSION = ops.current_session(context)
             report = check_scene(context, graph,
-                                 download=bool(self.download and SESSION.joined))
+                                 download=bool(self.download and joined),
+                                 no_room=why)
+            if why:
+                ULTIMA_VERIFICA["no_room"] = why
             groups = scene_sync.candidates(context, graph) if SESSION.seated else {
                 "changed": [], "new": [], "baseline": [], "skipped": []}
             report["edited"] = len(groups["changed"])
@@ -358,10 +398,25 @@ def _operator_classes():  # pragma: no cover — bpy
                     row.send = state == "changed"
             return rows
 
-        def invoke(self, context, event):
+        def _graph_or_say(self, context):
+            """V1 · a file reopened in its room has no graph until the room
+            is entered: Sync reconnects first, and says why when it cannot."""
+            why = ""
+            if self.download:
+                _joined, why = ensure_room(context)
             graph = self._graph(context)
             if graph is None:
-                self.report({"ERROR"}, "no graph loaded: nothing to sync the scene with")
+                self.report({"ERROR"}, "no graph loaded: nothing to sync the scene with"
+                            + (f" ({why})" if why else ""))
+                if why:
+                    ULTIMA_VERIFICA.clear()
+                    ULTIMA_VERIFICA["sentences"] = [f"nothing synced: {why}"]
+                    ULTIMA_VERIFICA["no_room"] = why
+            return graph
+
+        def invoke(self, context, event):
+            graph = self._graph_or_say(context)
+            if graph is None:
                 return {"CANCELLED"}
             try:
                 _report, groups = self._check(context, graph)
@@ -396,9 +451,11 @@ def _operator_classes():  # pragma: no cover — bpy
 
         def execute(self, context):
             from . import scene_sync
-            graph = self._graph(context)
+            graph = (self._graph(context) if self.send == "ASK"
+                     else self._graph_or_say(context))
             if graph is None:
-                self.report({"ERROR"}, "no graph loaded: nothing to sync the scene with")
+                if self.send == "ASK":
+                    self.report({"ERROR"}, "no graph loaded: nothing to sync the scene with")
                 return {"CANCELLED"}
             if self.send == "ASK":
                 rows = context.window_manager.em_sync_rows
@@ -414,8 +471,8 @@ def _operator_classes():  # pragma: no cover — bpy
                 chosen = (groups["changed"] if self.send in ("CHANGED", "CHANGED_AND_NEW")
                           else []) + (groups["new"] if self.send == "CHANGED_AND_NEW" else [])
             if chosen:
-                from .room_session import SESSION
-                if not SESSION.seated:
+                from . import operators as ops
+                if not ops.current_session(context).seated:
                     self.report({"ERROR"}, "not in a room: there is nowhere to send to")
                     return {"CANCELLED"}
                 done = scene_sync.send(context, graph, chosen)

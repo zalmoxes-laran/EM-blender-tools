@@ -400,8 +400,8 @@ def _operator_classes():
 
         @classmethod
         def poll(cls, context):
-            from .room_session import SESSION
-            return bool(getattr(SESSION, "joined", False))
+            from . import operators as ops
+            return bool(getattr(ops.current_session(context), "joined", False))
 
         def execute(self, context):
             from ..functions import is_graph_available

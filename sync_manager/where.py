@@ -69,7 +69,13 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     problem = False
     if place == PLACE_ROOM:
         title = s.get("room_title") or s.get("room_id") or "the room"
-        if s.get("offline"):
+        if s.get("not_connected"):
+            # V1 · a file reopened in its room: the room is where it works,
+            # and this Blender is not in it yet — said, with Reconnect below
+            out["place"] = ("UNLINKED", f"{_glyph('room.inside', '▣')} {title} · {host} · "
+                                        f"not connected")
+            problem = True
+        elif s.get("offline"):
             out["place"] = ("UNLINKED", f"{_glyph('room.inside', '▣')} {title} · {host} · offline")
             problem = True
         else:
@@ -90,7 +96,11 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     out["healthy"] = not problem
 
     # ── WHO YOU ARE ─────────────────────────────────────────────────────────
-    if place == PLACE_ROOM:
+    if place == PLACE_ROOM and s.get("not_connected"):
+        who = s.get("user")
+        out["who"] = ("USER", (f"{who} ✓ · " if who else "")
+                      + "the role is said by the room at the entry")
+    elif place == PLACE_ROOM:
         role = s.get("role") or ""
         rs = f"role.{role}" if role in ("owner", "editor", "viewer") else ""
         role_txt = f"{_glyph(rs, '')} {role}".strip() if role else "no role said"
@@ -113,6 +123,11 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     elif s.get("expired"):
         msg.update(icon="LOCKED", text=f"The access to {host_of(s['expired'])} has expired",
                    op="em.sign_in_again", op_text="Sign in again", alert=True)
+    elif place == PLACE_ROOM and s.get("not_connected"):
+        msg.update(icon="UNLINKED",
+                   text=f"Not connected to {s.get('room_title') or s.get('room_id')}: "
+                        f"edits wait here",
+                   op="em.room_reconnect", op_text="Reconnect")
     elif place == PLACE_ROOM and s.get("can_write") is False:
         msg.update(icon="LOCKED", text=f"{_glyph('room.read_only', '⊘')} your role does not write")
     elif place == PLACE_ROOM and s.get("offline"):
@@ -140,7 +155,9 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     waiting = int(s.get("waiting") or 0)
     refused = int(s.get("refused") or 0)
     not_applied = int(s.get("not_applied") or 0)
-    if place == PLACE_ROOM:
+    if place == PLACE_ROOM and s.get("not_connected") and not waiting:
+        log = ("UNLINKED", "not connected · nothing sent since the file was opened")
+    elif place == PLACE_ROOM:
         if waiting:
             log = ("TIME", f"{_glyph('sync.pending', '⋯')} {waiting} edit"
                            f"{'s' if waiting != 1 else ''} waiting to be sent")
@@ -175,7 +192,8 @@ def read_state(context) -> Dict[str, Any]:  # pragma: no cover — bpy
     mode = ops.session_mode(context)
     seated_offline = any(s.offline for _g, s in _rs.sessions())
     s: Dict[str, Any] = {}
-    if mode == ops.MODE_HUB or seated_offline:
+    s["not_connected"] = bool(status.get("not_connected"))
+    if mode == ops.MODE_HUB or seated_offline or s["not_connected"]:
         s["place"] = PLACE_ROOM
     elif mode == ops.MODE_SIDECAR:
         s["place"] = PLACE_EMSTUDIO
@@ -186,6 +204,7 @@ def read_state(context) -> Dict[str, Any]:  # pragma: no cover — bpy
         declared, PLACE_HERE)
     s["declared_room"] = str(getattr(context.scene, "em_room_id", "") or "")
     s["node"] = status.get("base_url") or getattr(context.scene, "em_room_url", "")
+    s["connected"] = bool(status.get("connected"))
     s["room_id"] = status.get("room_id")
     s["room_title"] = ROOM_TITLES.get(str(status.get("room_id") or ""), "")
     s["members"] = status.get("members")

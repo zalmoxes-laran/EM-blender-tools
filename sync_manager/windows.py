@@ -286,8 +286,8 @@ class EM_OT_room_reconnect(bpy.types.Operator):
         if not str(getattr(context.scene, "em_room_id", "") or "").strip():
             bpy.ops.em.room_enter("INVOKE_DEFAULT")
             return {"FINISHED"}
-        from .room_session import SESSION
-        if SESSION.joined:
+        from . import operators as ops
+        if ops.current_session(context).joined:
             self.report({"INFO"}, "already in the room")
             return {"FINISHED"}
         result = bpy.ops.em.room_join("EXEC_DEFAULT")
@@ -305,9 +305,11 @@ class EM_OT_room_leave(bpy.types.Operator):
     def execute(self, context):
         from . import operators as ops
         from . import room_session as _rs
-        room_id = _rs.SESSION.room_id
+        session = ops.current_session(context)
+        room_id = session.room_id or ops.saved_room(context).get("room_id")
+        base = session.base_url
         ops.leave_room()
-        kept = _rs.parked_for(_rs.SESSION.base_url, room_id) if room_id else 0
+        kept = _rs.parked_for(base, room_id) if room_id else 0
         note_transition(f"left {room_id}" + (f" · {kept} edit(s) kept" if kept else ""))
         self.report({"INFO"}, f"left {room_id or 'the room'}"
                     + (f" · {kept} edit(s) kept for the next entry" if kept else ""))

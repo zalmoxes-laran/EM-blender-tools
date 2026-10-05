@@ -367,8 +367,9 @@ def test_the_operator_is_EMIT_only_and_says_so():
                    source.index("class EM_OT_set_mode")]
     assert "Emit-only" in block
     assert "webbrowser.open(door[\"link\"])" in block
-    # …and it is offered only while joined: off a room it would open nothing
-    assert "return bool(SESSION.joined)" in block
+    # …and it is offered only while joined (V1: the scene's session, the one
+    # the whole panel reads): off a room it would open nothing
+    assert "return bool(current_session(context).joined)" in block
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
     inside = panel[panel.index("def _in_room"):]
     assert '"em.room_open_elsewhere"' in inside
