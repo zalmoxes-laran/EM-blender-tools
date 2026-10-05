@@ -11,7 +11,9 @@ graph already declares — was never read. Now it decides:
   never resident. One with no versions is a library of its master alone;
 * **source-based** — the reconstruction, made to be edited: RESIDENT in the
   working file, and its changes go up with «Sync the scene…» as a new
-  revision of its resource (`scene_sync`);
+  revision of its resource (`scene_sync`). One WITH VERSIONS goes into a
+  library like the others (Q4, E.D. 5 Oct 2026): its levels are the
+  library's meshes, as for any asset with versions;
 * **proxy** — a property of its unit with its glb as a resource: resident with
   its chain, as before.
 
@@ -19,7 +21,7 @@ Where the origin is read, in order: the **geometry axis** of the document the
 model belongs to (`data.geometry` of a Document or an RMDoc linked to the
 resource or to its RM — `reality_based` is reality-based; `observable`,
 `asserted`, `symbolic`, `em_based` are placed by an argument, not by a sensor:
-source-based); failing that, the **folders** of the standard tree
+source-based — confirmed by E.D., Q3 of 5 Oct 2026); failing that, the **folders** of the standard tree
 (`s3dgraphy/project_tree.py`): a file under `RB/` or `SB/`. A model with no
 declared origin keeps today's rule, and the check counts it and says so.
 
@@ -59,10 +61,12 @@ def origin_from(geometry: Optional[str], paths: List[str], *,
 
 
 def residence(origin: str, has_versions: bool) -> str:
-    """Where a model lives in Blender: a linked library or the working file."""
+    """Where a model lives in Blender: a linked library or the working file.
+    Q4 (E.D., 5 Oct 2026) · a source-based model with versions goes into a
+    library like the others; without versions it stays resident."""
     if origin == ORIGIN_RB:
         return RESIDENCE_LIBRARY
-    if origin in (ORIGIN_SB, ORIGIN_PROXY):
+    if origin == ORIGIN_PROXY:
         return RESIDENCE_RESIDENT
     return RESIDENCE_LIBRARY if has_versions else RESIDENCE_RESIDENT
 
@@ -179,7 +183,7 @@ def origin_of_resource(graph: Any, resource_id: str) -> Tuple[str, str]:
 def apply_to_summary(graph: Any, summary: Dict[str, Any]) -> Dict[str, Any]:
     """The resident records with their origin and residence: a reality-based
     model without versions becomes the asset of its own library (`asset_id`
-    = itself), a source-based one with versions is resident (no `asset_id`).
+    = itself); a source-based one with versions keeps its library (Q4).
     → the summary, with `origins: {origin: count}`."""
     out = dict(summary)
     rows, counts = [], {ORIGIN_RB: 0, ORIGIN_SB: 0, ORIGIN_PROXY: 0, ORIGIN_UNKNOWN: 0}
@@ -205,7 +209,8 @@ def sentence(counts: Dict[str, int]) -> str:
     if not counts:
         return ""
     parts = [f"{counts.get(ORIGIN_RB, 0)} reality-based (linked libraries)",
-             f"{counts.get(ORIGIN_SB, 0)} source-based (resident)",
+             f"{counts.get(ORIGIN_SB, 0)} source-based (resident; with versions "
+             f"a library)",
              f"{counts.get(ORIGIN_PROXY, 0)} proxies"]
     line = "Origin: " + " · ".join(parts)
     if counts.get(ORIGIN_UNKNOWN):

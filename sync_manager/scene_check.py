@@ -131,6 +131,8 @@ def sentences(report: Dict[str, Any]) -> List[str]:
                    + (f", {report.get('not_downloaded', 0)} not "
                       f"({report.get('why_not', '')})"
                       if report.get("not_downloaded") else ""))
+    elif not report.get("missing"):
+        out.append("nothing missing from the scene")
     else:
         # V1 · never «not downloaded» without why: the reason is the room's
         out.append(f"{len(report['missing'])} missing from the scene "

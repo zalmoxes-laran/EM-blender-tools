@@ -13,7 +13,9 @@ and a reconstruction (geometry asserted); (2) both objects removed, «Sync the
 scene…» brings them back: the reality-based one LINKED from its library
 (`em_cache/<room>/<asset>.blend`), the source-based one RESIDENT; (3) the
 source-based mesh edited: Sync offers it as changed (a revision), and never
-the linked one; sent, it is a revision of its resource.
+the linked one; sent, it is a revision of its resource; (4) Q4, the
+source-based one given a version: gone and synced again, it comes back LINKED
+from its library, like any asset with versions.
 """
 import os
 import shutil
@@ -129,6 +131,31 @@ new_rid = obj.get("em_resource_id")
 check("sent as a revision of its resource",
       any(e.edge_type == "was_revision_of" and e.edge_source == new_rid
           and e.edge_target == "R1-recon.model" for e in graph.edges), str(new_rid))
+# ── (4) Q4 · the source-based one WITH VERSIONS goes into a library ──────
+for o in bpy.context.view_layer.objects:
+    o.select_set(False)
+obj.select_set(True)
+bpy.context.view_layer.objects.active = obj
+before = ss._section(graph)
+r = bpy.ops.em.asset_add_version(source="DECIMATE", ratio=0.5, use={"web"})
+check("Q4: the reconstruction gets a version", r == {"FINISHED"}, str(r))
+for op in ss.section_delta_ops(before, ss._section(graph)):
+    ops.emit_op(op)
+deadline = time.time() + 10
+while time.time() < deadline and rs.SESSION.waiting():
+    ops._drain_inbox()
+    time.sleep(0.1)
+asset = obj.get("em_asset_id")
+check("…an asset with versions", bool(asset), str(asset))
+for o in [o for o in bpy.data.objects if o.get("em_asset_id") == asset]:
+    bpy.data.objects.remove(o)
+bpy.ops.em.scene_check(send="NONE")
+lines = sc.ULTIMA_VERIFICA.get("sentences") or []
+print("[SMOKE] sentences:", [l for l in lines if l.startswith("Origin") or "missing" in l])
+back = [o for o in bpy.data.objects if o.get("em_asset_id") == asset]
+lib = back[0].data.library.filepath if back and back[0].data and back[0].data.library else ""
+check("Q4: the source-based one with versions comes back LINKED from its library",
+      bool(back) and "em_cache" in lib, f"{[o.name for o in back]} {lib}")
 ops.leave_room()
 print("[SMOKE] RESULT:", "ALL PASS" if not FAILURES else f"FAILED {FAILURES}")
 sys.stdout.flush()

@@ -38,7 +38,10 @@ def test_the_geometry_axis_decides_then_the_folders():
 
 def test_reality_based_is_a_library_source_based_and_proxy_resident():
     assert res.residence(res.ORIGIN_RB, False) == res.RESIDENCE_LIBRARY
-    assert res.residence(res.ORIGIN_SB, True) == res.RESIDENCE_RESIDENT
+    # Q4 (E.D., 5 Oct 2026): a source-based model with versions goes into a
+    # library like the others; without versions it stays resident
+    assert res.residence(res.ORIGIN_SB, True) == res.RESIDENCE_LIBRARY
+    assert res.residence(res.ORIGIN_SB, False) == res.RESIDENCE_RESIDENT
     assert res.residence(res.ORIGIN_PROXY, False) == res.RESIDENCE_RESIDENT
     # no declared origin: as before
     assert res.residence(res.ORIGIN_UNKNOWN, True) == res.RESIDENCE_LIBRARY
@@ -69,7 +72,9 @@ def test_the_summary_moves_each_model_where_its_origin_says():
     assert rows[("RB-tile", "RB-tile")]["asset_id"] == "RB-tile"       # its own library
     assert rows[("survey", "survey")]["origin_how"] == "geometry reality_based"
     assert rows[("survey", "survey")]["residence"] == "library"
-    assert "asset_id" not in rows[("SB-col", "v")]                      # resident
+    assert rows[("SB-col", "v")]["asset_id"] == "SB-col"               # Q4: its library
+    assert rows[("SB-col", "v")]["residence"] == "library"
+    assert "asset_id" not in rows[("SB-col", "SB-col")]                # no versions: resident
     assert rows[("plain", "plain")]["origin"] == ""                     # as before
     assert out["origins"] == {"reality_based": 2, "source_based": 2, "proxy": 0, "": 1}
     line = res.sentence(out["origins"])
