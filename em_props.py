@@ -132,12 +132,12 @@ def update_proxy_shader_mode(self, context):
 
 
 def update_proxy_display(self, context):
-    """Called when proxy display alpha changes"""
+    """Called when proxy display alpha changes. P4 · on the proxies' materials
+    in every mode (`functions.apply_proxy_alpha`), not by re-applying a mode:
+    with the mode at «select» that did nothing."""
     try:
-        from .functions import update_display_mode
-        class DummySelf:
-            pass
-        update_display_mode(DummySelf(), context)
+        from .functions import apply_proxy_alpha
+        apply_proxy_alpha(context)
     except Exception as e:
         print(f"Warning: Could not update proxy display: {e}")
 
@@ -1233,8 +1233,11 @@ class EM_Tools(PropertyGroup):
 
     proxy_display_mode: StringProperty(
         name="Proxy Display Mode",
-        description="Proxy display mode",
-        default="select"
+        description="Proxy display mode: EM, Epochs, Horizons or Properties",
+        # P4 · was «select», a value no menu writes: the transparency slider
+        # did nothing with it. A file saved with it is read by its materials
+        # (`functions.infer_display_mode`, at the load and at the slider)
+        default="EM"
     )  # type: ignore
 
     proxy_blend_mode: StringProperty(

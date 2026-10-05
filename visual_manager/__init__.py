@@ -16,8 +16,26 @@ from .label_tools import register_label_tools, unregister_label_tools
 # Module info
 __all__ = ['register', 'unregister']
 
+from bpy.app.handlers import persistent  # type: ignore
+
+
+@persistent
+def _display_mode_on_load(_dummy=None):
+    """P4 · a file saved with the mode «select» (the old default, a value no
+    menu writes) gets the mode its proxies' materials show, silently."""
+    try:
+        from ..functions import PROXY_DISPLAY_MODES, infer_display_mode
+        em_tools = bpy.context.scene.em_tools
+        if em_tools.proxy_display_mode not in PROXY_DISPLAY_MODES:
+            em_tools.proxy_display_mode = infer_display_mode(bpy.context)
+    except Exception as exc:  # noqa: BLE001 — a migration never stops a load
+        print(f"[VisualManager] display mode not read: {exc}")
+
+
 def register():
     """Register Visual Manager - solo UI e operatori base."""
+    if _display_mode_on_load not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_display_mode_on_load)
     try:
         register_data()
         register_operators()
@@ -36,6 +54,8 @@ def register():
 
 def unregister():
     """Unregister Visual Manager - solo UI e operatori base."""
+    if _display_mode_on_load in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_display_mode_on_load)
     try:
         unregister_ui()
         unregister_label_tools()

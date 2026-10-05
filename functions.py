@@ -1537,6 +1537,96 @@ def update_property_materials_alpha(alpha_value):
     print(f"[OPTIMIZED] Updated alpha to {alpha_value} for {updated_count}/{len(property_materials)} materials")
     return updated_count
 
+#: the display modes the Visual Manager knows (its menu writes them)
+PROXY_DISPLAY_MODES = ("EM", "Epochs", "Horizons", "Properties")
+
+
+def proxy_objects(context):
+    """The proxies of the scene: the objects of the collection «Proxy» (and its
+    children), and the objects the stratigraphic units are linked to."""
+    found = {}
+    coll = bpy.data.collections.get("Proxy")
+    if coll is not None:
+        for ob in coll.all_objects:
+            found[ob.name] = ob
+    try:
+        strat = context.scene.em_tools.stratigraphy
+        graph_exists, graph = is_graph_available(context)
+        for unit in strat.units:
+            if unit.icon != 'LINKED':
+                continue
+            name = node_name_to_proxy_name(unit.name, context=context,
+                                           graph=graph if graph_exists else None)
+            ob = context.scene.objects.get(name)
+            if ob is not None:
+                found[ob.name] = ob
+    except Exception:  # noqa: BLE001 — no graph: the collection is enough
+        pass
+    return [ob for ob in found.values() if getattr(ob, "type", "") == 'MESH']
+
+
+def infer_display_mode(context):
+    """P4 · the mode the proxies show, read off their materials: an EM type
+    (US, USVs, …) → «EM», `ep_…` → «Epochs», `prop_…` → «Properties»; none of
+    these → «EM», the default."""
+    counts = {"EM": 0, "Epochs": 0, "Properties": 0}
+    for ob in proxy_objects(context):
+        for slot in ob.material_slots:
+            mat = slot.material
+            if mat is None:
+                continue
+            if mat.name in US_PROPER_TYPES:
+                counts["EM"] += 1
+            elif mat.name.startswith("ep_"):
+                counts["Epochs"] += 1
+            elif mat.name.startswith("prop_"):
+                counts["Properties"] += 1
+    best = max(counts, key=lambda k: counts[k])
+    return best if counts[best] else "EM"
+
+
+def _set_material_alpha(mat, alpha, blend_when_opaque):
+    mat.diffuse_color[3] = alpha
+    if mat.use_nodes and mat.node_tree:
+        for node in mat.node_tree.nodes:
+            if node.type == 'BSDF_PRINCIPLED' and 'Alpha' in node.inputs:
+                node.inputs['Alpha'].default_value = alpha
+    mat.blend_method = 'BLEND' if alpha < 1.0 else blend_when_opaque
+
+
+def apply_proxy_alpha(context):
+    """P4 (6 Oct 2026) · the slider «Proxy Transparency» acts on the materials
+    of the proxies present, whatever the display mode.
+
+    Measured on 5 Oct (GreatTemple_2026.blend): the mode was «select», the
+    default of `proxy_display_mode`, and `update_display_mode` acted only in
+    EM, Epochs and Properties — the slider did nothing. A mode the menu never
+    writes is replaced by the one the materials say (`infer_display_mode`);
+    then every material on a proxy, and the EM, epoch and property materials
+    not on any object (so a mode applied later keeps the value), take the
+    alpha. → how many materials changed."""
+    scene = context.scene
+    em_tools = scene.em_tools
+    if em_tools.proxy_display_mode not in PROXY_DISPLAY_MODES:
+        em_tools.proxy_display_mode = infer_display_mode(context)
+    alpha = float(em_tools.proxy_display_alpha)
+    opaque = getattr(em_tools, 'proxy_blend_mode', 'OPAQUE') or 'OPAQUE'
+    done = set()
+    for ob in proxy_objects(context):
+        for slot in ob.material_slots:
+            if slot.material is not None and slot.material.name not in done:
+                _set_material_alpha(slot.material, alpha, opaque)
+                done.add(slot.material.name)
+    for mat in bpy.data.materials:
+        if mat.name in done:
+            continue
+        if (mat.name in US_PROPER_TYPES or mat.name.startswith("ep_")
+                or mat.name.startswith("prop_")):
+            _set_material_alpha(mat, alpha, opaque)
+            done.add(mat.name)
+    return len(done)
+
+
 def update_display_mode(self, context):
     """Updated display mode function with better error handling"""
     scene = bpy.context.scene
