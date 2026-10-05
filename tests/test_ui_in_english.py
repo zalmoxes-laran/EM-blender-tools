@@ -2,7 +2,7 @@
 
 EM Tools non ha un sistema di traduzione dell'interfaccia (`translation_tags.py`
 mostra le traduzioni dei DATI, fatte in EMStudio): quindi ogni frase che una
-persona legge in Blender è in inglese. La tab è «EM Room», il pannello «Room»,
+persona legge in Blender è in inglese. Dal 5 ottobre le tab sono «EM» ed «EM Scene» e il pannello è «Where you work»,
 «The graph» quello che era «Il grafo»; «Offset proxy» resta.
 
 La prova legge i sorgenti: le etichette (`bl_label`, `bl_category`,

@@ -1,4 +1,4 @@
-"""Il pannello del Publication Deck (tab EM Room).
+"""Il pannello del Publication Deck (tab EM Scene dal 5 ottobre 2026; era EM Room).
 
 Il tab dei ponti verso l'esterno, e il deck è il posto che guarda la soglia.
 `bl_order = 0`: sta **prima** dell'Export Manager perché risponde alla domanda

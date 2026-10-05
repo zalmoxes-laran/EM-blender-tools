@@ -268,7 +268,7 @@ def test_IL_PANNELLO_NON_SI_CHIAMA_PIU_COME_LA_SUA_TAB():
 def test_LO_SHELF_E_UN_PANNELLO_SUO_e_conserva_la_sua_UIList():
     """U6 · lo Scaffale resta (E.D.): un grafo dentro l'em.json da cui
     trascinare modelli nella scena, quindi in EM Scene, pannello suo ora che
-    il suo genitore è andato in EM Room. La UIList col filtro resta: un
+    il suo genitore è andato in EM Room (oggi Files è in EM Scene). La UIList col filtro resta: un
     `template_list` annidato in un box perde spazio, e il funnel del filtro è
     la prima cosa che lo perde."""
     p = PANNELLI["EM_PT_shelf"]

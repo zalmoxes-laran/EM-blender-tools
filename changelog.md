@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — where you work and the collaborative room (MICRO-DOVE-LAVORI, 5 October 2026)
+- **Two tabs, EM and EM Scene.** The tab EM Room is gone: **Where you work**
+  heads EM, above the EM Data Tree; Files and the Publication Deck are in EM
+  Scene; the exporters (Tabular, RDF, PyArchInit, Export statistics) are
+  dialogs of **EM ▸ Export**.
+- **Where you work** says, like EMStudio's bar, where you work (on this
+  computer · with EMStudio · in a collaborative room) with **Change…**, who you
+  are, one message and the log (**Log…**), and under them only the commands of
+  the place: 3 on this computer, 2 with EMStudio, 4 and a menu in a room. The
+  choices are windows: **Choose the node** (one finder: this computer, the
+  local network, the saved nodes by host and port, an address that probes
+  itself), **Enter a collaborative room…**, **Permissions…**, **Room
+  settings…**, **The .blend in the room…** (snapshots and the starting
+  package). The red alarm of a reopened file is a sentence with Reconnect.
+- **Offline is kept and sent again.** Edits a room has not confirmed wait
+  («⋯ N edits waiting to be sent»), are saved with the .blend and go at the
+  re-entry: as they were, or re-stamped with the emptyings kept when the room
+  has compacted past this Blender's base.
+- **Sync the scene…** downloads what is missing, checks the files, and offers
+  the models linked to the graph that changed here or are new; a changed one
+  goes up as a new revision of its resource. Materialise left the panel.
+- **Create a collaborative room from this study…** builds the room around the
+  em.json whole (its graphs and shelf, each graph seeded by operations that
+  name it), asks who takes part (people by ORCID with a role, an invitation
+  link) and who sees (visibility, embargo); a study already in a room is
+  offered that room. Entering a room with a file that holds a study asks first:
+  open the room's .blend beside it, start a new file, or merge.
+- **The residence follows the origin**: reality-based models in a library
+  linked per asset, source-based models and proxies resident; read off the
+  document's geometry axis, else the RB/ and SB/ folders.
+- **Prepare for a use…** in Asset versions: a distribution version for the web,
+  realtime… — decimated, textures capped, Draco — with its level, its numbers
+  and its DTC step; the Publication Deck offers Heriverse the web and realtime
+  versions and makes its package with the same engine.
+- Files: «Project folder…» holds Set DosCo folder, Scan, New EM project and
+  Reorder; Promote to MinIO went. `em.sync_toggle`, `em.mode_explain`,
+  `server.py` and the two export panels are in `_dead_code/`.
+
 ### Changed — the decisions of the evening (MICRO-LE-DECISIONI-DELLA-SERA, 5 October 2026)
 - **The interface speaks English.** The tab is **EM Room**, its panel **Room**,
   «Il grafo» is **The graph**; the Activity Manager, the CSV export, the

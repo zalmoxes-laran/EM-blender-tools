@@ -19,7 +19,8 @@ from typing import Dict, Optional
 
 #: why the button is grey, and what turns it on
 OFF = ("EMStudio opens a unit through the Sidecar or a room: turn the Sidecar on "
-       "(EM Room ▸ Room) and connect EMStudio to it, or work in a room")
+       "(EM ▸ Where you work ▸ Work with EMStudio) and connect EMStudio to it, "
+       "or work in a collaborative room")
 
 
 def plan(*, sidecar_clients: int, room: Dict[str, Optional[str]], unit_name: str,

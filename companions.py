@@ -3,8 +3,8 @@
 E3 (decisions of E.D., 4 Oct 2026): Tapestry left EM Tools and became **EM
 Tapestry**, an add-on of its own that reads epochs and proxies from here.
 EM Tools does not need it and does not import it: it only says whether it is
-there (EM ▸ About), so that a person who used to find Tapestry in EM Room
-knows where it went.
+there (EM ▸ About), so that a person who used to find Tapestry in EM Room (a tab that went on
+5 Oct 2026: EM and EM Scene are the two left) knows where it went.
 """
 
 import bpy

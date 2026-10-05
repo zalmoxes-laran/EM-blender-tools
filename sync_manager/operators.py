@@ -1572,9 +1572,9 @@ def applica_modo(context, richiesto: str) -> dict:
             # dichiarazione che non si può eseguire non si accetta: sarebbe di
             # nuovo un modo che mente, che è esattamente ciò che C4 toglie.
             return {"ok": False, "mode": vero,
-                    "message": ("Room mode means being in a room: join one "
-                                "first (EM Room ▸ Room ▸ pick a room, or Open room "
-                                "from link…)")}
+                    "message": ("A collaborative room means being in one: "
+                                "enter it first (EM ▸ Where you work ▸ Enter a "
+                                "collaborative room…)")}
         if is_running():
             quanti = _annuncia_transizione(
                 MODE_HUB, f"the host is moving into the room "

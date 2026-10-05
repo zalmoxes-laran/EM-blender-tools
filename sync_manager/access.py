@@ -76,7 +76,7 @@ class AccessExpired(RoomError):
     def __init__(self, base: str, why: str = ""):
         self.base = base
         sentence = (f"the access to {base or 'the node'} has expired: sign in "
-                    f"again (EM Room ▸ Sign in again)")
+                    f"again (EM ▸ Where you work ▸ Sign in again)")
         if why:
             sentence += f" — {why}"
         super().__init__(sentence, status=401)
