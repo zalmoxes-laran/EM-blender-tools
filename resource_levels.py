@@ -214,9 +214,9 @@ def assicura_master(graph, *, master_id, url, name=None, link_to=None,
         from s3dgraphy import api as _s3d_api
     except ImportError as e:
         # decisione 14: si cattura ciò che si sa gestire, e si dice cosa manca
-        return False, f"s3dgraphy.api non disponibile ({e}): master non scritto"
+        return False, f"s3dgraphy.api not available ({e}): master not written"
     if not url:
-        return False, f"{master_id}: nessun locator, master non scritto"
+        return False, f"{master_id}: no locator, master not written"
     #: un master `blend://` è un DATABLOCK: lo si dichiara, come fa la
     #: risorsa interna di `ensure_rm_and_internal_resource`
     if packaging is None and str(url).startswith("blend://"):
@@ -406,8 +406,8 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
     if not digest:
         #: senza digest il verbale non è verificabile, e `promote_resource`
         #: lo vuole. Meglio dirlo che scrivere un checksum finto.
-        return False, (f"nessun file esportato da digerire ({file_esportato!r}): "
-                       "derivata non registrata")
+        return False, (f"no exported file to digest ({file_esportato!r}): "
+                       "derivative not registered")
 
     #: R1 · il peso è un fatto misurato, ed è metà di come un consumatore
     #: sceglie fra due distribuzioni ugualmente valide

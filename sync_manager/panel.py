@@ -51,11 +51,11 @@ _MODES = (
 
 
 class VIEW3D_PT_em_sync(bpy.types.Panel):
-    bl_label = "Stanza"
+    bl_label = "Room"
     bl_idname = "VIEW3D_PT_em_sync"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Stanza"
+    bl_category = "EM Room"
     bl_order = 0
     bl_options = {"DEFAULT_CLOSED"}
 

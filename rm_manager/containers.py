@@ -1111,7 +1111,7 @@ def reconcile_container_groups(context, create_missing: bool = False) -> dict:
         for rm_id in rapporto["refused"]:
             _add_warning(scene,
                          container.label or container.doc_name or "<unnamed>",
-                         f"{rm_id} (già in un altro gruppo nel grafo)")
+                         f"{rm_id} (already in another group in the graph)")
         # …e i modelli che il grafo non conosce.
         #
         # EM16-UX/E · UN messaggio, non N. Misurato sul file di lavoro di E.D.

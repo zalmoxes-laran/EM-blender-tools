@@ -12,7 +12,7 @@ class VIEW3D_PT_ExportPanel(Panel):
     bl_idname = "VIEW3D_PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "EM Stanza"
+    bl_category = "EM Room"
     bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 

@@ -14,9 +14,9 @@ from .metrics import calculate_object_metrics
 
 
 class EMExportCSV(Operator, ExportHelper):
-    """Esporta i dati degli oggetti selezionati in CSV"""
+    """Export the data of the selected objects to CSV"""
     bl_idname = "export_mesh.csv"
-    bl_label = "Esporta dati Mesh in CSV"
+    bl_label = "Export mesh data to CSV"
     filename_ext = ".csv"
     filter_glob: StringProperty(default="*.csv", options={'HIDDEN'})
 

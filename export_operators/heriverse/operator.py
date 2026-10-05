@@ -81,7 +81,7 @@ class EXPORT_OT_heriverse(Operator):
     def _fallito(self, cosa, perche, exc=None):
         """Qualcosa si è ROTTO: doveva riuscire e non è riuscito."""
         self._esiti_falliti.append(str(cosa))
-        messaggio = f"[export] FALLITO · {cosa}: {perche}"
+        messaggio = f"[export] FAILED · {cosa}: {perche}"
         em_log(messaggio, "ERROR")
         self.report({'WARNING'}, messaggio)
         if exc is not None:
@@ -102,7 +102,7 @@ class EXPORT_OT_heriverse(Operator):
         acceso quella casella non deve scoprirlo dai byte. Resta un salto (non
         conta fra i fallimenti) e si fa sentire una volta."""
         self._esiti_saltati.append(str(cosa))
-        em_log(f"[export] saltato · {cosa}: {perche}", "INFO")
+        em_log(f"[export] skipped · {cosa}: {perche}", "INFO")
         if avvisa:
             self.report({'WARNING'}, f"Skipped · {cosa}: {perche}")
 
@@ -479,8 +479,8 @@ class EXPORT_OT_heriverse(Operator):
                 peso_albero = _rd.tree_size(cartella_albero)
             except (OSError, ValueError) as exc:
                 self._saltato(f"tileset {obj.name}",
-                              f"content_digest non misurabile ({exc}): resta "
-                              f"il digest della porta", avvisa=True)
+                              f"content_digest cannot be measured ({exc}): the "
+                              f"digest of the door stays", avvisa=True)
 
         # ── (1) l'albero servito ───────────────────────────────────────────
         if os.path.isfile(porta):
@@ -497,8 +497,8 @@ class EXPORT_OT_heriverse(Operator):
                 packaging="directory", con_master=False)
         else:
             self._saltato(f"tileset {obj.name}",
-                          f"l'albero servito non c'è ({porta}): nessuna "
-                          f"distribuzione `directory` scritta")
+                          f"the served tree is not there ({porta}): no "
+                          f"`directory` distribution written")
 
         # ── (2) l'archivio che viaggia, servito così com'è ─────────────────
         #: un `.3tz` resta `.3tz` (non si rinomina in `.zip`): è un tileset
@@ -511,8 +511,8 @@ class EXPORT_OT_heriverse(Operator):
             # a un file che non c'è è peggio di un locator assente, perché
             # sembra un indirizzo.
             self._fallito(f"tileset {obj.name}",
-                          f"copia dell'archivio fallita ({exc}): nessuna "
-                          f"distribuzione `archive` scritta")
+                          f"copying the archive failed ({exc}): no "
+                          f"`archive` distribution written")
             return
         contenuto_archivio = contenuto
         if _rd.is_3tz(archivio) and contenuto:
@@ -527,7 +527,7 @@ class EXPORT_OT_heriverse(Operator):
                        "WARNING")
             if contenuto_archivio and contenuto_archivio != contenuto:
                 self._fallito(f"tileset {obj.name}",
-                              f"la cartella e il .3tz hanno contenuti diversi "
+                              f"the folder and the .3tz have different contents "
                               f"({contenuto[:19]}… / {contenuto_archivio[:19]}…)")
         self._registra_bake(
             graph, model_node_id, obj,
@@ -821,7 +821,7 @@ class EXPORT_OT_heriverse(Operator):
                     # nomina un'unità che in questa scena nessuno ha modellato,
                     # che è una situazione ordinaria a metà lavoro.
                     self._saltato(f"proxy {name}",
-                                  "nessun oggetto in scena (né esatto né "
+                                  "no object in the scene (neither exact nor "
                                   f"«*.{name}»)")
                     skipped_count += 1
                     continue
@@ -841,7 +841,7 @@ class EXPORT_OT_heriverse(Operator):
 
                 if not is_publishable:
                     self._saltato(f"proxy {proxy.name}",
-                                  "marcato non pubblicabile")
+                                  "marked not publishable")
                     skipped_count += 1
                     continue
 
@@ -987,14 +987,14 @@ class EXPORT_OT_heriverse(Operator):
                     break
             
             if not is_publishable:
-                self._saltato(f"tileset {obj.name}", "marcato non pubblicabile")
+                self._saltato(f"tileset {obj.name}", "marked not publishable")
                 continue
                 
             try:
                 tileset_path = obj["tileset_path"]
                 if not tileset_path:
                     self._saltato(f"tileset {obj.name}",
-                                  "`tileset_path` vuoto")
+                                  "`tileset_path` empty")
                     continue
                     
                 # Percorso assoluto
@@ -1018,8 +1018,8 @@ class EXPORT_OT_heriverse(Operator):
                 
                 if export_vars.heriverse_skip_extracted_tilesets and os.path.exists(tileset_json_path):
                     self._saltato(f"tileset {filename}",
-                                  "già estratto (le distribuzioni si scrivono "
-                                  "lo stesso: i byte ci sono)")
+                                  "already extracted (the distributions are "
+                                  "written anyway: the bytes are there)")
                     skipped_count += 1
                     tileset_extracted = True
                 else:
@@ -1396,7 +1396,7 @@ class EXPORT_OT_heriverse(Operator):
             
         except ImportError:
             self._saltato("texture compression",
-                          "Pillow non è installato", avvisa=True)
+                          "Pillow is not installed", avvisa=True)
             return 0
         except Exception as e:
             em_log(f"Error during texture compression: {str(e)}", "ERROR")
@@ -1487,8 +1487,8 @@ class EXPORT_OT_heriverse(Operator):
                 # prova.
                 if self._sostituito_dal_tileset(scene, obj.name):
                     self._saltato(obj.name,
-                                  "il suo container si pubblica come UN "
-                                  "tileset: il tileset sta al suo posto")
+                                  "its container is published as ONE "
+                                  "tileset: the tileset stands in its place")
                     continue
 
                 # Skip se oggetto non è pubblicabile
@@ -2095,7 +2095,7 @@ class EXPORT_OT_heriverse(Operator):
             pil_available = True
         except ImportError:
             self._saltato("ParaData texture compression",
-                          "Pillow non è installato", avvisa=True)
+                          "Pillow is not installed", avvisa=True)
             return
         
         max_res = scene.heriverse_rmdoc_texture_max_res
@@ -2436,7 +2436,7 @@ class EXPORT_OT_heriverse(Operator):
                 obj = bpy.data.objects.get(item.name)
                 if not obj:
                     self._saltato(f"anastylosis {item.name}",
-                                  "oggetto non in scena")
+                                  "object not in the scene")
                     continue
                 
                 em_log(f"Processing object '{item.name}' linked to SF/VSF '{item.sf_node_name}'", "DEBUG")

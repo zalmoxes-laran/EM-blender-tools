@@ -967,9 +967,9 @@ class EM_Tools(PropertyGroup):
     pyarchinit_table: EnumProperty(
         name="Table",
         items=[
-            ('US', 'US', 'Unità Stratigrafiche'),
-            ('SITE', 'Site', 'Siti'),
-            ('PERIODIZATION', 'Periodization', 'Periodizzazione'),
+            ('US', 'US', 'Stratigraphic units'),
+            ('SITE', 'Site', 'Sites'),
+            ('PERIODIZATION', 'Periodization', 'Periodization'),
         ],
         default='US',
     )  # type: ignore

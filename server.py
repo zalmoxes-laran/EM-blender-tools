@@ -45,7 +45,7 @@ class EM_ServerPanel:
 
 
 class VIEW3D_PT_ServerPanel(Panel, EM_ServerPanel):
-    bl_category = "EM Stanza"
+    bl_category = "EM Room"
     bl_order = 5
     bl_idname = "VIEW3D_PT_ServerPanel"
 

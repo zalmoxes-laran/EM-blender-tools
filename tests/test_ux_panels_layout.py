@@ -116,9 +116,9 @@ def test_LE_VERSIONI_E_I_LOD_SONO_IN_EM_SCENE():
 
 def test_E_LE_TAB_SONO_ESATTAMENTE_TRE():
     """U6 (MICRO-EMTOOLS-MENO-E-MEGLIO): «EM» il grafo nella scena, «EM
-    Scene» il 3D, «EM Stanza» dove lavori e con chi — EM Bridge non c'è più."""
+    Scene» il 3D, «EM Room» dove lavori e con chi — EM Bridge non c'è più."""
     cat = {p["categoria"] for p in PANNELLI.values() if p["categoria"]}
-    assert cat == {"EM", "EM Scene", "EM Stanza"}, sorted(cat)
+    assert cat == {"EM", "EM Scene", "EM Room"}, sorted(cat)
 
 
 def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
@@ -146,22 +146,22 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     ("VIEW3D_PT_RM_Manager", "EM Scene"),
     ("VIEW3D_PT_Anastylosis_Manager", "EM Scene"),
     ("VIEW3D_PT_RMDoc_Manager", "EM Scene"),
-    ("EM_PT_resources", "EM Stanza"),
+    ("EM_PT_resources", "EM Room"),
     ("EM_PT_shelf", "EM Scene"),
     ("EM_PT_proxy_surface_tools", "EM Scene"),
     ("PROXYBOX_PT_main_panel", "EM Scene"),
     ("VIEW3D_PT_SurfaceAreale", "EM Scene"),
     ("VIEW3D_PT_proxy_offset", "EM Scene"),
     ("EM_PT_georef", "EM Scene"),
-    # EM Stanza · dove lavori e con chi (U6: era EM Bridge)
-    ("VIEW3D_PT_ExportPanel", "EM Stanza"),
-    ("EM_PT_ExportPanel", "EM Stanza"),
-    ("TAPESTRY_PT_main_panel", "EM Stanza"),
-    ("VIEW3D_PT_em_sync", "EM Stanza"),
-    ("VIEW3D_PT_ServerPanel", "EM Stanza"),
+    # EM Room · dove lavori e con chi (U6: era EM Bridge)
+    ("VIEW3D_PT_ExportPanel", "EM Room"),
+    ("EM_PT_ExportPanel", "EM Room"),
+    ("TAPESTRY_PT_main_panel", "EM Room"),
+    ("VIEW3D_PT_em_sync", "EM Room"),
+    ("VIEW3D_PT_ServerPanel", "EM Room"),
     # NIGHT-DECK · il Publication Deck, prima dell'Export Manager: la domanda
     # che risponde — cosa manca — viene prima di come esportare.
-    ("VIEW3D_PT_em_publication_deck", "EM Stanza"),
+    ("VIEW3D_PT_em_publication_deck", "EM Room"),
 ])
 def test_OGNI_PANNELLO_E_DOVE_IL_PROMPT_DICE(classe, categoria):
     assert classe in PANNELLI, f"{classe} non esiste più: sparito nel trasloco?"
@@ -255,14 +255,14 @@ def test_IL_PANNELLO_NON_SI_CHIAMA_PIU_COME_LA_SUA_TAB():
     Stanza, come nella barra di EMStudio."""
     p = PANNELLI["EM_PT_resources"]
     assert p["label"] == "Files", p["label"]
-    assert p["categoria"] == "EM Stanza"
+    assert p["categoria"] == "EM Room"
     assert p["label"] != p["categoria"]
 
 
 def test_LO_SHELF_E_UN_PANNELLO_SUO_e_conserva_la_sua_UIList():
     """U6 · lo Scaffale resta (E.D.): un grafo dentro l'em.json da cui
     trascinare modelli nella scena, quindi in EM Scene, pannello suo ora che
-    il suo genitore è andato in EM Stanza. La UIList col filtro resta: un
+    il suo genitore è andato in EM Room. La UIList col filtro resta: un
     `template_list` annidato in un box perde spazio, e il funnel del filtro è
     la prima cosa che lo perde."""
     p = PANNELLI["EM_PT_shelf"]

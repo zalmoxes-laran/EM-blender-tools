@@ -1,4 +1,4 @@
-"""`Files` (tab EM Stanza; once `Resources & Shelf`) — the face of the shared Resource layer.
+"""`Files` (tab EM Room; once `Resources & Shelf`) — the face of the shared Resource layer.
 
 EM16-UX (11-09-2026). This panel used to be labelled "EM Scene", i.e. it was
 named after the tab that contains it, which said nothing about what it holds.
@@ -39,7 +39,7 @@ class EM_PT_resources(bpy.types.Panel):
     bl_idname = "EM_PT_resources"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Stanza"
+    bl_category = "EM Room"
     bl_order = 1
     bl_options = {"DEFAULT_CLOSED"}
 

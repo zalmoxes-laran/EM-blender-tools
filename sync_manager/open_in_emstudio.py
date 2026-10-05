@@ -35,7 +35,7 @@ def plan(*, sidecar_running: bool, room: Dict[str, Optional[str]], unit_name: st
     tail = f" and open {graph_path}" if graph_path else ""
     return {"way": "app", "url": "",
             "sentence": f"EMStudio starts{tail}; to land on {unit_name} by itself, "
-                        f"turn the Sidecar on (EM Stanza ▸ Stanza)"}
+                        f"turn the Sidecar on (EM Room ▸ Room)"}
 
 
 def _operator_classes():  # pragma: no cover — bpy

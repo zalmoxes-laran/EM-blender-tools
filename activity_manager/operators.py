@@ -9,8 +9,8 @@ from s3dgraphy.nodes.group_node import ActivityNodeGroup
 
 class ACTIVITY_OT_refresh_list(Operator):
     bl_idname = "activity.refresh_list"
-    bl_label = "Aggiorna Lista Attività"
-    bl_description = "Aggiorna la lista delle attività dai dati del grafo"
+    bl_label = "Refresh the activity list"
+    bl_description = "Refresh the list of activities from the graph"
 
     # Indice del file GraphML selezionato
     graphml_index: bpy.props.IntProperty() # type: ignore
@@ -24,7 +24,7 @@ class ACTIVITY_OT_refresh_list(Operator):
         graph_data = get_graph(graphml.name)
 
         if graph_data is None:
-            self.report({'WARNING'}, f"Nessun grafo trovato con ID: {graphml.name}")
+            self.report({'WARNING'}, f"No graph found with ID: {graphml.name}")
             return {'CANCELLED'}
 
         context.scene.activity_manager.activities.clear()
@@ -35,7 +35,7 @@ class ACTIVITY_OT_refresh_list(Operator):
                 item.name = node.name
 
                 epoch_node = graph_data.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-                item.epoch_name = epoch_node.name if epoch_node else 'Sconosciuta'
+                item.epoch_name = epoch_node.name if epoch_node else 'Unknown'
                 item.description = node.description
                 item.y_pos = node.attributes.get('y_pos', 0.0)
 

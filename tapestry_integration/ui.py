@@ -1,7 +1,7 @@
 """
 UI Panel for Tapestry Integration
 
-Provides user interface in EM Stanza tab for:
+Provides user interface in EM Room tab for:
 - Network configuration
 - Render settings
 - Camera and proxy selection
@@ -13,12 +13,12 @@ from bpy.types import Panel
 
 
 class TAPESTRY_PT_main_panel(Panel):
-    """Main Tapestry panel in EM Stanza tab"""
+    """Main Tapestry panel in EM Room tab"""
     bl_label = "Tapestry"
     bl_idname = "TAPESTRY_PT_main_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "EM Stanza"
+    bl_category = "EM Room"
     bl_order = 5
     bl_options = {'DEFAULT_CLOSED'}
 

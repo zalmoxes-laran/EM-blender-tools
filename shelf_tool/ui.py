@@ -1,4 +1,4 @@
-"""EM Shelf tool UI — its own panel in the EM Scene tab (U6: it was a child of `Resources & Shelf`, now `Files` in EM Stanza).
+"""EM Shelf tool UI — its own panel in the EM Scene tab (U6: it was a child of `Resources & Shelf`, now `Files` in EM Room).
 
 EM16-UX (11-09-2026): the `EM Shelf` tab is gone and this panel moved under
 `Resources & Shelf`. Absorbed as a CHILD PANEL and not as a section, and the

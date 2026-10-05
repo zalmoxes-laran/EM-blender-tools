@@ -31,7 +31,7 @@ bl_info = {
     "author": "EM-Tapestry Team",
     "version": (1, 0, 0),
     "blender": (4, 0, 0),
-    "location": "View3D > EM Stanza > Tapestry",
+    "location": "View3D > EM Room > Tapestry",
     "description": "Export archaeological proxies to Tapestry for AI reconstruction",
     "category": "EM Tools",
 }

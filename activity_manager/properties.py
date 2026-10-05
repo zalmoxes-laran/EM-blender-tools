@@ -18,20 +18,20 @@ def update_activity_filtered_lists_if_needed(self, context):
 
 class ActivityItem(PropertyGroup):
     name: StringProperty(
-        name="Nome Attività",
-        description="Nome dell'attività",
+        name="Activity name",
+        description="Name of the activity",
     ) # type: ignore
     epoch_name: StringProperty(
-        name="Nome Epoca",
-        description="Nome dell'epoca",
+        name="Epoch name",
+        description="Name of the epoch",
     ) # type: ignore
     description: StringProperty(
-        name="Descrizione",
-        description="Descrizione dell'attività",
+        name="Description",
+        description="Description of the activity",
     ) # type: ignore
     y_pos: FloatProperty(
-        name="Posizione Y",
-        description="Posizione Y del nodo",
+        name="Y position",
+        description="Y position of the node",
     ) # type: ignore
 
 

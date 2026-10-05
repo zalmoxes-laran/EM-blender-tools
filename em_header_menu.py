@@ -110,6 +110,7 @@ class EM_MT_mode(bpy.types.Menu):
 
     bl_idname = "EM_MT_mode"
     bl_label = "Mode"
+    bl_description = "How this session works: Standalone, Sidecar or Room"
 
     def draw(self, context):
         from .sync_manager import operators as sync_ops
@@ -180,6 +181,7 @@ class EM_MT_header(bpy.types.Menu):
 
     bl_idname = "EM_MT_header"
     bl_label = "EM"
+    bl_description = "EM Tools: mode, utilities, settings and about"
 
     def draw(self, context):
         layout = self.layout

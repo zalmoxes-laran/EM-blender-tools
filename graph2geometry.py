@@ -73,7 +73,7 @@ def create_geometry_from_graph(graph, context):
 # Operatore per Blender
 class OBJECT_OT_CreateGraphGeometry(bpy.types.Operator):
     bl_idname = "object.create_graph_geometry"
-    bl_label = "Crea Geometrie dal Grafo"
+    bl_label = "Create geometry from the graph"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -87,7 +87,7 @@ class OBJECT_OT_CreateGraphGeometry(bpy.types.Operator):
         graph_instance = get_graph()
 
         if graph_instance is None:
-            self.report({'ERROR'}, "Nessun grafo caricato. Carica un grafo prima di eseguire l'operatore.")
+            self.report({'ERROR'}, "No graph loaded: load a graph first.")
             return {'CANCELLED'}
         
         # Assicurati che il contesto sia VIEW_3D per l'esecuzione dell'operatore
@@ -97,7 +97,7 @@ class OBJECT_OT_CreateGraphGeometry(bpy.types.Operator):
                     create_geometry_from_graph(graph_instance, context)
                     return {'FINISHED'}
         
-        self.report({'ERROR'}, "Nessuna area VIEW_3D disponibile per creare la geometria.")
+        self.report({'ERROR'}, "No 3D Viewport open to create the geometry in.")
         return {'CANCELLED'}
 
 # Registra l'operatore in Blender
