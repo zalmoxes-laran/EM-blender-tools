@@ -82,3 +82,15 @@ From MICRO-DOVE-LAVORI-E-LA-STANZA-COLLABORATIVA (5 October 2026), **D1**:
 - `resources_tab/promote_minio.py` — **F1**, `em.resources_promote_minio`,
   «Promote to MinIO» in Files: a second upload beside Upload, called by nothing
   else. The promotion function stays (the Publication Deck publishes with it).
+
+From MICRO-IL-PANNELLO-DICE-IL-VERO (5 October 2026), **Q5**:
+
+- `export_operators/heriverse_optimisation.py` — the Heriverse exporter's
+  optimisation of its own: `compress_textures_in_folder` (the textures of the
+  exported models rescaled and recompressed after the export, the old STEP 6)
+  and `export_textures` (a per-object texture export with the same
+  compression, called by nothing). Draco is off in `heriverse/gltf.py`. E.D.:
+  Heriverse receives the `distribution` version made by «Prepare for a use…».
+  The properties (`heriverse_use_draco`, `heriverse_draco_level`,
+  `heriverse_enable_compression`, …) stay registered: they are saved in .blend
+  files; the panel no longer draws them.

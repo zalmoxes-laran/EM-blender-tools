@@ -17,8 +17,10 @@ def export_gltf_with_animation_support(filepath, export_vars, scene, use_selecti
         'export_copyright': scene.em_tools.EMviq_model_author_name if hasattr(scene.em_tools, 'EMviq_model_author_name') else "",
         'export_texcoords': True,
         'export_normals': True,
-        'export_draco_mesh_compression_enable': export_vars.heriverse_use_draco,
-        'export_draco_mesh_compression_level': export_vars.heriverse_draco_level,
+        # Q5 (E.D., 5 Oct 2026) · no Draco of its own: a model that must be
+        # light for the web is a distribution version made by «Prepare for a
+        # use…» (Draco there, measured and written in the DTC)
+        'export_draco_mesh_compression_enable': False,
         'export_materials': 'EXPORT',
         'use_selection': use_selection,
         'export_apply': True,

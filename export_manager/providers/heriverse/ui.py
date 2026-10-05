@@ -68,9 +68,11 @@ def draw(box, context):
 
     if export_vars.heriverse_advanced_options:
         box_pd = box.box()
-        box_pd.row().prop(export_vars, "heriverse_use_draco", text="Use Draco Compression")
-        if export_vars.heriverse_use_draco:
-            box_pd.row().prop(export_vars, "heriverse_draco_level", text="Compression Level")
+        # Q5 (E.D., 5 Oct 2026) · Draco and the textures' compression are no
+        # longer the exporter's: «Prepare for a use…» (Asset versions) makes a
+        # web/realtime version, and the Deck's «Package…» shows it
+        box_pd.row().label(text="Models go as they are: «Prepare for a use…» makes "
+                                "their web version", icon='MOD_DECIM')
         box_pd.row().prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
         box_pd.row().prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
         box_pd.row().prop(export_vars, "heriverse_export_animations", text="Export Animations")
@@ -79,16 +81,6 @@ def draw(box, context):
             box_pd.row().prop(export_vars, "heriverse_export_all_animations", text="All Animations")
             box_pd.row().prop(export_vars, "heriverse_animation_frame_range", text="Frame Range Only")
             box_pd.row().label(text="Note: Exports armatures, bones, and keyframe data", icon='INFO')
-
-        if export_vars.heriverse_separate_textures:
-            box_comp = box.box()
-            box_comp.row().label(text="Texture Compression:")
-            box_comp.row().prop(scene, "heriverse_enable_compression", text="Enable Compression")
-            if scene.heriverse_enable_compression:
-                row_comp = box_comp.row()
-                row_comp.prop(scene, "heriverse_texture_max_res", text="Max Size")
-                row_comp.prop(scene, "heriverse_texture_quality", text="Quality")
-                box_comp.row().label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
 
         if export_vars.heriverse_export_rmdoc:
             box_pd = box.box()

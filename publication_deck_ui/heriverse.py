@@ -7,8 +7,9 @@ and publishing to Heriverse takes those versions: «Package for Heriverse…»
 shows each object with a version for the web or realtime at that level while
 the package is made, then puts back the level it showed. The package itself
 stays in the engine (`export_operators/heriverse/`, `export.heriverse`),
-called from here with the same settings as before (the provider's draw), and
-the dissemination filter is untouched.
+called from here with the provider's settings, and the dissemination filter
+is untouched. Q5 (E.D., 5 Oct 2026): the engine has no optimisation of its
+own any more — no Draco, no texture compression of the models.
 """
 
 from typing import Any, Dict, List
