@@ -97,6 +97,16 @@ def expiry_of(token: str) -> Optional[float]:
         return None
 
 
+def subject_of(token: str) -> str:
+    """Who a JWT is about (`sub`, else the name), read and not verified."""
+    try:
+        part = str(token).split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+        return str(claims.get("sub") or claims.get("preferred_username") or "")
+    except Exception:  # noqa: BLE001 — an opaque token: no subject to read
+        return ""
+
+
 def _life_of(token: str) -> Optional[float]:
     """How long the realm let this access live (`exp - iat`), when it says."""
     try:
@@ -140,6 +150,15 @@ def adopt(base: str, token: Optional[str]) -> None:
     with _lock:
         if token in _lineage:
             return
+        held = (_creds.get(base) or {}).get("token")
+        if held and subject_of(held) != subject_of(token):
+            # ANOTHER PERSON on the same node: a lineage of its own. Measured
+            # (5 Oct 2026, the room list smoke): the viewer's pasted token
+            # joined dev's lineage, and `fresh` handed every call dev's token
+            # — the node answered as dev to a viewer
+            for t in [t for t, bb in _lineage.items() if bb == base]:
+                _lineage.pop(t, None)
+            _creds.pop(base, None)
         _lineage[token] = base
         if base not in _creds:
             _creds[base] = {"token": token, "refresh_token": "",

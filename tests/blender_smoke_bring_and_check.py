@@ -139,8 +139,11 @@ check("the uploaded resource is store-backed",
       and "/asset/sha256:" in str(node.data.get("url")), repr(node.data.get("url")))
 check("…and keeps its original path as a second address",
       [a.get("locator") for a in addresses][1:] == ["DosCo/D.01.jpg"], repr(addresses))
-check("the RM model was published", rep.get("models") == ["M_rm_object"],
-      repr(rep.get("models")))
+# X2 · the node keeps bytes by digest: when an earlier run left the same cube
+# there, the model is published without being uploaded («already on the node»)
+check("the RM model was published", rep.get("models") == ["M_rm_object"]
+      or (rep.get("already", 0) >= 1 and bool(rm_obj.get("em_resource_id"))),
+      repr((rep.get("models"), rep.get("already"))))
 check("the RM object carries its digest", bool(rm_obj.get("em_asset_sha256")))
 published = rm_obj.get("em_asset_sha256")
 check("the decoration was NOT uploaded",
@@ -159,15 +162,22 @@ check("S1 at join: the decoration is marked only here",
       repr(scene_check.ULTIMA_VERIFICA.get("only_here")))
 check("S1 at join: the RM object is not", not rm_obj.get(scene_check.PROP_ONLY_HERE))
 
-# ── P3 · the second «Bring» into the same room sends nothing ────────────────
+# ── P3/S1 · the second gesture: the study is written by that room (I-2) ─────
+# MICRO-DOVE-LAVORI · «Create a collaborative room from this study…» does not
+# bring a study twice: it enters the room that writes it. Nothing goes up again
+# and no second room is made.
+from importlib import import_module  # noqa: E402
+rooms_list = import_module(bring.__name__.rsplit(".", 1)[0] + ".rooms_list")
+rooms_before = len(rooms_list.list_rooms(NODE, TOKEN))
+first = dict(bring.ULTIMO_REFERTO)
 esito = bpy.ops.em.room_bring(name=ROOM_NAME, confirm=True)
-check("second bring: FINISHED", esito == {"FINISHED"}, repr(esito))
-rep2 = bring.ULTIMO_REFERTO
-print("[SMOKE] second report:", rep2.get("sentence"), "| already:", rep2.get("already"))
-check("second bring: nothing uploaded", rep2.get("uploaded") == 0, repr(rep2.get("uploaded")))
-check("second bring: the stored group holds what went up the first time",
-      {"link-1", "raw-0", "raw-1"} <= {r["id"] for r in bring.STATE["rows"]
-                                       if r["group"] == "stored"})
+check("second gesture: FINISHED", esito == {"FINISHED"}, repr(esito))
+rooms_after = len(rooms_list.list_rooms(NODE, TOKEN))
+check("second gesture: no second room, nothing brought again",
+      rooms_after == rooms_before and bring.ULTIMO_REFERTO.get("sentence") == first.get("sentence"),
+      f"rooms {rooms_before} → {rooms_after}")
+check("second gesture: still in the room that writes the study",
+      ops.session_mode(bpy.context) == ops.MODE_HUB)
 
 # ── S1 · a graph-linked model deleted from the scene comes back ─────────────
 bpy.data.objects.remove(rm_obj, do_unlink=True)

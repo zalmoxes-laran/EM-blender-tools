@@ -175,6 +175,24 @@ def test_a_pasted_token_without_refresh_says_expired(world):
         _get(world, room._session["token"])
 
 
+def test_another_person_on_the_same_node_is_another_lineage(world):
+    """Measured on 5 Oct 2026 (the room list smoke): a viewer's token pasted
+    after dev's joined dev's lineage, and every call went out as dev."""
+    def b64(obj):
+        return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
+
+    def person(sub):
+        return f"{b64({'alg': 'none'})}.{b64({'exp': int(time.time() + 900), 'sub': sub})}.sig"
+
+    dev = person("dev")
+    access.remember(world, dev, refresh_token="r0", token_endpoint=world + "/token",
+                    client_id="em-tools")
+    viewer = person("viewer")
+    room.set_room(world, None, viewer)
+    assert access.fresh(viewer) == viewer
+    assert access.fresh(dev) == dev          # dev's own copy is not swapped either
+
+
 def test_the_blend_backup_goes_through_the_renewal(world):
     old = _sign_in(world, left=100)                 # < SKEW_BODY: renewed first
     room.set_room(world, "templu", old)
