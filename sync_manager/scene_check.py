@@ -91,6 +91,27 @@ def classify_scene(summary: Dict[str, Any],
             "only_here": only_here}
 
 
+def keep_resident_from_before(summary: Dict[str, Any],
+                              objects: List[Dict[str, Any]]) -> int:
+    """Pure: the reality-based records that R1 sends to a library but whose
+    bytes the scene already holds as a resident object stay resident. → how
+    many."""
+    held = {_digest(o["digest"]) for o in objects if o.get("digest")}
+    by_res = {str(o.get("resource_id")) for o in objects if o.get("resource_id")}
+    kept = 0
+    for row in summary.get("resident") or []:
+        if row.get("residence") != "library" or row.get("origin") != "reality_based":
+            continue
+        if row.get("asset_id") != row.get("resource_id"):
+            continue                    # a real asset with versions: its library
+        if _digest(row.get("checksum")) in held or str(row.get("resource_id")) in by_res:
+            row.pop("asset_id", None)
+            row["residence"] = "resident"
+            row["kept_resident"] = True
+            kept += 1
+    return kept
+
+
 def sentences(report: Dict[str, Any]) -> List[str]:
     """One sentence per group — the panel and the console say the same."""
     # Q9 · said for what it MEASURES: the models whose file the graph cites (a
@@ -202,6 +223,10 @@ def check_scene(context, graph, *, download: bool,
     from .materialise import materialise, plan
 
     summary = plan(graph)
+    # R1 · a reality-based model already RESIDENT here from before is left as
+    # it is (turning somebody's object into a link is not a check's to do):
+    # counted and said; the next one that arrives goes into a library
+    kept = keep_resident_from_before(summary, scene_objects(context, graph))
     # A3 · an asset with versions is checked MESH BY MESH against its library
     # (asset_versions): its rows leave the per-object classification below
     versioned = [r for r in summary.get("resident") or [] if r.get("asset_id")]
@@ -227,6 +252,13 @@ def check_scene(context, graph, *, download: bool,
         report["fetch"] = fetched
     ULTIMA_VERIFICA.clear()
     lines = sentences(report)
+    from .residence import sentence as origin_sentence
+    said = origin_sentence(summary.get("origins") or {})
+    if said:
+        lines.append(said + (f" · {kept} reality-based resident from before, left "
+                             f"as they are" if kept else ""))
+    report["origins"] = summary.get("origins") or {}
+    report["kept_resident"] = kept
     # R1 · the files of the graph through the ONE resolver: the same states
     # EMStudio and StratiField give for the same files
     try:

@@ -181,7 +181,21 @@ def read_models(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover —
     from .scene_check import PROP_ONLY_HERE
 
     out = []
-    for model in scene_models(context, graph):
+    models = list(scene_models(context, graph))
+    # …and the models that came from the store (materialised, R1: a source-
+    # based one is resident): bound to a resource of this graph, neither an RM
+    # of the list nor a proxy
+    from .materialise import PROP_CARRIER, PROP_RESOURCE
+    listed = {m["object"] for m in models}
+    for obj in bpy.data.objects:
+        rid = str(obj.get(PROP_RESOURCE) or "")
+        if obj.name in listed or not rid or graph.find_node_by_id(rid) is None:
+            continue
+        if obj.get("em_asset_id"):
+            continue                    # an asset's library object: its versions
+        models.append({"object": obj.name, "kind": "model",
+                       "target": str(obj.get(PROP_CARRIER) or rid)})
+    for model in models:
         obj = bpy.data.objects.get(model["object"])
         if obj is None:
             continue

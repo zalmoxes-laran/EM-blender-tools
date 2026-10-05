@@ -111,7 +111,20 @@ def plan(graph: Any) -> Dict[str, Any]:
             "(wheels/cp3xx/s3dgraphy-*.whl) and re-enable the extension"
         ) from exc
 
-    return superseded_out(graph, geometry_summary(graph))
+    # R1 · the residence follows the ORIGIN (reality-based → a linked library,
+    # source-based and proxies → resident), read off the geometry axis or the
+    # RB/ SB/ folders; a model with no declared origin as before
+    try:
+        from .residence import apply_to_summary
+    except ImportError:              # loaded by path, outside the package (the suite)
+        import importlib.util
+        import os
+        spec = importlib.util.spec_from_file_location(
+            "_em_residence", os.path.join(os.path.dirname(__file__), "residence.py"))
+        residence = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(residence)
+        apply_to_summary = residence.apply_to_summary
+    return apply_to_summary(graph, superseded_out(graph, geometry_summary(graph)))
 
 
 def superseded_out(graph: Any, summary: Dict[str, Any]) -> Dict[str, Any]:

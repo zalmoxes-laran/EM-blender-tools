@@ -150,9 +150,12 @@ def enter_after_load(base: str, room_id: str, token: Optional[str], *,
     if result.get("ok") and materialise:
         ok, graph = ops.is_graph_available(context)
         if ok:
-            from .materialise import materialise as fetch, summarise
+            # the whole check, so each model lands where its origin says (R1):
+            # reality-based into its library, source-based resident
+            from .scene_check import check_scene, sentences
             try:
-                result["message"] += " · geometry: " + summarise(fetch(graph))
+                done = check_scene(context, graph, download=True)
+                result["message"] += " · geometry: " + "; ".join(sentences(done)[:3])
             except Exception as exc:  # noqa: BLE001
                 result["message"] += f" · geometry not downloaded: {exc}"
     return result
