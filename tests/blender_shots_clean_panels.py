@@ -136,6 +136,10 @@ def act(what):
                     LOG.append(f"room not archived: {exc}")
 
 
+#: NOT the whole tab EM here: once a panel has a clone (a subclass) registered,
+#: Blender drawing the ORIGINAL says «has no attribute 'draw'» (measured, 6 Oct
+#: 2026: the EM Data Tree drawn empty). The whole tabs are
+#: `blender_shots_tabs.py`'s, which registers no clone.
 PANELS = ("VIEW3D_PT_em_sync", "VIEW3D_PT_EM_Tools_Setup", "VIEW3D_PT_visual_panel")
 
 Q = [("act", "here"), ("wait", 1),
@@ -146,7 +150,6 @@ Q = [("act", "here"), ("wait", 1),
      ("act", "load"), ("wait", 2),
      ("shot", "2_data_tree_loaded.png", "VIEW3D_PT_EM_Tools_Setup"),
      ("shot", "1_where_here_loaded.png", "VIEW3D_PT_em_sync"),
-     ("tab", "2_em_tab_loaded.png", "EM"),
      ("act", "alpha"), ("wait", 2),
      ("shot", "4_visual_manager_alpha_02.png", "VIEW3D_PT_visual_panel")]
 if not NOROOM:
