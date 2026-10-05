@@ -599,11 +599,15 @@ def emit_op(op: dict):
                 srv.broadcast(json.dumps(envelope("op", body, source=_SOURCE)))
             except Exception as exc:  # noqa: BLE001
                 print(f"[sync] emit_op failed: {exc}")
-        if SESSION.joined:
+        # P1 · a room whose connection dropped still gets the edit: it waits
+        # in the session's unconfirmed work and goes at the re-entry
+        if SESSION.joined or SESSION.seated:
             try:
                 SESSION.send_op(body)
             except Exception as exc:  # noqa: BLE001
                 print(f"[room] emit_op failed: {exc}")
+    if SESSION.seated:
+        _redraw()
 
 
 def _study_language():
@@ -1363,7 +1367,12 @@ def room_status(context=None) -> dict:
                  # I1 · the edits of this Blender, counted off the room's answers
                  "sent": SESSION.sent_ops,
                  "answered": SESSION.answered_ops,
-                 "refused": SESSION.refused_ops})
+                 "refused": SESSION.refused_ops,
+                 # P1 · the edits the room has not confirmed, and whether the
+                 # seat is held over a dropped connection
+                 "waiting": SESSION.waiting(),
+                 "offline": SESSION.offline,
+                 "seated": SESSION.seated})
     return info
 
 
@@ -1813,10 +1822,30 @@ def join_room(context, base_url: str, room_id: str, token: str,
     # M2 · a scene can be in several rooms, one per graph: a room already
     # joined (another graph's) keeps its session, and this join gets a new one.
     SESSION = _rs.fresh_for_join()
+    # P1 · the same room again after a drop: the seated session that waited
+    # (its unconfirmed edits on it), not a new one
+    for _gid, waiting in _rs.sessions():
+        if (waiting.offline and waiting.room_id == room_id
+                and (waiting.base_url or "").rstrip("/") == (base_url or "").rstrip("/")):
+            SESSION = _rs.SESSION = waiting
+            # a room seeded from THIS scene holds our graph under its own id
+            # (D-A): merging its document again would add it as a second
+            # graph. The reconnection takes the replay; the graphs stay bound.
+            if not waiting.room_graphs:
+                adopt = False
+            break
     room_cfg.set_room(base_url, room_id, token)
+    # …and the work a LEFT membership (or a saved .blend) kept for this room
+    parked = _rs.take_parked(base_url, room_id)
+    if parked["ops"]:
+        SESSION.unconfirmed = list(parked["ops"]) + SESSION.unconfirmed
+    since = SESSION.last_applied or parked.get("base")
     try:
-        arrival = SESSION.join(since=SESSION.last_applied)
+        arrival = SESSION.join(since=since)
     except Exception as exc:  # noqa: BLE001 — the reason belongs to the user
+        if parked["ops"] and not SESSION.seated:
+            # not in: the parked work goes back to the park, not to the floor
+            _rs.park(SESSION)
         return {"ok": False, "message": str(exc)}
     # C4 · ESCLUSIVITÀ, e DOPO che la stanza ha risposto: spegnere il ponte
     # prima significherebbe che un join fallito lascia questo Blender senza
@@ -1845,7 +1874,12 @@ def join_room(context, base_url: str, room_id: str, token: str,
     _lega_grafo_alla_stanza(context, SESSION, room_doc if adopt else {},
                             base_url, room_id, token)
     plan = arrival.get("plan")
-    if plan == "resync" and SESSION.last_applied:
+    # P1 · what the room had not confirmed goes now, after the adoption (so
+    # the room's document does not cover it here) and before the scene check
+    rimandate = _rimanda_non_confermati(context, SESSION, plan)
+    if rimandate:
+        note = (note + " · " if note else "") + rimandate
+    if plan == "resync" and since:
         # a REBASE, not a first arrival: the two look the same to `plan_rejoin`
         # (no base and an old base both mean "take the document"), but only one
         # of them is worth telling the user about
@@ -1876,6 +1910,35 @@ def join_room(context, base_url: str, room_id: str, token: str,
     return {"ok": True, "plan": plan, "room": SESSION.room_id,
             "members": len(SESSION.members), "host": SESSION.host_tool,
             "message": note or "joined"}
+
+
+def _rimanda_non_confermati(context, session, plan) -> str:
+    """P1 · send again the edits the room never confirmed. → the sentence.
+
+    They are this Blender's own intent, so they are first applied here again
+    (the adoption merged the room's older document over them), then sent:
+    `resume` as they were, `resync` re-stamped with the emptyings kept
+    (`room_session.stamp_for_resend`, EMStudio's `stampForResend`).
+    """
+    waiting = list(session.unconfirmed)
+    if not waiting:
+        return ""
+    ok, graph = is_graph_available(context)
+    if ok and graph is not None:
+        from s3dgraphy import get_graph
+        for entry in waiting:
+            target = get_graph(entry.get("graph_id")) if entry.get("graph_id") else None
+            try:
+                _apply_wire_op(dict(entry["op"]), context, target or graph)
+            except Exception as exc:  # noqa: BLE001 — it is still sent
+                print(f"[room] a waiting edit did not apply here again: {exc}")
+        global _pending_repop
+        _pending_repop = True
+    from s3dgraphy.editorial import now_iso
+    went = session.resend_unconfirmed(plan or "resume", now_iso())
+    how = ("re-stamped, the room had compacted past our base"
+           if plan == "resync" else "as they were")
+    return f"{went} waiting edit(s) sent again ({how})"
 
 
 def join_manual(context, base: str, room_id: str, token: str, *,
@@ -1985,6 +2048,9 @@ def leave_room() -> None:
     from .room_session import SESSION
 
     SESSION.leave()
+    # P1 · leaving does not throw away what the room never confirmed: it is
+    # parked for this room (and saved with the .blend) until the next entry
+    _rs.park(SESSION)
     _rs.unbind_session(SESSION)
     room_cfg.forget_token()      # the credential goes when the membership does
     # C4 · e la dichiarazione segue il fatto. Senza questa riga il pannello
@@ -2352,6 +2418,37 @@ class EM_OT_set_mode(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# P1 · the unconfirmed work, kept in the .blend ──────────────────────────────
+
+@bpy.app.handlers.persistent
+def _save_unconfirmed(*_args):
+    """Before a save: what no room has confirmed goes into the file, by room,
+    with the base each session had applied up to. Not the token, never."""
+    from . import room_session as _rs
+    try:
+        state = _rs.unconfirmed_state()
+        for scene in bpy.data.scenes:
+            if hasattr(scene, "em_room_unconfirmed"):
+                scene.em_room_unconfirmed = (json.dumps(state, ensure_ascii=False)
+                                             if state else "")
+    except Exception as exc:  # noqa: BLE001 — a save must not fail on this
+        print(f"[room] the waiting edits were not kept in the file: {exc}")
+
+
+@bpy.app.handlers.persistent
+def _load_unconfirmed(*_args):
+    """After a load: the work the file kept waits for its room again."""
+    from . import room_session as _rs
+    try:
+        scene = bpy.context.scene
+        raw = str(getattr(scene, "em_room_unconfirmed", "") or "")
+        count = _rs.restore_unconfirmed(json.loads(raw) if raw else {})
+        if count:
+            print(f"[room] {count} edit(s) from this file wait for their room")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[room] the waiting edits of this file were not read: {exc}")
+
+
 def register():
     # C4 · il modo DICHIARATO. Non è una fotografia dello stato — quella la dà
     # `session_mode()` — ma l'ordine che qualcuno ha dato, e che `_on_modo_changed`
@@ -2400,6 +2497,19 @@ def register():
         bpy.types.Scene.em_room_id = bpy.props.StringProperty(
             name="Room", default="",
             description="Which room on that server")
+    # P1 · the edits no room has confirmed, kept with the file (by room, with
+    # the base): an operation is not a secret, and losing it at a close is
+    # exactly what P1 ends
+    if not hasattr(bpy.types.Scene, "em_room_unconfirmed"):
+        bpy.types.Scene.em_room_unconfirmed = bpy.props.StringProperty(
+            name="Edits waiting for the room", default="",
+            options={"HIDDEN"},
+            description="The edits no room has confirmed yet, sent at the next "
+                        "entry into their room")
+    if _save_unconfirmed not in bpy.app.handlers.save_pre:
+        bpy.app.handlers.save_pre.append(_save_unconfirmed)
+    if _load_unconfirmed not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_load_unconfirmed)
     bpy.utils.register_class(EM_OT_sync_toggle)
     bpy.utils.register_class(EM_OT_set_mode)
     bpy.utils.register_class(EM_OT_room_join)
@@ -2431,6 +2541,12 @@ def unregister():
         bpy.utils.unregister_class(EM_OT_set_mode)
     except Exception:  # noqa: BLE001 — unregistering must not fail
         pass
+    for handlers, fn in ((bpy.app.handlers.save_pre, _save_unconfirmed),
+                         (bpy.app.handlers.load_post, _load_unconfirmed)):
+        if fn in handlers:
+            handlers.remove(fn)
+    if hasattr(bpy.types.Scene, "em_room_unconfirmed"):
+        del bpy.types.Scene.em_room_unconfirmed
     if hasattr(bpy.types.Scene, "em_room_url"):
         del bpy.types.Scene.em_room_url
     if hasattr(bpy.types.Scene, "em_room_id"):

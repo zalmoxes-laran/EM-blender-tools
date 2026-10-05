@@ -91,6 +91,24 @@ def classifica_select(payload: Optional[Dict[str, Any]],
     return SELECT_AWARENESS
 
 
+def stamp_for_resend(pending: List[Dict[str, Any]], now: str) -> List[Dict[str, Any]]:
+    """P1 · the unconfirmed work, re-stamped for a re-send after a re-sync.
+
+    `stampForResend` of EMStudio's `hub.ts`, written the same way: everything
+    that had not been answered comes back, **the emptyings included** — the
+    clock is refreshed (the room settled everything before its compaction
+    point, so an old stamp would simply lose) and `remove: true` is carried
+    through untouched, because it is what makes an emptying an act and not an
+    absence the merge may overrule.
+    """
+    out = []
+    for entry in pending:
+        op = dict(entry.get("op") or {})
+        op["ts"] = now
+        out.append({**entry, "op": op})
+    return out
+
+
 def plan_rejoin(base: Optional[str], gc_watermark: Optional[str]) -> str:
     """`resume` or `resync` — the one rule, written the same way on both ends.
 
@@ -105,6 +123,13 @@ def plan_rejoin(base: Optional[str], gc_watermark: Optional[str]) -> str:
     if not gc_watermark:
         return "resume"
     return "resume" if str(base) >= str(gc_watermark) else "resync"
+
+
+def _op_key(op: Dict[str, Any]) -> tuple:
+    """What identifies an operation across its trip (the room adds the author
+    and the access mode, never changes these)."""
+    return (op.get("op"), op.get("id") or op.get("node_id"), op.get("field"),
+            op.get("source"), op.get("target"), op.get("edge_type"))
 
 
 class RoomSession:
@@ -144,6 +169,19 @@ class RoomSession:
         self.sent_ops: int = 0
         self.answered_ops: int = 0
         self.refused_ops: int = 0
+        #: P1 · THE WORK THE ROOM HAS NOT CONFIRMED, in the order it was done:
+        #: `{op, graph_id, sent}`. An operation enters when it is made and
+        #: leaves when the room answers it (`op_result`, or a `denied` that is
+        #: not a lapsed token) — so a connection that drops loses nothing: what
+        #: was not sent and what was sent without an answer go back at the
+        #: re-entry (`resend_unconfirmed`). Before P1 `send_op` returned False
+        #: on a closed socket and nobody counted it: the edit was lost for the
+        #: room, and the panel said nothing.
+        self.unconfirmed: List[Dict[str, Any]] = []
+        #: P1 · in a room until LEFT: a connection that drops keeps the seat,
+        #: and the edits made meanwhile wait in `unconfirmed` for the re-entry.
+        self.seated: bool = False
+        self.base_url: Optional[str] = None
 
     # ── joining ──────────────────────────────────────────────────────────────
 
@@ -176,7 +214,15 @@ class RoomSession:
         client = WsClient(url, headers=headers, on_message=self._receive)
         client.connect(timeout=timeout)
         self.sent_ops = self.answered_ops = self.refused_ops = 0
+        # P1 · what was sent before the drop and never answered is NOT
+        # answered by this connection: it goes back with the rest
+        for entry in self.unconfirmed:
+            entry["sent"] = False
         self.client = client
+        self.seated = True
+        here = room.room()
+        self.base_url = here.get("base_url")
+        self.room_id = self.room_id or here.get("room_id")
         # ONE queue, the client's: two would mean two answers to "what has
         # arrived", and the drain would race the join
         self.inbox = client.inbox
@@ -207,6 +253,9 @@ class RoomSession:
         client, self.client = self.client, None
         if client is not None:
             client.close()
+        # P1 · leaving is not dropping: the seat goes. What the room had not
+        # confirmed stays on this object for the caller to keep (`park`).
+        self.seated = False
         self.connection_id = None
         self.members = []
         self.role = None
@@ -224,6 +273,15 @@ class RoomSession:
         message = envelope(kind, payload or {}, source=CLIENT_SOURCE, **routing)
         return client.send(json.dumps(message, ensure_ascii=False))
 
+    @property
+    def offline(self) -> bool:
+        """P1 · in a room whose connection has dropped: the edits wait."""
+        return self.seated and not self.joined
+
+    def waiting(self) -> int:
+        """P1 · how many edits the room has not confirmed yet."""
+        return len(self.unconfirmed)
+
     def send_op(self, op: Dict[str, Any]) -> bool:
         """Send one operation. The AUTHOR is not ours to declare.
 
@@ -240,10 +298,56 @@ class RoomSession:
         # G1 · the graph in the ENVELOPE, the wire's word (the server reads it,
         # `ws.py`): the room holds the study, the op says which graph
         graph = self.writing_graph if self.writing_graph in self.room_graphs else None
-        sent = self.send("op", body, graph_id=graph)
+        # P1 · it is the room's work until the room answers it, sent or not
+        entry = {"op": body, "graph_id": graph, "sent": False}
+        self.unconfirmed.append(entry)
+        return self._send_entry(entry)
+
+    def _send_entry(self, entry: Dict[str, Any]) -> bool:
+        sent = self.send("op", entry["op"], graph_id=entry.get("graph_id"))
         if sent:
+            entry["sent"] = True
             self.sent_ops += 1
         return sent
+
+    def resend_unconfirmed(self, plan: str, now: str) -> int:
+        """P1 · send again what the room has not confirmed. → how many went.
+
+        `resume`: as it was — the room still remembers everything since our
+        base, so the original clock is the true one (and an op it had already
+        applied comes back as idempotent, not as news). `resync`: re-stamped
+        (`stamp_for_resend`), the emptyings kept. The entries stay in
+        `unconfirmed` until their answers arrive.
+        """
+        if plan == "resync":
+            self.unconfirmed = stamp_for_resend(self.unconfirmed, now)
+        went = 0
+        for entry in self.unconfirmed:
+            entry["sent"] = False
+            if self._send_entry(entry):
+                went += 1
+        return went
+
+    def _confirm(self, body: Dict[str, Any], *, lapsed: bool = False) -> None:
+        """P1 · the room answered the oldest operation sent and not answered.
+
+        One socket answers in order (`ws.py` handles a member's frames one at a
+        time), so the oldest sent entry is the one answered; the op the room
+        echoes is used to check it when it can. A token that lapsed is not an
+        answer: the op goes back to waiting and is sent at the re-entry.
+        """
+        sent = [e for e in self.unconfirmed if e.get("sent")]
+        if not sent:
+            return
+        echoed = body.get("op") if isinstance(body.get("op"), dict) else None
+        entry = sent[0]
+        if echoed:
+            key = _op_key(echoed)
+            entry = next((e for e in sent if _op_key(e["op"]) == key), sent[0])
+        if lapsed:
+            entry["sent"] = False
+            return
+        self.unconfirmed.remove(entry)
 
     def send_select(self, node_ids: List[str], active: Optional[str] = None) -> bool:
         """Awareness, never a lock: the others see where you are looking."""
@@ -304,12 +408,23 @@ class RoomSession:
                 self.last_applied = str(ts)
         elif kind == "op_result":
             # I1 · the room's answer to one of OUR operations
+            self._confirm(body)
             self.answered_ops += 1
+            # P1 · an op of ours the room APPLIED is part of what we have
+            # applied: the base moves with it. Without this a Blender that only
+            # writes never had a base (the room does not echo the sender), and
+            # every re-entry was a re-sync with every edit re-stamped.
+            mine = body.get("op") if isinstance(body.get("op"), dict) else {}
+            ts = mine.get("ts")
+            if body.get("applied") and ts and (self.last_applied is None
+                                               or str(ts) > str(self.last_applied)):
+                self.last_applied = str(ts)
             if not body.get("applied"):
                 from s3dgraphy.crdt import refusal_is_news
                 if refusal_is_news(str(body.get("reason") or "")):
                     self.refused_ops += 1
         elif kind == "denied" and body.get("verb") == "op":
+            self._confirm(body, lapsed="expired" in str(body.get("reason") or ""))
             self.answered_ops += 1
             self.refused_ops += 1
         elif kind == "error":
@@ -447,3 +562,81 @@ def activate(graph_id: Optional[str]) -> RoomSession:
     elif SESSION in _by_graph.values():
         SESSION = RoomSession(on_message=SESSION._on_message)
     return SESSION
+
+
+# ── P1 · the work waiting for a room this Blender is not in ─────────────────
+#
+# A session holds its own unconfirmed edits while it is seated, connected or
+# not. When it LEAVES (or the file is saved), they are parked here by room, with
+# the base the session had applied up to, and saved in the .blend
+# (`operators._save_unconfirmed`): the next entry into the same room takes them
+# back and sends them — as they were if the room still remembers our base, re-
+# stamped if it has compacted past it (`plan_rejoin`).
+
+_parked: Dict[str, Dict[str, Any]] = {}
+
+
+def room_key(base_url: Optional[str], room_id: Optional[str]) -> str:
+    return f"{(base_url or '').rstrip('/')}|{room_id or ''}"
+
+
+def park(session: RoomSession) -> int:
+    """Keep what `session` had not got confirmed, for its room. → how many."""
+    if not session.unconfirmed or not session.room_id:
+        return 0
+    key = room_key(session.base_url, session.room_id)
+    kept = _parked.setdefault(key, {"base": session.last_applied, "ops": []})
+    kept["ops"].extend({**e, "sent": False} for e in session.unconfirmed)
+    if session.last_applied and (not kept.get("base")
+                                 or str(session.last_applied) > str(kept["base"])):
+        kept["base"] = session.last_applied
+    count = len(session.unconfirmed)
+    session.unconfirmed = []
+    return count
+
+
+def take_parked(base_url: Optional[str], room_id: Optional[str]
+                ) -> Dict[str, Any]:
+    """The work parked for this room, removed from the park (`{base, ops}`)."""
+    return _parked.pop(room_key(base_url, room_id), None) or {"base": None,
+                                                              "ops": []}
+
+
+def parked_for(base_url: Optional[str], room_id: Optional[str]) -> int:
+    return len((_parked.get(room_key(base_url, room_id)) or {}).get("ops") or [])
+
+
+def unconfirmed_state() -> Dict[str, Dict[str, Any]]:
+    """Everything waiting, by room — the parked AND every seated session's —
+    in the shape the .blend keeps (`{key: {base, ops}}`)."""
+    state = {k: {"base": v.get("base"), "ops": [dict(e) for e in v["ops"]]}
+             for k, v in _parked.items() if v.get("ops")}
+    for _gid, s in sessions():
+        if s.unconfirmed and s.room_id:
+            key = room_key(s.base_url, s.room_id)
+            kept = state.setdefault(key, {"base": s.last_applied, "ops": []})
+            kept["ops"].extend({**e, "sent": False} for e in s.unconfirmed)
+            kept["base"] = kept.get("base") or s.last_applied
+    return state
+
+
+def restore_unconfirmed(state: Any) -> int:
+    """Put back what a .blend kept (`unconfirmed_state`'s shape). → how many."""
+    _parked.clear()
+    count = 0
+    if not isinstance(state, dict):
+        return 0
+    for key, kept in state.items():
+        ops = [e for e in (kept or {}).get("ops") or []
+               if isinstance(e, dict) and isinstance(e.get("op"), dict)]
+        if ops:
+            _parked[str(key)] = {"base": (kept or {}).get("base"),
+                                 "ops": [{**e, "sent": False} for e in ops]}
+            count += len(ops)
+    return count
+
+
+def waiting_total() -> int:
+    """P1 · every edit no room has confirmed yet, parked or seated."""
+    return (sum(len(v.get("ops") or []) for v in _parked.values())
+            + sum(s.waiting() for _g, s in sessions()))

@@ -323,3 +323,123 @@ def test_c3_un_select_senza_connection_id_e_un_comando_e_passa(session):
     # e un id che non è il mio resta awareness anche se non conosco nessuno
     assert session.classifica_select({"connection_id": "qualcunaltro"},
                                      None) == session.SELECT_AWARENESS
+
+
+# ── P1 · offline: kept, and sent again at the re-entry ───────────────────────
+
+def _drain_results(client, want, timeout=8.0):
+    """Drain until `want` answers arrived (or time ran out). → how many."""
+    got = 0
+    deadline = time.time() + timeout
+    while time.time() < deadline and got < want:
+        for message in client.drain():
+            if message.get("type") in ("op_result", "denied"):
+                got += 1
+        time.sleep(0.05)
+    return got
+
+
+def _room_doc(session):
+    """The room's document as a fresh member receives it."""
+    reader = session.new_session()
+    doc = reader.join()["snapshot"]["payload"]["doc"]
+    reader.leave()
+    return doc
+
+
+def _units(doc):
+    return {n.get("id") for sec in (doc.get("graphs") or {}).values()
+            if isinstance(sec, dict) for n in (sec.get("nodes") or [])}
+
+
+def test_P1_three_edits_made_offline_reach_the_room_at_the_resume(session):
+    import _emtools_addon.sync_manager.room as room
+    room.set_room(room._session["base_url"], "p1-resume", token="dev-token")
+    one = session.new_session()
+    one.join()
+    assert one.send_op({"op": "add_node", "id": "P1-BASE",
+                        "node": {"id": "P1-BASE", "type": "US", "name": "base"},
+                        "ts": "2026-10-05T08:00:00Z"})
+    assert _drain_results(one, 1) == 1
+    assert one.waiting() == 0                       # answered, so confirmed
+    one.client.close()                              # the WebSocket drops
+    assert one.offline and one.seated and not one.joined
+    for i in range(3):
+        sent = one.send_op({"op": "add_node", "id": f"P1-OFF-{i}",
+                            "node": {"id": f"P1-OFF-{i}", "type": "US",
+                                     "name": f"offline {i}"},
+                            "ts": f"2026-10-05T08:00:0{i + 1}Z"})
+        assert sent is False                        # not sent…
+    assert one.waiting() == 3                       # …and not lost
+    arrival = one.join(since=one.last_applied)
+    assert arrival["plan"] == "resume"
+    assert one.resend_unconfirmed(arrival["plan"], "2026-10-05T09:00:00Z") == 3
+    # resume sends them as they were
+    assert [e["op"]["ts"] for e in one.unconfirmed] == [
+        "2026-10-05T08:00:01Z", "2026-10-05T08:00:02Z", "2026-10-05T08:00:03Z"]
+    assert _drain_results(one, 3) == 3
+    assert one.waiting() == 0
+    assert {"P1-OFF-0", "P1-OFF-1", "P1-OFF-2"} <= _units(_room_doc(session))
+
+
+def test_P1_past_the_compaction_the_edits_go_re_stamped_with_the_emptyings(session):
+    import _emtools_addon.sync_manager.room as room
+    room.set_room(room._session["base_url"], "p1-resync", token="dev-token")
+    one, two = session.new_session(), session.new_session()
+    one.join()
+    two.join()
+    assert one.send_op({"op": "add_node", "id": "P1-U",
+                        "node": {"id": "P1-U", "type": "US", "name": "U",
+                                 "description": "full"},
+                        "ts": "2026-10-05T08:00:00Z"})
+    assert _drain_results(one, 1) == 1
+    base = _wait_for(two, "op")["payload"]["ts"]
+    one.last_applied = base                       # what one had applied
+    one.client.close()
+    for i in range(2):
+        one.send_op({"op": "add_node", "id": f"P1-R-{i}",
+                     "node": {"id": f"P1-R-{i}", "type": "US", "name": f"r{i}"},
+                     "ts": f"2026-10-05T08:00:1{i}Z"})
+    one.send_op({"op": "update_field", "node_id": "P1-U", "field": "description",
+                 "remove": True, "ts": "2026-10-05T08:00:20Z"})
+    assert one.waiting() == 3
+    # meanwhile the room moves on and compacts past one's base
+    assert two.send_op({"op": "add_node", "id": "P1-LATER",
+                        "node": {"id": "P1-LATER", "type": "US", "name": "later"},
+                        "ts": "2026-10-05T10:00:00Z"})
+    later = _wait_for(two, "op_result")["payload"]["op"]["ts"]
+    assert two.send("ack", {"ts": later})
+    assert two.send("request_save")
+    time.sleep(0.5)
+    arrival = one.join(since=base)
+    assert arrival["plan"] == "resync", one.gc_watermark
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    assert one.resend_unconfirmed(arrival["plan"], now) == 3
+    assert all(e["op"]["ts"] == now for e in one.unconfirmed)
+    emptying = next(e["op"] for e in one.unconfirmed if e["op"]["op"] == "update_field")
+    assert emptying["remove"] is True             # the act, not an absence
+    assert _drain_results(one, 3) == 3
+    assert one.waiting() == 0
+    doc = _room_doc(session)
+    assert {"P1-R-0", "P1-R-1", "P1-LATER"} <= _units(doc)
+    unit = next(n for sec in doc["graphs"].values() if isinstance(sec, dict)
+                for n in sec.get("nodes") or [] if n.get("id") == "P1-U")
+    assert not unit.get("description")
+
+
+def test_P1_leaving_parks_the_work_and_the_file_keeps_it(session):
+    one = session.new_session()
+    one.room_id, one.base_url, one.last_applied = "p1-park", "http://x", "T0"
+    one.unconfirmed = [{"op": {"op": "add_node", "id": "Q"}, "graph_id": None,
+                        "sent": True}]
+    assert session.park(one) == 1 and one.unconfirmed == []
+    state = session.unconfirmed_state()
+    assert state["http://x|p1-park"]["base"] == "T0"
+    assert state["http://x|p1-park"]["ops"][0]["sent"] is False
+    import json as _json
+    assert session.restore_unconfirmed(_json.loads(_json.dumps(state))) == 1
+    assert session.parked_for("http://x", "p1-park") == 1
+    kept = session.take_parked("http://x", "p1-park")
+    assert kept["base"] == "T0" and len(kept["ops"]) == 1
+    assert session.waiting_total() == 0
