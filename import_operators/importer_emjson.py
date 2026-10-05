@@ -83,7 +83,10 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         else:
             path = self.filepath
 
-        if not path or not os.path.exists(path):
+        # a slot may hold a path relative to the .blend (`//../EM/x.em.json`, the
+        # way a dataset folder carries its graph beside its models): the
+        # existence is asked of the absolute path, as everything below reads it
+        if not path or not os.path.exists(bpy.path.abspath(path)):
             self.report({"ERROR"}, f"em.json file not found: {path}")
             return {"CANCELLED"}
 
@@ -106,9 +109,14 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         from .. import graph_origins
         target_origin = graph_origins.file_origin(path, abspath=bpy.path.abspath)
         try:
+            # the slot being reloaded is not «another file»: its recorded origin
+            # may be where the project was before it was moved or copied (a
+            # dataset folder handed on), and its own path is the one it names now
+            others = [e for i, e in enumerate(em_tools.graphml_files)
+                      if i != self.file_index]
             clash = graph_origins.conflicts(
                 graph_origins.peek_graph_ids(bpy.path.abspath(path)),
-                em_tools.graphml_files, target_origin, abspath=bpy.path.abspath)
+                others, target_origin, abspath=bpy.path.abspath)
         except Exception:  # noqa: BLE001 — unreadable here, the importer says why
             clash = []
         if clash:
@@ -122,7 +130,7 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
             return {"CANCELLED"}
 
         try:
-            container, warnings = import_container_from_emjson(path)
+            container, warnings = import_container_from_emjson(bpy.path.abspath(path))
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"em.json import failed: {exc}")
             show_popup_message(context, "Import Error", str(exc), "ERROR")
