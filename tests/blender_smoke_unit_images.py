@@ -115,6 +115,18 @@ else:
     check("each image's preview is loaded from the cache", loaded == want, f"{loaded} vs {want}")
     after = {t: os.path.getmtime(t) for t in before}
     check("the thumbnails come from the cache, not rebuilt", after == before)
+    # E5 · «Remove link» for an image linked by mistake: the edge goes, the
+    # resource stays, and Save writes it
+    uid03 = next(uid for uid, n in ub.units_of(graph) if n == "USM03")
+    img03 = ub.linked_images(graph, uid03)[0]
+    r = bpy.ops.em.unit_images_unlink(unit_id=uid03, resource_id=img03.node_id)
+    check("Remove link finished", r == {"FINISHED"}, str(r))
+    check("USM03 has no image any more", not ub.linked_images(graph, uid03))
+    check("the image stays a resource of the graph", graph.find_node_by_id(img03.node_id) is not None)
+    r = getattr(bpy.ops, "export").em_save()
+    doc = open(EMJSON).read()
+    check("Save writes the link removed", r == {"FINISHED"}
+          and f'"{uid03}_has_linked_resource_{img03.node_id}"' not in doc and img03.node_id in doc)
     # the section draws (a layout is needed: the draw function is called by the panel)
 print("[SMOKE] RESULT:", "ALL PASS" if not FAILURES else f"FAILED {FAILURES}")
 sys.stdout.flush()

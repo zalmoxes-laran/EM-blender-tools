@@ -278,6 +278,53 @@ def _emit(nodes, edges) -> None:
         print(f"[unit images] not sent: {exc}")
 
 
+class EM_OT_unit_images_unlink(Operator):
+    """Remove the link between this unit and this image, linked by mistake: the
+    image stays a resource of the graph (another unit may use it, and its file
+    is untouched); only the edge from the unit goes, here and in the room"""
+    bl_idname = "em.unit_images_unlink"
+    bl_label = "Remove link"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    unit_id: StringProperty()  # type: ignore
+    resource_id: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        graph = _graph(context)
+        if graph is None:
+            self.report({'ERROR'}, "no graph loaded")
+            return {'CANCELLED'}
+        gone = [e for e in list(graph.edges)
+                if e.edge_type == "has_linked_resource" and e.edge_source == self.unit_id
+                and e.edge_target == self.resource_id]
+        if not gone:
+            self.report({'WARNING'}, "this image is not linked to this unit")
+            return {'CANCELLED'}
+        for e in gone:
+            graph.remove_edge(e.edge_id)
+        _emit_removed(gone)
+        _STATES.pop(self.resource_id, None)
+        still = sum(1 for e in graph.edges if e.edge_target == self.resource_id)
+        res = graph.find_node_by_id(self.resource_id)
+        name = str(getattr(res, "name", "") or self.resource_id)
+        self.report({'INFO'}, f"{name} is no longer linked to this unit"
+                              + (f" (still linked {still} time(s) elsewhere)" if still
+                                 else " (the resource stays in the graph, linked to nothing)"))
+        return {'FINISHED'}
+
+
+def _emit_removed(edges) -> None:
+    """The removal to the room (or the Sidecar), when there is one."""
+    try:
+        from ..sync_manager import operators as sync
+        for e in edges:
+            sync.emit_op({"type": "op", "op": "delete_edge", "edge": {
+                "id": e.edge_id, "source": e.edge_source, "target": e.edge_target,
+                "edge_type": e.edge_type}})
+    except Exception as exc:  # noqa: BLE001 — removed here all the same
+        print(f"[unit images] not sent: {exc}")
+
+
 class EM_OT_unit_images_refresh(Operator):
     """Read again where the images of the unit are (the one resolver) and
     rebuild a thumbnail the cache lost"""
@@ -316,9 +363,12 @@ def draw(layout, context, unit) -> None:
         col.label(text=str(getattr(node, "name", "")))
         _icon, said, _meaning = sign(f"file.{state}")
         col.label(text=said)
+        row_ops = col.row(align=True)
         if path:
-            op = col.operator("wm.path_open", text="Open", icon='FILE_IMAGE')
+            op = row_ops.operator("wm.path_open", text="Open", icon='FILE_IMAGE')
             op.filepath = path
+        op = row_ops.operator("em.unit_images_unlink", text="Remove link", icon='UNLINKED')
+        op.unit_id, op.resource_id = unit.id_node, node.node_id
     mine = [p for p in st.proposals if p.unit_id == unit.id_node]
     if mine:
         box = layout.box()
@@ -343,7 +393,7 @@ def draw(layout, context, unit) -> None:
 
 
 classes = (EM_UnitImageProposal, EM_UnitImagesSettings, EM_OT_unit_images_propose,
-           EM_OT_unit_images_confirm, EM_OT_unit_images_refresh)
+           EM_OT_unit_images_confirm, EM_OT_unit_images_unlink, EM_OT_unit_images_refresh)
 
 
 def register():
