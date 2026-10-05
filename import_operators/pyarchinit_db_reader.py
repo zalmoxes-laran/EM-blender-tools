@@ -32,6 +32,14 @@ US_COLUMN_FALLBACKS = ("us_s", "us")
 AREA_COLUMN_FALLBACKS = ("area_s", "area")
 SITO_COLUMN_FALLBACKS = ("scavo_s", "sito", "site")
 
+# The unit's identity travels with the polygon row (issue #34): what the
+# spatial table does not carry comes from one read of ``us_table`` —
+# ``node_uuid`` (the column the mapping turns into ``node_id``), plus
+# ``settore`` and ``unita_tipo`` so the mapping's label can be composed
+# without a second query.
+US_TABLE = "us_table"
+IDENTITY_COLUMNS = ("node_uuid", "settore", "unita_tipo")
+
 
 # Filter-column aliases. Filter dicts are populated from the
 # US-table form's mapping (which may use ``us_s``/``area_s``/``scavo_s``
@@ -157,8 +165,53 @@ def _build_filter_clause(filters, us_col, area_col, sito_col):
     return " WHERE " + " AND ".join(clauses), params
 
 
+def _identity_key(sito, area, us):
+    """Normalise both sides of the us_table match to stripped strings."""
+    def _t(v):
+        return "" if v is None else str(v).strip()
+    return (_t(sito), _t(area), _t(us))
+
+
+def _identity_map(identity_cols, rows):
+    """(sito, area, us, *identity) rows → {key: identity dict}.
+
+    ``identity_cols`` names the columns after the three key ones;
+    identity columns absent from the table come out as None.
+    """
+    out = {}
+    for row in rows:
+        ident = dict.fromkeys(IDENTITY_COLUMNS)
+        for name, value in zip(identity_cols, row[3:]):
+            ident[name] = value
+        out.setdefault(_identity_key(*row[:3]), ident)
+    return out
+
+
+def fetch_us_identity(conn):
+    """One read of ``us_table``: {(sito, area, us) → identity dict}.
+
+    Defensive by design (issue #34): a missing ``us_table``, or missing
+    key/identity columns on it, yield an empty map / None values — the
+    polygon fetch must never break because the identity is unavailable.
+    """
+    if not table_exists(conn, US_TABLE):
+        return {}
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info('{US_TABLE}')")}
+    if not {"sito", "area", "us"} <= cols:
+        return {}
+    wanted = [c for c in IDENTITY_COLUMNS if c in cols]
+    sel = ", ".join(["sito", "area", "us"] + wanted)
+    cur = conn.execute(f"SELECT {sel} FROM {US_TABLE}")
+    return _identity_map(wanted, cur)
+
+
 def fetch_polygons(conn, geom_column, filters=None):
-    """Yield dicts {us_key, us, area, sito, wkb, wkb_hex_preview}.
+    """Yield dicts {us_key, us, area, sito, node_uuid, settore,
+    unita_tipo, wkb, wkb_hex_preview}.
+
+    ``node_uuid`` / ``settore`` / ``unita_tipo`` carry the unit's
+    identity from the matching ``us_table`` row (issue #34) and are
+    None when that table or its columns are absent.
 
     If ``filters`` is non-empty, narrow the query to rows matching
     every recognised ``column = value`` pair. Filter columns are
@@ -171,6 +224,7 @@ def fetch_polygons(conn, geom_column, filters=None):
     where_sql, params = _build_filter_clause(
         filters, us_col, area_col, sito_col
     )
+    identity = fetch_us_identity(conn)
     cur = conn.execute(
         f"SELECT {us_col}, {area_col}, {sito_col}, {geom_column} "
         f"FROM {TABLE_NAME}{where_sql}",
@@ -180,11 +234,16 @@ def fetch_polygons(conn, geom_column, filters=None):
         if geom is None:
             continue
         wkb = bytes(geom)
+        ident = identity.get(_identity_key(sito, area, us)) \
+            or dict.fromkeys(IDENTITY_COLUMNS)
         yield {
             "us": us,
             "area": area,
             "sito": sito,
             "us_key": f"sito={sito},area={area},us={us}",
+            "node_uuid": ident["node_uuid"],
+            "settore": ident["settore"],
+            "unita_tipo": ident["unita_tipo"],
             "wkb": wkb,
             "wkb_hex_preview": wkb[:16].hex(),
         }
@@ -402,6 +461,20 @@ def _build_filter_clause_pg(filters, us_col, area_col, sito_col):
     return " WHERE " + " AND ".join(clauses), params
 
 
+def fetch_us_identity_pg(conn):
+    """PostgreSQL twin of :func:`fetch_us_identity` — same guarantees."""
+    if not pg_table_exists(conn, US_TABLE):
+        return {}
+    cols = _pg_columns(conn, US_TABLE)
+    if not {"sito", "area", "us"} <= cols:
+        return {}
+    wanted = [c for c in IDENTITY_COLUMNS if c in cols]
+    sel = ", ".join(["sito", "area", "us"] + wanted)
+    cur = conn.cursor()
+    cur.execute(f"SELECT {sel} FROM {US_TABLE}")
+    return _identity_map(wanted, cur.fetchall())
+
+
 def fetch_polygons_pg(conn, geom_column, filters=None):
     """PostgreSQL twin of :func:`fetch_polygons`.
 
@@ -412,6 +485,7 @@ def fetch_polygons_pg(conn, geom_column, filters=None):
     where_sql, params = _build_filter_clause_pg(
         filters, us_col, area_col, sito_col
     )
+    identity = fetch_us_identity_pg(conn)
     cur = conn.cursor()
     cur.execute(
         f"SELECT {us_col}, {area_col}, {sito_col}, "
@@ -423,11 +497,16 @@ def fetch_polygons_pg(conn, geom_column, filters=None):
         if geom is None:
             continue
         wkb = bytes(geom)
+        ident = identity.get(_identity_key(sito, area, us)) \
+            or dict.fromkeys(IDENTITY_COLUMNS)
         yield {
             "us": us,
             "area": area,
             "sito": sito,
             "us_key": f"sito={sito},area={area},us={us}",
+            "node_uuid": ident["node_uuid"],
+            "settore": ident["settore"],
+            "unita_tipo": ident["unita_tipo"],
             "wkb": wkb,
             "wkb_hex_preview": wkb[:16].hex(),
         }

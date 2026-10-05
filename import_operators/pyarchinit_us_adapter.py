@@ -203,9 +203,12 @@ def resolving_us_by_label(db_spec: str, template: Optional[str] = None,
     old_resolve = pgi._resolve_us_node
     old_record = pgi._record_us_without_geometry
 
-    def _record_us_without_geometry(polygons, graph, report):
+    def _record_us_without_geometry(polygons, graph, report,
+                                    resolve_us_node=None):
         """Come quella di Enzo, ma «ha una geometria» vuol dire «un poligono
-        si è risolto su di lei», non «il suo nome è un numero della tabella»."""
+        si è risolto su di lei», non «il suo nome è un numero della tabella».
+        (``resolve_us_node`` accettato e ignorato: dalla issue #34 il lettore
+        lo passa, qui risolve sempre il ``USResolver`` del blocco.)"""
         if graph is None:
             return
         with_geom = set()
