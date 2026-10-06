@@ -89,11 +89,28 @@ def room_origin(base_url: str, room_id: str) -> Origin:
 NO_ORIGIN = Origin(KIND_NONE, "none", "No file")
 
 
+def file_path_of(entry: Any) -> str:
+    """The file a row's graph comes from, as the row writes it: a slot relative
+    to the .blend (``//…``) first, then the recorded ``origin_path``, then the
+    slot as it is."""
+    slot = str(getattr(entry, "graphml_path", "") or "")
+    if slot.startswith("//"):
+        return slot
+    return str(getattr(entry, "origin_path", "") or "") or slot
+
+
 def origin_of(entry: Any, *, abspath=None) -> Origin:
     """The origin of one row of ``em_tools.graphml_files``.
 
     Recorded fields win; a row without them (an older .blend) takes its origin
     from ``graphml_path`` — where it was loaded from.
+
+    Except a slot relative to the .blend (``//../EM/x.em.json``): it travels
+    with the folder, while ``origin_path`` is the absolute path recorded where
+    the folder was when the graph was loaded. A folder handed on kept the old
+    place as its origin — the tree, «Save» and the study pointed there, an
+    older copy of the em.json, until «Load» recorded the new one (measured on
+    Templu Mare v2, 6 Oct 2026). The relative slot is the origin.
     """
     kind = str(getattr(entry, "origin_kind", "") or "")
     if kind == KIND_ROOM:
@@ -101,9 +118,7 @@ def origin_of(entry: Any, *, abspath=None) -> Origin:
         if room_id:
             return room_origin(str(getattr(entry, "origin_node", "") or ""),
                                room_id)
-    path = str(getattr(entry, "origin_path", "") or "")
-    if not path:
-        path = str(getattr(entry, "graphml_path", "") or "")
+    path = file_path_of(entry)
     if path:
         return file_origin(path, abspath=abspath)
     return NO_ORIGIN

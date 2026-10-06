@@ -55,15 +55,14 @@ def study_of(context, graph) -> Dict[str, Any]:
     out["origin"] = origin
     # the FILE of the study, also when its rows now say «room» (they keep the
     # path they were loaded from)
-    path = str(getattr(entry, "origin_path", "") or getattr(entry, "graphml_path", "") or "")
+    path = go.file_path_of(entry)
     file_origin = go.file_origin(path, abspath=_abspath) if path else None
     if file_origin is None or not file_origin.is_emjson:
         return out
     out["path"] = file_origin.path
     ids = [str(getattr(e, "name", "")) for e in entries
-           if str(getattr(e, "origin_path", "") or getattr(e, "graphml_path", "") or "")
-           and go.file_origin(str(getattr(e, "origin_path", "") or getattr(e, "graphml_path", "")),
-                              abspath=_abspath).key == file_origin.key]
+           if go.file_path_of(e)
+           and go.file_origin(go.file_path_of(e), abspath=_abspath).key == file_origin.key]
     base = go.remembered(file_origin.path)
     if base is None:
         try:

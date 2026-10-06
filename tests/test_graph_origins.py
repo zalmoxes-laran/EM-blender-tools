@@ -60,6 +60,24 @@ def two_files(tmp_path):
     return a, b
 
 
+def test_a_slot_relative_to_the_blend_is_the_origin_after_a_move(tmp_path):
+    """Templu Mare v2 (6 Oct 2026): the folder was handed on, the row kept the
+    absolute origin recorded where it was born; the tree, «Save» and the study
+    went there. The slot `//../EM/x.em.json` is where the graph is now."""
+    born = tmp_path / "born" / "EM" / "x.em.json"
+    here = tmp_path / "handed-on" / "SB"
+    row = Row(name="g", origin_kind="FILE", origin_path=str(born),
+              graphml_path="//../EM/x.em.json")
+    abspath = lambda p: str(here / p[2:]) if p.startswith("//") else p  # noqa: E731
+    origin = go.origin_of(row, abspath=abspath)
+    assert origin.path == str(tmp_path / "handed-on" / "EM" / "x.em.json")
+    assert go.file_path_of(row) == "//../EM/x.em.json"
+    # an absolute slot keeps the recorded origin, as before
+    fixed = Row(name="g", origin_kind="FILE", origin_path=str(born),
+                graphml_path=str(tmp_path / "elsewhere.em.json"))
+    assert go.origin_of(fixed).path == str(born)
+
+
 def test_rows_without_an_origin_take_it_from_their_path(tmp_path):
     old = Row(name="g", graphml_path=str(tmp_path / "x.graphml"))
     origin = go.origin_of(old)

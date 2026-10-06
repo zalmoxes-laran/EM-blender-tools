@@ -57,6 +57,21 @@ em = bpy.context.scene.em_tools
 row = em.graphml_files[0]
 check("the slot keeps its path relative to the .blend", row.graphml_path == "//../EM/study.em.json", row.graphml_path)
 
+# 2b · before any Load, the tree, «Save» and the study name the em.json beside
+#      the moved .blend, not the one where the folder was born (its recorded
+#      origin_path is absolute and stays there)
+import importlib
+_pkg = next(m for m in sys.modules if m.endswith("EM-blender-tools") or m.endswith("em_tools"))
+go = importlib.import_module(_pkg + ".graph_origins")
+here = os.path.normpath(os.path.join(moved, "EM", "study.em.json"))
+check("the recorded origin is still where it was born",
+      os.path.normpath(row.origin_path) == os.path.normpath(os.path.join(born, "EM", "study.em.json")),
+      row.origin_path)
+origin = go.origin_of(row, abspath=bpy.path.abspath)
+check("the origin (tree, Save) is the slot beside the moved .blend", origin.path == here, origin.path)
+study = importlib.import_module(_pkg + ".sync_manager.study").study_of(bpy.context, None)
+check("the study reads the em.json beside the moved .blend", study.get("path") == here, str(study.get("path")))
+
 # 3 · the slot is reloaded from where the folder is now
 em.active_file_index = 0
 result = imp.em_emjson(file_index=0)
