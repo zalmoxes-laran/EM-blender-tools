@@ -53,3 +53,37 @@ def test_memory_fallback_roundtrip():
     assert get_password("h", 5432, "db", "u") == "topsecret"
     forget_password("h", 5432, "db", "u")
     assert get_password("h", 5432, "db", "u") is None
+
+
+# --- user-facing messages (issue #34) --------------------------------------
+# The 3D GIS mode is gone: the connection lives in
+# EM Data Tree ▸ Import from tables, and the messages must say so.
+
+class _Tools:
+    pyarchinit_connection_mode = "postgres"
+    pyarchinit_pg_host = ""
+    pyarchinit_pg_port = 5432
+    pyarchinit_pg_dbname = ""
+    pyarchinit_pg_user = ""
+    pyarchinit_pg_password = ""
+    pyarchinit_db_path = ""
+
+
+def test_missing_pg_fields_points_to_import_from_tables():
+    from import_operators.pyarchinit_connection import resolve_db_spec
+    spec, err = resolve_db_spec(_Tools())
+    assert spec is None
+    assert "Import from tables" in err
+    assert "3D GIS" not in err
+
+
+def test_missing_pg_password_points_to_import_from_tables():
+    from import_operators.pyarchinit_connection import resolve_db_spec
+    t = _Tools()
+    t.pyarchinit_pg_host = "h"
+    t.pyarchinit_pg_dbname = "db"
+    t.pyarchinit_pg_user = "u"
+    spec, err = resolve_db_spec(t)
+    assert spec is None
+    assert "Import from tables" in err
+    assert "3D GIS" not in err

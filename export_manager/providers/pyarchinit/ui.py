@@ -10,8 +10,8 @@ def draw(box, context):
     em_tools = context.scene.em_tools
     export_vars = context.window_manager.export_vars
 
-    # The export reuses the connection configured in the 3D GIS import
-    # panel (Sub-2) — show which target it will write to.
+    # The export reuses the connection configured in EM Data Tree ▸
+    # Import from tables (Sub-2) — show which target it will write to.
     conn_mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
     info = box.row()
     if conn_mode == "postgres":
@@ -23,7 +23,8 @@ def draw(box, context):
         target = f"SQLite: {path}" if path else "SQLite (no file selected)"
     info.label(text=target, icon='EXPORT')
 
-    box.label(text="Connection is set in the 3D GIS Import panel.", icon='INFO')
+    box.label(text="Connection is set in EM Data Tree ▸ Import from tables.",
+              icon='INFO')
 
     box.prop(export_vars, "pyarchinit_export_sito", text="Site")
     box.prop(export_vars, "pyarchinit_export_create_epochs")

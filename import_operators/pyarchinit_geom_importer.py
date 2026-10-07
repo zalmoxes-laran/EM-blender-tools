@@ -28,11 +28,18 @@ from .geom_blender_io import (
     is_mesh_modified,
 )
 from .geom_georef import resolve_georef_anchor
+from .pyarchinit_us_resolution import (
+    STRATIGRAPHIC_NODE_TYPES,
+    RowIdentityResolver,
+    record_us_without_geometry,
+    resolve_bare,
+)
 from ..operators.addon_prefix_helpers import node_name_to_proxy_name
 
 
 def import_geometries(context, db_path, graph, graph_code, force_update,
-                     show_warning_callback, filters=None):
+                     show_warning_callback, filters=None,
+                     resolve_us_node=None, name_template=None):
     """Run the full geometry import. Returns a report dict.
 
     ``filters`` (optional dict): column -> value pairs propagated from
@@ -41,6 +48,17 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
     are read from the DB. Unknown filter columns (no equivalent on the
     spatial table) are silently ignored — see
     ``pyarchinit_db_reader._build_filter_clause``.
+
+    ``resolve_us_node`` (optional callable(graph, us_key) -> node):
+    resolver supplied by the caller (issue #34), used in the re-import
+    plan, for polygon orphans and for the US-without-geometry report.
+    When None, a :class:`RowIdentityResolver` over the fetched rows
+    resolves by ``node_uuid`` → mapping label → bare ``us`` number, and
+    the report carries ``matched_by`` counts.
+
+    ``name_template`` (optional str): the mapping's
+    ``table_settings.node_name_template``, used by the default resolver
+    to compose labels. None → the pyArchInit default.
     """
     report = {
         "created": 0,
@@ -106,12 +124,14 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
             return report
         shift_xyz, epsg_used = anchor
 
+        resolver = resolve_us_node or RowIdentityResolver(polygons, name_template)
+
         plan = build_reimport_plan(
             scene_objects=list(bpy.context.scene.objects),
             graph=graph,
             incoming_polygons=polygons,
             is_modified=is_mesh_modified,
-            resolve_us_node=_resolve_us_node,
+            resolve_us_node=resolver,
         )
 
         parent_coll = ensure_collection(C.COLL_US_GEOMETRIES)
@@ -149,49 +169,31 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
                 move_obj_to_collection(obj, orphan_coll)
             report["marked_orphan_obj"] = len(plan["mark_orphan_obj"])
 
-        _handle_polygon_orphans(polygons, graph, shift_xyz, safe_spec, report)
-        _record_us_without_geometry(polygons, graph, report)
+        _handle_polygon_orphans(polygons, graph, shift_xyz, safe_spec, report,
+                                resolve_us_node=resolver)
+        _record_us_without_geometry(polygons, graph, report,
+                                    resolve_us_node=resolver)
+        if resolve_us_node is None:
+            report["matched_by"] = resolver.matched_by()
     finally:
         reader.close()
 
     return report
 
 
-_STRATIGRAPHIC_NODE_TYPES = frozenset({
-    "US", "USN", "USV", "USVS", "USVA", "USM", "USR",
-    "SF", "TSU", "VSF", "USD",
-})
+# Kept under the historical names — pyarchinit_us_adapter references them.
+_STRATIGRAPHIC_NODE_TYPES = STRATIGRAPHIC_NODE_TYPES
 
 
 def _resolve_us_node(graph, us_key):
-    """Find the s3dgraphy US node matching a pyunitastratigrafiche row.
+    """Match by the bare value of the ``us`` column (e.g. '1', 'USM100').
 
-    PyArchInitImporter (mapping `pyarchinit_us_mapping.json`) names US
-    nodes with the bare value of the `us` column (e.g. '1', '16',
-    'USM100'). PropertyNodes are named after the property
-    ('Interpretation', 'Structure', ...) so they don't collide with
-    numeric US codes — but to be safe we prefer nodes whose
-    `node_type` looks stratigraphic.
+    The historical reader behaviour, kept as the no-identity fallback
+    (issue #34): callers that want uuid/label resolution pass their own
+    ``resolve_us_node`` to :func:`import_geometries` or rely on its
+    default :class:`RowIdentityResolver`.
     """
-    if graph is None:
-        return None
-    us_value = None
-    for part in us_key.split(","):
-        if part.startswith("us="):
-            us_value = part.split("=", 1)[1].strip()
-            break
-    if not us_value:
-        return None
-    candidates = [
-        n for n in getattr(graph, "nodes", [])
-        if getattr(n, "name", None) == us_value
-    ]
-    if not candidates:
-        return None
-    for n in candidates:
-        if getattr(n, "node_type", "") in _STRATIGRAPHIC_NODE_TYPES:
-            return n
-    return candidates[0]
+    return resolve_bare(graph, us_key)
 
 
 def _create_one(entry, parent_coll, shift_xyz, db_path, graph_code,
@@ -221,9 +223,11 @@ def _link_to_node(node, obj):
         node.attributes[C.NODE_ATTR_IMPORTED_GEOM_OBJ_NAME] = obj.name
 
 
-def _handle_polygon_orphans(polygons, graph, shift_xyz, db_path, report):
+def _handle_polygon_orphans(polygons, graph, shift_xyz, db_path, report,
+                            resolve_us_node=None):
+    resolver = resolve_us_node or _resolve_us_node
     for poly in polygons:
-        node = _resolve_us_node(graph, poly["us_key"])
+        node = resolver(graph, poly["us_key"])
         if node is not None:
             continue
         orphan_coll = ensure_collection(C.COLL_US_ORPHAN_POLYGONS)
@@ -248,24 +252,8 @@ def _handle_polygon_orphans(polygons, graph, shift_xyz, db_path, report):
         report["polygon_orphans"] += 1
 
 
-def _record_us_without_geometry(polygons, graph, report):
-    if graph is None:
-        return
-    polygon_us_values = set()
-    for p in polygons:
-        for part in p["us_key"].split(","):
-            if part.startswith("us="):
-                polygon_us_values.add(part.split("=", 1)[1].strip())
-                break
-    for node in getattr(graph, "nodes", []):
-        if getattr(node, "node_type", "") not in _STRATIGRAPHIC_NODE_TYPES:
-            continue
-        name = getattr(node, "name", "")
-        if not name or name in polygon_us_values:
-            continue
-        report["us_without_geometry"].append(name)
-        attrs = getattr(graph, "attributes", None)
-        if isinstance(attrs, dict):
-            node_id = getattr(node, "node_id", None) or getattr(node, "id", None)
-            if node_id is not None:
-                attrs.setdefault(C.GRAPH_ATTR_AUX_US_NO_GEOM, []).append(node_id)
+def _record_us_without_geometry(polygons, graph, report, resolve_us_node=None):
+    """«Without geometry» means «no polygon resolved on this node» —
+    not «its name is a number of the table» (issue #34)."""
+    record_us_without_geometry(polygons, graph, report,
+                               resolve_us_node or _resolve_us_node)

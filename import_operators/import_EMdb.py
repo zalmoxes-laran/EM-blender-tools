@@ -142,23 +142,22 @@ class _TableImport:
             show_popup_message(context, title=f"Geometry import {level}",
                                message=msg, icon=icon)
 
-        # N1 · the US keep the label of the mapping (area.settore.tipoNumero)
-        # and the reader finds them through the adapter, its own code unchanged
-        from .pyarchinit_us_adapter import resolving_us_by_label
-        with resolving_us_by_label(db_path, getattr(self, "_name_template", None),
-                                   filters) as resolver:
-            report = _pyarchinit_import_geometries(
-                context=context,
-                db_path=db_path,
-                graph=graph,
-                graph_code=graph_code,
-                force_update=force_update,
-                show_warning_callback=show_warning,
-                filters=filters,
-            )
-        if resolver is not None:
-            report["matched_by"] = {k: list(resolver.how.values()).count(k)
-                                    for k in ("uuid", "label", "bare", "orphan")}
+        # N1 / issue #34 · the US keep the label of the mapping
+        # (area.settore.tipoNumero) and the reader resolves them natively:
+        # node_uuid → mapping label → bare number, with the identity read
+        # from us_table alongside each polygon. The reader also fills
+        # report["matched_by"]. The pyarchinit_us_adapter workaround is
+        # no longer needed on this path.
+        report = _pyarchinit_import_geometries(
+            context=context,
+            db_path=db_path,
+            graph=graph,
+            graph_code=graph_code,
+            force_update=force_update,
+            show_warning_callback=show_warning,
+            filters=filters,
+            name_template=getattr(self, "_name_template", None),
+        )
         self._show_geom_summary(context, report)
         return report
 

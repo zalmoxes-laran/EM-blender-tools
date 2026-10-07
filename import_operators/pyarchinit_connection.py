@@ -103,9 +103,10 @@ def forget_password(host, port, dbname, user):
 def resolve_db_spec(em_tools):
     """Resolve a pyArchInit connection spec from the shared em_tools fields.
 
-    Reads the same connection properties used by the 3D GIS import panel
-    (``pyarchinit_connection_mode`` + SQLite path or PostgreSQL fields)
-    so import and export (Sub-2 / Sub-3) share one connection config.
+    Reads the same connection properties used by EM Data Tree ▸ Import
+    from tables (``pyarchinit_connection_mode`` + SQLite path or
+    PostgreSQL fields) so import and export (Sub-2 / Sub-3) share one
+    connection config.
 
     Returns ``(db_spec, error)``:
 
@@ -125,12 +126,14 @@ def resolve_db_spec(em_tools):
         user = (getattr(em_tools, "pyarchinit_pg_user", "") or "").strip()
         if not (host and dbname and user):
             return None, ("PostgreSQL connection needs host, database and "
-                          "user. Fill them in the 3D GIS import panel.")
+                          "user. Fill them in EM Data Tree ▸ Import from "
+                          "tables.")
         password = getattr(em_tools, "pyarchinit_pg_password", "") or \
             get_password(host, port, dbname, user)
         if not password:
-            return None, ("No PostgreSQL password set. Type it in the 3D GIS "
-                          "panel (and optionally 'Save to keychain').")
+            return None, ("No PostgreSQL password set. Type it in EM Data "
+                          "Tree ▸ Import from tables (and optionally "
+                          "'Save to keychain').")
         return build_connection_url(host, port, dbname, user, password), None
 
     path = getattr(em_tools, "pyarchinit_db_path", "")
