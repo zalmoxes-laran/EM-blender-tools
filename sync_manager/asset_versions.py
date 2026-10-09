@@ -1039,11 +1039,19 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str = "", purpose: str = "
                           room: Optional[str], technique: str = "",
                           parameters: Optional[Dict[str, Any]] = None,
                           use: Optional[List[str]] = None,
-                          made_from: Optional[str] = None
+                          made_from: Optional[str] = None,
+                          packaging: Optional[str] = None,
+                          stamp: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+                          revise: bool = False
                           ) -> Dict[str, Any]:  # pragma: no cover — bpy
     """The gesture behind «Add version…», once the version's mesh and bytes are
     in hand: the version in the graph, the mesh in the asset's library, the
-    object still ONE (showing the level it showed)."""
+    object still ONE (showing the level it showed).
+
+    R4 (E.D., 6 Oct 2026) · ``stamp`` writes the version's dtcstamp, called
+    with ``{version_id, level, source_id, asset_id}`` BEFORE the version enters
+    the graph; a result without ``ok`` cancels it (a version is not born
+    without its stamp). The receipt goes on the version's node."""
     from s3dgraphy import api
     if not hasattr(api, "add_version"):
         raise RuntimeError("this Blender's s3dgraphy has no asset versions "
@@ -1076,15 +1084,40 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str = "", purpose: str = "
                                 texture_count=raw["texture_count"],
                                 texture_side_px=raw["texture_side_px"],
                                 uv_fraction=raw["uv_fraction"], lod0_tris=lod0_tris)
+    stamped = None
+    more = {"revise": True} if revise else {}
+    if stamp is not None:
+        try:
+            from s3dgraphy.resources.versions import planned_version
+            plan = planned_version(graph, source, level=(level or "").strip() or None,
+                                   files=files, revise=revise)
+        except ImportError:         # a s3dgraphy before the revisions of a version
+            from s3dgraphy.resources.versions import lod_steps, version_id_for
+            lvl = (level or "").strip() or f"lod{lod_steps(graph, source)}"
+            plan = {"version_id": version_id_for(source, lvl), "level": lvl,
+                    "revises": None}
+        stamped = stamp({"version_id": plan["version_id"], "level": plan["level"],
+                         "source_id": source, "asset_id": asset_id,
+                         "revises": plan.get("revises")})
+        if not stamped.get("ok"):
+            raise RuntimeError("the version is not born without its stamp: "
+                               + str(stamped.get("why") or stamped.get("line") or "?"))
     out = api.add_version(graph, source, level=level or None, purpose=purpose,
                           use=list(use or []) or None, measures=measures,
-                          master_level=master_level or None,
+                          master_level=master_level or None, packaging=packaging,
                           files=files, residency="resident",
                           primitives={"vertices": raw["vertices"], "faces": raw["faces"],
                                       "triangles": raw["tris"]},
                           technique=technique or None, parameters=parameters,
-                          tool="EM Tools")
+                          tool="EM Tools", **more)
     asset_id = out["asset_id"]
+    vnode = graph.find_node_by_id(out["version_id"])
+    #: a file set is identified by its members digest, not by its door's bytes
+    digest = str(((vnode.data or {}) if vnode is not None else {}).get("checksum") or digest)
+    if stamped is not None:
+        from .. import version_stamp
+        out["stamp"] = {"path": stamped.get("stamp_path", ""), "state": stamped.get("state"),
+                        "receipt": version_stamp.record(graph, out["version_id"], stamped)}
     master = api.versions_of(graph, asset_id)[0]
     base = obj.name
     path = library_abspath(asset_id, room)
@@ -1160,14 +1193,28 @@ def _version_info(context, obj) -> Optional[Dict[str, Any]]:  # pragma: no cover
         return None
 
 
-def _export_glb(mesh, path: str, *, draco: bool = False,
-                viewer: bool = False) -> None:  # pragma: no cover — bpy
+def _export_glb(mesh, path: str, *, draco: bool = False, viewer: bool = False,
+                obj=None, recipe: Optional[Dict[str, Any]] = None,
+                gltf: bool = False) -> None:  # pragma: no cover — bpy
     """The version's bytes when the mesh was made here: a glb of that mesh
     (U1 · Draco-compressed when the use asks for it). ``viewer`` (H4, a version
     for Heriverse/ATON): written by the glTF writer of the old Heriverse
-    exporter, with its settings — the same glTF Heriverse always received."""
+    exporter, with its settings — the same glTF Heriverse always received;
+    ``gltf`` writes it separate (the .gltf with its .bin and textures beside).
+
+    ``recipe`` (``version_recipe``): ``transform: world`` puts ``obj``'s
+    placement in the glTF node, as the old export of RM and RMSF did;
+    ``animations`` carries the object's action with it."""
     bpy = _bpy()
+    recipe = recipe or {}
     tmp = bpy.data.objects.new("_em_version_export", mesh)
+    if obj is not None and recipe.get("transform") == "world":
+        tmp.matrix_world = obj.matrix_world.copy()
+    if (obj is not None and recipe.get("animations", "none") != "none"
+            and getattr(obj, "animation_data", None) is not None
+            and obj.animation_data.action is not None):
+        tmp.animation_data_create()
+        tmp.animation_data.action = obj.animation_data.action
     bpy.context.scene.collection.objects.link(tmp)
     # Q3 · the selection and the active object come back as they were:
     # measured, after «Add version…» the master was no longer selected and
@@ -1183,7 +1230,9 @@ def _export_glb(mesh, path: str, *, draco: bool = False,
                 from ..export_operators.heriverse import export_gltf_with_animation_support
                 export_gltf_with_animation_support(
                     path, bpy.context.window_manager.export_vars, bpy.context.scene,
-                    use_selection=True, format_file="GLB")
+                    use_selection=True, format_file="GLTF_SEPARATE" if gltf else "GLB",
+                    animations=recipe.get("animations") if recipe else None,
+                    frame_range=recipe.get("frame_range") if recipe else None)
             else:
                 bpy.ops.export_scene.gltf(filepath=path, use_selection=True,
                                           export_format="GLB",
@@ -1197,6 +1246,230 @@ def _export_glb(mesh, path: str, *, draco: bool = False,
                 pass
         if was_active is not None:
             layer.objects.active = was_active
+
+
+#: the image files of a glTF the recipe's JPEG quality applies to
+_JPEG = (".jpg", ".jpeg")
+
+
+def reencode_jpegs(paths: List[str], quality: int) -> Dict[str, Any]:
+    """The old export's «Compress Textures» (``compress_paradata_textures``),
+    on the textures of ONE version: each JPEG saved again at ``quality``. A PNG
+    stays a PNG (the old code wrote JPEG bytes into a PNG without alpha: not
+    carried over). ``{reencoded, before, after}`` in bytes, or ``{not_applied}``
+    when Pillow is missing."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return {"not_applied": "jpeg_quality: no Pillow in this Python"}
+    n, before, after = 0, 0, 0
+    for path in paths:
+        if not path.lower().endswith(_JPEG) or not os.path.isfile(path):
+            continue
+        before += os.path.getsize(path)
+        with Image.open(path) as img:
+            img = img.convert("RGB") if img.mode != "RGB" else img.copy()
+        img.save(path, "JPEG", quality=int(quality), optimize=True)
+        after += os.path.getsize(path)
+        n += 1
+    return {"reencoded": n, "before": before, "after": after}
+
+
+def files_of_entry(path: str) -> Dict[str, Any]:
+    """The files of the bytes at ``path`` as ``api.add_version`` takes them,
+    measured the way the stamp measures them (``dtcstamp.follow_references``:
+    a .gltf with its .bin and images, an .obj with its .mtl and textures), the
+    entry point first. ``{files, missing}``; one file when it calls nothing."""
+    from ..resource_digest import dtcstamp
+    entry = os.path.abspath(path)
+    base = os.path.dirname(entry)
+    found = dtcstamp().follow_references(entry)
+    members = found.get("members") or []
+    door = os.path.basename(entry)
+    files = []
+    for m in sorted(members, key=lambda m: (m.get("role") != "entry_point", m["path"])):
+        spec = {"path": m["path"], "url": os.path.join(base, *m["path"].split("/")),
+                "checksum": m["digest"], "size_bytes": int(m.get("size_bytes") or 0),
+                "role": "entry_point" if m["path"] == door else "member"}
+        if spec["role"] == "entry_point" and door.lower().endswith(".gltf"):
+            spec["media_type"] = "model/gltf+json"
+        files.append(spec)
+    if len(files) <= 1:
+        files = [{"path": door, "url": entry, "checksum": dtcstamp().file_digest(entry),
+                  "size_bytes": os.path.getsize(entry)}]
+    return {"files": files, "missing": list(found.get("missing") or [])}
+
+
+def write_version(obj, mesh, recipe: Dict[str, Any], folder: str, base: str
+                  ) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The bytes of a version as its RECIPE says (``version_recipe``, E.D. 6 Oct
+    2026). A glTF separate goes in a folder of its own named by its content
+    (``<base>-<hex8>/<object>.gltf`` with its ``.bin`` and textures), so a
+    version's files are never written over another's; a glb is one file.
+
+    → ``{entry, files, applied, packaging}``: ``files`` as ``api.add_version``
+    takes them (the entry point first), ``applied`` what was measured."""
+    import shutil
+    import uuid
+    from .asset_upload import sha256_of_file
+    gltf = recipe["format"] == "gltf_separate"
+    applied: Dict[str, Any] = {}
+    if not gltf:
+        path = os.path.join(folder, f"{base}.glb")
+        _export_glb(mesh, path, draco=recipe.get("draco", False),
+                    viewer=recipe.get("viewer", False), obj=obj, recipe=recipe)
+        size = os.path.getsize(path)
+        applied["size_bytes"] = size
+        return {"entry": path, "packaging": None, "applied": applied,
+                "files": [{"path": os.path.basename(path), "url": path,
+                           "checksum": _digest(sha256_of_file(path)), "size_bytes": size,
+                           "media_type": "model/gltf-binary"}]}
+    writing = os.path.join(folder, f".writing-{uuid.uuid4().hex[:8]}")
+    os.makedirs(writing)
+    try:
+        stem = safe(getattr(obj, "name", "") or base)
+        entry = os.path.join(writing, f"{stem}.gltf")
+        _export_glb(mesh, entry, viewer=True, obj=obj, recipe=recipe, gltf=True)
+        measured = files_of_entry(entry)
+        if measured["missing"]:
+            raise RuntimeError("the glTF names files that were not written: "
+                               f"{measured['missing'][:3]}")
+        if recipe.get("jpeg_quality"):
+            applied.update(reencode_jpegs(
+                [os.path.join(writing, *f["path"].split("/")) for f in measured["files"]],
+                recipe["jpeg_quality"]))
+            measured = files_of_entry(entry)       # the bytes changed: measured again
+        from ..resource_digest import members_digest
+        whole = members_digest(measured["files"])
+        final = os.path.join(folder, f"{base}-{whole.split(':')[-1][:8]}")
+        if os.path.isdir(final):
+            shutil.rmtree(writing)          # the same bytes are there already
+        else:
+            os.replace(writing, final)
+    except Exception:
+        shutil.rmtree(writing, ignore_errors=True)
+        raise
+    files = files_of_entry(os.path.join(final, f"{stem}.gltf"))["files"]
+    applied.update(files=len(files), size_bytes=sum(f["size_bytes"] for f in files),
+                   textures=sum(1 for f in files[1:] if not f["path"].endswith(".bin")))
+    return {"entry": files[0]["url"], "files": files, "applied": applied,
+            "packaging": "file_set"}
+
+
+def document_of(graph, obj) -> str:  # pragma: no cover — bpy
+    """The document an RMDoc quad represents: its ``em_doc_node_id`` (the
+    Document Manager's), else — the old exporter's convention — a document,
+    extractor or combiner of the graph with the object's name. ``""``."""
+    doc_id = str(obj.get("em_doc_node_id", "") or "")
+    if doc_id or graph is None:
+        return doc_id
+    for kind in ("document", "extractor", "combiner"):
+        for n in graph.indices.nodes_by_type.get(kind, []):
+            if n.name == obj.name:
+                return n.node_id
+    return ""
+
+
+def seat_representation(context, graph, obj, recipe: Dict[str, Any]
+                        ) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The representation node a version of ``obj`` hangs off, by category,
+    and its placement when the recipe puts it on the node.
+
+    * an **RMDoc** quad (``em_doc_node_id``): the ``<document>_rm_doc`` node
+      (made from the scene by ``graph_updaters`` when missing), so its version
+      is the RMDoc's, not an RM's;
+    * an **RMSF** (the anastylosis list): its ``<object>_rmsf`` node, made as
+      the old export made it when missing, tied to its special find;
+    * an **RM**: the model it has (``seat_model_of``), as before.
+
+    ``transform: node`` writes the object's location, rotation and scale on
+    that node (``data.transform``), which Heriverse applies — the old «Preserve
+    Transforms for each RMDoc». → ``{node_id, placement}``."""
+    from .. import version_recipe as VR
+    category = recipe.get("category", "rm")
+    #: as the old export read it: the euler, or the quaternion as an XYZ euler
+    rotation = (obj.rotation_euler if obj.rotation_mode != "QUATERNION"
+                else obj.rotation_quaternion.to_euler("XYZ"))
+    placement = (VR.placement(obj.location, rotation, obj.scale)
+                 if recipe.get("transform") == "node" else None)
+    node_id = ""
+    if category == "rmdoc":
+        doc_id = document_of(graph, obj)
+        doc = graph.find_node_by_id(doc_id) if doc_id else None
+        if doc is None:
+            raise RuntimeError(f"{obj.name}: its document {doc_id or '?'} is not in this graph")
+        node_id = f"{doc_id}_rm_doc"
+        if graph.find_node_by_id(node_id) is None and obj.get("em_doc_node_id"):
+            from ..graph_updaters import update_representation_model_docs
+            update_representation_model_docs(graph)
+        if graph.find_node_by_id(node_id) is None:
+            #: the old convention (a mesh named as the document): the RMDoc
+            #: node as the old exporter made it
+            from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
+            graph.add_node(RepresentationModelDocNode(
+                node_id=node_id, name=f"RM for {doc.name}", type="RM",
+                transform=VR.placement(obj.location, rotation, obj.scale),
+                description=f"Representation model for {doc.node_type} {doc.name}"))
+            graph.add_edge(edge_id=f"{doc_id}_has_representation_model_doc_{node_id}",
+                           edge_source=doc_id, edge_target=node_id,
+                           edge_type="has_representation_model_doc")
+    elif category == "rmsf":
+        item = next((i for i in context.scene.em_tools.anastylosis.list
+                     if i.name == obj.name), None)
+        node_id = (getattr(item, "node_id", "") or f"{obj.name}_rmsf") if item else f"{obj.name}_rmsf"
+        if graph.find_node_by_id(node_id) is None:
+            from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
+            graph.add_node(RepresentationModelSpecialFindNode(
+                node_id=node_id, name=f"RMSF for {obj.name}", type="RM",
+                transform=VR.placement(obj.location, rotation, obj.scale),
+                description=f"Representation model for "
+                            f"{getattr(item, 'sf_node_name', '') or 'Special Find'}"))
+            sf_id = str(getattr(item, "sf_node_id", "") or "")
+            if sf_id and graph.find_node_by_id(sf_id) is not None:
+                edge_id = f"{sf_id}_has_representation_model_{node_id}"
+                if graph.find_edge_by_id(edge_id) is None:
+                    graph.add_edge(edge_id=edge_id, edge_source=sf_id,
+                                   edge_target=node_id, edge_type="has_representation_model")
+    if node_id and obj.get("em_rm_node_id") != node_id:
+        obj["em_rm_node_id"] = node_id          # the version hangs off THIS node
+    if placement is not None:
+        target = node_id
+        if not target:
+            from ..rm_manager.containers import resolve_rm_node_id
+            target = resolve_rm_node_id(graph, obj, scene=context.scene, migra=False) or ""
+        node = graph.find_node_by_id(target) if target else None
+        if node is not None:
+            node.data["transform"] = placement
+            if hasattr(node, "transform"):
+                node.transform = placement
+    return {"node_id": node_id, "placement": placement}
+
+
+def _stamper(graph, obj, files: List[Dict[str, Any]], technique: str,
+             parameters: Dict[str, Any], *, label: str):  # pragma: no cover — bpy
+    """R4 · the stamp of a version about to be born (`version_stamp`): its
+    input is the version or master it is made from, its recipe the step's
+    parameters, its expected digest the one the graph will register."""
+    def stamp(info: Dict[str, Any]) -> Dict[str, Any]:
+        from .. import birth_stamp as BS
+        from .. import version_stamp as VS
+        from ..resource_digest import members_digest
+        master = BS.master_of(obj, graph=graph, scene=_bpy().context.scene)
+        inputs = VS.inputs_for(graph, info["source_id"], master=master)
+        expected = members_digest(files) if len(files) > 1 else str(files[0]["checksum"])
+        operator, software = VS.operator_and_software()
+        revision_of = None
+        if info.get("revises"):
+            old = graph.find_node_by_id(info["revises"])
+            revision_of = {"resource_id": info["revises"],
+                           "digest": str(((old.data or {}) if old is not None else {})
+                                         .get("checksum") or "")}
+        return VS.stamp_version(VS.entry_of(files), version_id=info["version_id"],
+                                inputs=inputs, technique=technique,
+                                parameters=parameters, label=label,
+                                expected_digest=expected, operator=operator,
+                                software=software, revision_of=revision_of)
+    return stamp
 
 
 def _room_id() -> Optional[str]:  # pragma: no cover — bpy
@@ -1307,6 +1580,9 @@ def _operator_classes():  # pragma: no cover — bpy
                         return {"CANCELLED"}
                     mesh = mesh_from_file(path, frame=obj.matrix_world.copy())
                     other = None
+                    #: R4 · the file as the stamp measures it: an .obj with its
+                    #: .mtl and textures is one resource of several files
+                    files = files_of_entry(path)["files"]
                 else:
                     if self.source == "SELECTED":
                         other = next((o for o in context.selected_objects
@@ -1329,17 +1605,22 @@ def _operator_classes():  # pragma: no cover — bpy
                     path = os.path.join(folder, f"{safe(obj.name)}{SEP}"
                                                 f"{safe(self.level or self.computed or 'version')}.glb")
                     _export_glb(mesh, path)
+                    files = [{"path": os.path.basename(path), "url": path,
+                              "checksum": _digest(sha256_of_file(path)),
+                              "size_bytes": os.path.getsize(path)}]
                 if mesh is None:
                     self.report({"ERROR"}, "no geometry in that file")
                     return {"CANCELLED"}
-                files = [{"path": os.path.basename(path), "url": path,
-                          "checksum": _digest(sha256_of_file(path)),
-                          "size_bytes": os.path.getsize(path)}]
+                parameters = dict(parameters, source=self.source.lower(),
+                                  tool="EM Tools · Add version")
                 out = add_version_from_mesh(
                     graph, obj, mesh, level=self.level.strip(),
                     master_level=self.master_level, files=files, room=room,
                     technique=technique, parameters=parameters,
-                    use=sorted(self.use), made_from=_shown_version(obj))
+                    use=sorted(self.use), made_from=_shown_version(obj),
+                    packaging="file_set" if len(files) > 1 else None,
+                    stamp=_stamper(graph, obj, files, technique, parameters,
+                                   label=f"{obj.name} {self.level.strip() or self.computed}"))
             except Exception as exc:  # noqa: BLE001 — the reason is the user's
                 self.report({"ERROR"}, f"could not add the version: {exc}")
                 return {"CANCELLED"}
@@ -1354,12 +1635,49 @@ def _operator_classes():  # pragma: no cover — bpy
                                   f"{', '.join(out['levels'])}")
             return {"FINISHED"}
 
+    def _recipe_defaults(op, context):
+        """The recipe's fields preset by the object's category and the uses
+        (`version_recipe.defaults`): the old Heriverse export's for a viewer."""
+        from .. import version_recipe as VR
+        rec = VR.defaults(op.category, op.use, VR.scene_values(context.scene))
+        op.format, op.transform = rec["format"], rec["transform"]
+        op.max_texture, op.jpeg_quality = rec["max_texture_px"], rec["jpeg_quality"]
+        op.animations, op.frame_range = rec["animations"], rec["frame_range"]
+        op.draco, op.ratio = rec["draco"], rec["ratio"]
+        op.recipe_ready = True
+
+    def _detect_category(context, obj) -> str:
+        from .. import version_recipe as VR
+        if obj is None:
+            return "rm"
+        em = context.scene.em_tools
+        names = {i.name for i in em.anastylosis.list} if hasattr(em, "anastylosis") else set()
+        return VR.category_of(doc_node_id=document_of(_graph(context), obj),
+                              in_anastylosis=obj.name in names)
+
+    def _on_use(self, context):
+        #: the uses may be set before anything else (a call with use=…): the
+        #: category is read from the object first, then the recipe preset
+        if not self.category_known:
+            self.category = _detect_category(context, context.active_object)
+        _recipe_defaults(self, context)
+
+    def _on_category(self, context):
+        self.category_known = True
+        _recipe_defaults(self, context)
+
+    def _on_field(self, context):
+        self.recipe_ready = True
+
+    from .. import version_recipe as _VR
+
     class EM_OT_asset_prepare_for_use(bpy.types.Operator):
         """Prepare a version of what the object shows for a use (web,
-        realtime…): decimated, its textures capped, Draco-compressed — a
-        distribution version with its use, its computed level, the numbers
-        measured and the step recorded in the DTC. It takes the place of the
-        optimisation hidden in the Heriverse exporter"""
+        realtime, Heriverse, ATON…): a distribution version with its use, its
+        computed level, the numbers measured, and its RECIPE — how its bytes
+        were written, preset by the object's category (RM, RMDoc, RMSF) —
+        recorded in the DTC step and in the version's dtcstamp. For Heriverse
+        and ATON it is a glTF with its textures, as the old exporter wrote it"""
 
         bl_idname = "em.asset_prepare_for_use"
         bl_label = "Prepare for a use…"
@@ -1368,22 +1686,81 @@ def _operator_classes():  # pragma: no cover — bpy
         use: bpy.props.EnumProperty(  # type: ignore
             name="For", options={"ENUM_FLAG"}, default={"web"},
             description="What this version is for — one or more",
-            items=[(k, label, tip) for k, label, tip in USES])
+            items=[(k, label, tip) for k, label, tip in USES],
+            update=_on_use)
+        category: bpy.props.EnumProperty(  # type: ignore
+            name="Category", default="rm", items=list(_VR.CATEGORIES),
+            options={"SKIP_SAVE"},
+            description="What the object is: its recipe starts from the old "
+                        "export's for that category",
+            update=_on_category)
+        format: bpy.props.EnumProperty(  # type: ignore
+            name="Format", default="glb", items=list(_VR.FORMATS), update=_on_field)
+        transform: bpy.props.EnumProperty(  # type: ignore
+            name="Placement", default="local", items=list(_VR.TRANSFORMS),
+            update=_on_field)
         ratio: bpy.props.FloatProperty(  # type: ignore
-            name="Decimate to", default=1.0, min=0.001, max=1.0,
+            name="Decimate to", default=1.0, min=0.001, max=1.0, update=_on_field,
             description="The share of the triangles kept (1: no decimation)")
         max_texture: bpy.props.IntProperty(  # type: ignore
             name="Largest texture side", default=2048, min=0, soft_max=8192,
+            update=_on_field,
             description="Textures larger than this are scaled down, px (0: kept)")
+        jpeg_quality: bpy.props.IntProperty(  # type: ignore
+            name="JPEG quality", default=0, min=0, max=100, update=_on_field,
+            description="The JPEG textures saved again at this quality (0: as they are)")
+        animations: bpy.props.EnumProperty(  # type: ignore
+            name="Animations", default="none", items=list(_VR.ANIMATIONS),
+            update=_on_field)
+        frame_range: bpy.props.BoolProperty(  # type: ignore
+            name="Frame range only", default=True, update=_on_field)
         draco: bpy.props.BoolProperty(  # type: ignore
-            name="Draco compression", default=True,
-            description="Compress the geometry of the glb (Draco)")
-        computed: bpy.props.StringProperty(default="", options={"HIDDEN"})  # type: ignore
+            name="Draco compression", default=True, update=_on_field,
+            description="Compress the geometry of the glb (Draco); never for "
+                        "Heriverse/ATON (Q5)")
+        level: bpy.props.StringProperty(  # type: ignore
+            name="Name", default="", options={"SKIP_SAVE"},
+            description=("The version's name. Empty: the level the chain gives; "
+                         "a version already there for the same use is REVISED "
+                         "(made again with this recipe), one for other uses keeps "
+                         "its level and this one is named after its uses"))
+        #: SKIP_SAVE: Blender remembers an operator's last values, and a run
+        #: without the dialog (the Deck, a script) must start from the
+        #: object's category and level, not from the previous object's
+        recipe_ready: bpy.props.BoolProperty(  # type: ignore
+            default=False, options={"HIDDEN", "SKIP_SAVE"})
+        category_known: bpy.props.BoolProperty(  # type: ignore
+            default=False, options={"HIDDEN", "SKIP_SAVE"})
+        computed: bpy.props.StringProperty(  # type: ignore
+            default="", options={"HIDDEN", "SKIP_SAVE"})
 
         @classmethod
         def poll(cls, context):
             obj = context.active_object
             return obj is not None and obj.type == "MESH"
+
+        def _level_and_revise(self, context, graph, obj):
+            """The level this version takes and whether it revises the one
+            there: same use → a revision (the recipe changed), other uses →
+            the level named after the uses (``lod0-aton-heriverse``)."""
+            from s3dgraphy import api
+            lvl = self.level.strip() or self.computed or ""
+            src = _shown_version(obj) or master_of(graph, obj, context.scene)
+            if not lvl or not src:
+                return lvl, False
+            tag = "-".join(sorted(self.use))
+            for _ in range(2):
+                same = [e for e in api.versions_of(graph, api.asset_of(graph, src))
+                        if not e["master"] and e["level"] == lvl]
+                if not same:
+                    return lvl, False
+                if set(same[0].get("use") or []) & set(self.use):
+                    return lvl, True
+                lvl = f"{lvl}-{tag}"
+            return lvl, False
+
+        def _category_of(self, context, obj):
+            return _detect_category(context, obj)
 
         def invoke(self, context, event):
             obj = context.active_object
@@ -1393,11 +1770,13 @@ def _operator_classes():  # pragma: no cover — bpy
                 try:
                     from s3dgraphy.resources.versions import lod_steps
                     src = _shown_version(obj) or master_of(graph, obj, context.scene)
-                    if src:
-                        self.computed = f"lod{lod_steps(graph, src)}"
+                    #: D1 · a model with no version yet: its first is lod0
+                    self.computed = f"lod{lod_steps(graph, src)}" if src else "lod0"
                 except Exception:  # noqa: BLE001
                     pass
-            return context.window_manager.invoke_props_dialog(self, width=420)
+            self.category = self._category_of(context, obj)
+            _recipe_defaults(self, context)
+            return context.window_manager.invoke_props_dialog(self, width=440)
 
         def draw(self, context):
             col = self.layout.column()
@@ -1405,9 +1784,37 @@ def _operator_classes():  # pragma: no cover — bpy
                            f"from what the object shows", icon="SORTSIZE")
             col.label(text="For")
             col.prop(self, "use")
-            col.prop(self, "ratio")
-            col.prop(self, "max_texture")
-            col.prop(self, "draco")
+            box = col.box()
+            box.label(text="Recipe (written in the version and in its stamp)",
+                      icon="PRESET")
+            col.prop(self, "level")
+            box.prop(self, "category")
+            box.prop(self, "format")
+            box.prop(self, "transform")
+            box.prop(self, "ratio")
+            row = box.row(align=True)
+            row.prop(self, "max_texture")
+            row.prop(self, "jpeg_quality")
+            row = box.row(align=True)
+            row.prop(self, "animations")
+            if self.animations != "none":
+                row.prop(self, "frame_range")
+            viewer = _VR.is_viewer(self.use)
+            sub = box.row()
+            sub.enabled = not viewer
+            sub.prop(self, "draco")
+            if viewer:
+                box.label(text="Heriverse/ATON: the model as it is, no Draco (Q5)",
+                          icon="INFO")
+
+        def recipe(self):
+            return _VR.checked({"category": self.category, "format": self.format,
+                                "transform": self.transform,
+                                "max_texture_px": self.max_texture,
+                                "jpeg_quality": self.jpeg_quality,
+                                "animations": self.animations,
+                                "frame_range": self.frame_range,
+                                "draco": self.draco, "ratio": self.ratio}, self.use)
 
         def execute(self, context):
             graph = _graph(context)
@@ -1419,12 +1826,29 @@ def _operator_classes():  # pragma: no cover — bpy
                 self.report({"ERROR"}, "say what the version is for")
                 return {"CANCELLED"}
             obj = context.active_object
+            if not self.recipe_ready:      # run without its dialog (a script, the Deck)
+                if not self.category_known:
+                    self.category = self._category_of(context, obj)
+                _recipe_defaults(self, context)
+            try:
+                recipe = self.recipe()
+            except ValueError as exc:
+                self.report({"ERROR"}, str(exc))
+                return {"CANCELLED"}
+            viewer = _VR.is_viewer(self.use)
+            recipe["viewer"] = viewer
+            try:
+                #: first: an RMDoc / RMSF finds its node, and its level after it
+                seated = seat_representation(context, graph, obj, recipe)
+            except Exception as exc:  # noqa: BLE001 — the reason is the user's
+                self.report({"ERROR"}, f"could not prepare the version: {exc}")
+                return {"CANCELLED"}
             if not self.computed:          # run without its dialog (a script)
                 try:
                     from s3dgraphy.resources.versions import lod_steps
                     src = _shown_version(obj) or master_of(graph, obj, context.scene)
-                    if src:
-                        self.computed = f"lod{lod_steps(graph, src)}"
+                    #: D1 · a model with no version yet: its first is lod0
+                    self.computed = f"lod{lod_steps(graph, src)}" if src else "lod0"
                 except Exception:  # noqa: BLE001
                     pass
             room = _room_id()
@@ -1435,15 +1859,15 @@ def _operator_classes():  # pragma: no cover — bpy
             try:
                 deps = context.evaluated_depsgraph_get()
                 mod = None
-                if self.ratio < 1.0:
+                if recipe["ratio"] < 1.0:
                     mod = obj.modifiers.new("_em_prepare", "DECIMATE")
-                    mod.ratio = self.ratio
+                    mod.ratio = recipe["ratio"]
                     deps = context.evaluated_depsgraph_get()
                 mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(deps))
                 if mod is not None:
                     obj.modifiers.remove(mod)
                 resized = 0
-                if self.max_texture:
+                if recipe["max_texture_px"]:
                     for i, mat in enumerate(list(mesh.materials)):
                         if mat is None or mat.node_tree is None:
                             continue
@@ -1454,7 +1878,7 @@ def _operator_classes():  # pragma: no cover — bpy
                             if img is None or not img.size[0]:
                                 continue
                             side = max(img.size[0], img.size[1])
-                            want = resized_side(side, self.max_texture)
+                            want = resized_side(side, recipe["max_texture_px"])
                             if want >= side:
                                 continue
                             small = img.copy()
@@ -1466,20 +1890,26 @@ def _operator_classes():  # pragma: no cover — bpy
                             resized += 1
                         mesh.materials[i] = copy
                 tag = "-".join(sorted(self.use))
-                path = os.path.join(folder, f"{safe(obj.name)}{SEP}"
-                                            f"{safe(self.computed or 'version')}-{safe(tag)}.glb")
-                viewer = bool(set(self.use) & set(VIEWER_PACKAGE_USES))
-                _export_glb(mesh, path, draco=self.draco and not viewer, viewer=viewer)
-                size = os.path.getsize(path)
-                step = prepare_step(ratio=self.ratio, max_side=self.max_texture,
-                                    draco=self.draco and not viewer, resized=resized,
-                                    size_bytes=size)
-                files = [{"path": os.path.basename(path), "url": path,
-                          "checksum": _digest(sha256_of_file(path)), "size_bytes": size}]
+                level, revise = self._level_and_revise(context, graph, obj)
+                base = f"{safe(obj.name)}{SEP}{safe(level or self.computed or 'version')}"
+                if tag not in base:
+                    base = f"{base}-{safe(tag)}"
+                written = write_version(obj, mesh, recipe, folder, base)
+                applied = dict(written["applied"], textures_resized=resized)
+                if seated.get("placement"):
+                    applied["placement"] = seated["placement"]
+                technique = _VR.technique_of(recipe, resized=resized,
+                                             reencoded=applied.get("reencoded", 0))
+                params = _VR.step_parameters(
+                    {k: v for k, v in recipe.items() if k != "viewer"}, applied=applied)
+                files = written["files"]
                 out = add_version_from_mesh(
                     graph, obj, mesh, files=files, room=room,
-                    technique=step["technique"], parameters=step["parameters"],
-                    use=sorted(self.use), made_from=_shown_version(obj))
+                    technique=technique, parameters=params,
+                    use=sorted(self.use), made_from=_shown_version(obj),
+                    packaging=written["packaging"], level=level, revise=revise,
+                    stamp=_stamper(graph, obj, files, technique, params,
+                                   label=f"{obj.name} for {', '.join(sorted(self.use))}"))
             except Exception as exc:  # noqa: BLE001 — the reason is the user's
                 for block in made:
                     try:
@@ -1489,13 +1919,18 @@ def _operator_classes():  # pragma: no cover — bpy
                         pass
                 self.report({"ERROR"}, f"could not prepare the version: {exc}")
                 return {"CANCELLED"}
+            size = applied.get("size_bytes", 0)
+            step = {"technique": technique, "parameters": params}
             PREPARED.clear()
-            PREPARED.update({**out, "step": step, "glb": path})
+            PREPARED.update({**out, "step": step, "glb": written["entry"],
+                             "entry": written["entry"], "files": files,
+                             "recipe": recipe, "seated": seated})
             for w in out["warnings"]:
                 self.report({"WARNING"}, w)
             self.report({"INFO"}, f"{obj.name}: {out['level']} = {out.get('lod_level') or '?'} "
                                   f"for {', '.join(out.get('use') or [])} · "
-                                  f"{step['technique']} · {size // 1024} kB · "
+                                  f"{_VR.said(recipe)} · {technique} · {len(files)} file(s), "
+                                  f"{size // 1024} kB · stamped · "
                                   f"{_measures_line(out.get('measures') or {})}")
             return {"FINISHED"}
 

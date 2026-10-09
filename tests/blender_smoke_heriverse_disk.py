@@ -148,12 +148,20 @@ print("[SMOKE] written:", json.dumps(rep.get("written"), indent=1))
 em = json.load(open(os.path.join(dest, "em.json"), encoding="utf-8"))
 nodes = {n["id"]: n for g in em["graphs"].values() if isinstance(g.get("nodes"), list)
          for n in g["nodes"]}
+rd = importlib.import_module(PKG + ".resource_digest")
 for vid in (web_vid, h.get("version_id")):
     d = (nodes.get(vid) or {}).get("data") or {}
     url = d.get("url", "")
     path = os.path.join(dest, *url.split("/"))
-    ok = (url.startswith("versions/") and os.path.isfile(path) and "sha256:" +
-          hashlib.sha256(open(path, "rb").read()).hexdigest() == d.get("checksum"))
+    if d.get("digest_covers") == "members":
+        #: a glTF with its .bin and textures (the recipe, 6 Oct 2026): each file
+        #: where the .gltf names it, and the set hashing to the registered digest
+        found = rd.dtcstamp().follow_references(path)
+        whole = rd.dtcstamp().members_digest(found["members"]) if not found["missing"] else ""
+        ok = url.startswith("versions/") and whole == d.get("checksum")
+    else:
+        ok = (url.startswith("versions/") and os.path.isfile(path) and "sha256:" +
+              hashlib.sha256(open(path, "rb").read()).hexdigest() == d.get("checksum"))
     check(f"{vid[:8]}: url relative, bytes = registered sha256", ok, url)
 check("project.json is the same document",
       open(os.path.join(dest, "project.json")).read() == open(os.path.join(dest, "em.json")).read())

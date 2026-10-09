@@ -6,10 +6,16 @@ import bpy
 
 def export_gltf_with_animation_support(filepath, export_vars, scene, use_selection=True,
                                        export_extras=False, export_gpu_instances=False,
-                                       format_file="GLTF_SEPARATE"):
+                                       format_file="GLTF_SEPARATE", animations=None,
+                                       frame_range=None, image_quality=None):
     """Template function per l'export glTF con supporto animazioni.
 
     Usato per sostituire tutte le chiamate dirette a bpy.ops.export_scene.gltf().
+
+    ``animations`` (``none`` / ``active`` / ``all``), ``frame_range`` and
+    ``image_quality`` come from the RECIPE of a version (``version_recipe``,
+    E.D. 6 Oct 2026); left None, the scene's ``export_vars`` decide, as the old
+    exporter's panel did.
     """
     export_params = {
         'filepath': str(filepath),
@@ -35,13 +41,23 @@ def export_gltf_with_animation_support(filepath, export_vars, scene, use_selecti
     if export_gpu_instances:
         export_params['export_gpu_instances'] = True
 
-    if export_vars.heriverse_export_animations:
+    if image_quality:
+        export_params['export_image_quality'] = int(image_quality)
+    if animations is None:
+        animate = bool(export_vars.heriverse_export_animations)
+        all_of_them = bool(export_vars.heriverse_export_all_animations)
+        in_range = bool(export_vars.heriverse_animation_frame_range)
+    else:
+        animate = animations != "none"
+        all_of_them = animations == "all"
+        in_range = True if frame_range is None else bool(frame_range)
+    if animate:
         export_params.update({
             'export_animations': True,
-            'export_frame_range': export_vars.heriverse_animation_frame_range,
+            'export_frame_range': in_range,
             'export_frame_step': 1,
             'export_force_sampling': True,
-            'export_nla_strips': export_vars.heriverse_export_all_animations,
+            'export_nla_strips': all_of_them,
             'export_def_bones': True,
             'export_current_frame': False,
             'export_skins': True,

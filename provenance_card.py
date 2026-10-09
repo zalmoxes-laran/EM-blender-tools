@@ -77,7 +77,25 @@ def card(graph: Any, resource_id: str,
         })
     return {"resource": node.node_id, "name": str(getattr(node, "name", "") or ""),
             "state": states.get(node.node_id, ""), "steps": steps,
-            "used_by": len(chain.get("used_by") or [])}
+            "used_by": len(chain.get("used_by") or []),
+            "stamp": _stamp_of(graph, node)}
+
+
+def _stamp_of(graph: Any, node: Any) -> Optional[Dict[str, Any]]:
+    """R4 · the version's dtcstamp, checked against its bytes
+    (`version_stamp.check`): None for a resource that has no stamp and no
+    receipt — nothing to say."""
+    try:
+        from . import version_stamp
+    except ImportError:
+        import version_stamp  # type: ignore
+    try:
+        st = version_stamp.check(graph, node.node_id)
+    except Exception as exc:  # noqa: BLE001 — a card never breaks
+        return {"state": "unreadable", "line": str(exc), "mother": False}
+    if st["state"] == "no_stamp" and not st.get("receipt"):
+        return None
+    return st
 
 
 def lines(c: Dict[str, Any], glyph=lambda state: "") -> List[str]:
@@ -107,6 +125,12 @@ def lines(c: Dict[str, Any], glyph=lambda state: "") -> List[str]:
             out.append(f"from: +{s['more']} more")
     if c.get("used_by"):
         out.append(f"used by {c['used_by']} later step(s)")
+    if c.get("stamp"):
+        try:
+            from . import version_stamp
+        except ImportError:
+            import version_stamp  # type: ignore
+        out.append(version_stamp.said(c["stamp"]))
     return out
 
 
@@ -194,7 +218,9 @@ def draw(layout, context, resource_id: str) -> None:  # pragma: no cover — bpy
     col.label(text=said[0], icon="FILE")
     for line in said[1:]:
         icon = ("SETTINGS" if line.startswith("made by") else
-                "IMPORT" if line.startswith("from:") else "BLANK1")
+                "IMPORT" if line.startswith("from:") else
+                "CHECKMARK" if line.startswith("stamp ✓") else
+                "ERROR" if line.startswith(("stamp ▲", "no stamp")) else "BLANK1")
         col.label(text=line[:90], icon=icon)
     op = box.operator("em.open_in_emstudio", text="Open in EMStudio", icon="WINDOW")
     op.node_id = c["resource"]

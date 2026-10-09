@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — The parameters become the recipe of the version (MICRO, E.D. 6 October 2026)
+- **The recipe of a version.** «Prepare for a use…» has the parameters of the
+  old Heriverse export, preset by the object's category and written in the
+  version's `lod_generation` step and in its stamp (`version_recipe.py`): for
+  Heriverse/ATON a **glTF with its .bin and textures** in a folder of its own
+  (`<object>@<level>-<uses>-<digest8>/`), one version of several files
+  (`file_set`, checksum = members digest, url = the `.gltf`). RM and RMSF: the
+  object's placement in the glTF node, textures as they are. RMDoc: the quad at
+  the origin and its placement on the RMDoc node («Preserve Transforms for each
+  RMDoc»), textures capped and JPEGs re-encoded at the size and quality the
+  scene keeps (`heriverse_rmdoc_texture_max_res` / `_quality`: 1024 px and 60
+  on Templu Mare v2). Animations (none / active / all, frame range) are
+  parameters too; Draco never for a viewer (Q5). An RMDoc's version hangs off
+  its RMDoc node, an RMSF's off its RMSF node (made as the old export made it
+  when missing). Made again at a level whose version has the same use, a
+  version is a **revision** of it (the glb for Heriverse becomes a glTF); with
+  other uses the level is named after the uses. Measured on a copy of Templu
+  Mare v2 against the old exporter run on the same objects: the same glTF
+  nodes, vertices, textures and placements (smoke `blender_smoke_heriverse_recipe.py`).
+- **Every version is born with its dtcstamp** (R4, «molto importante»). «Prepare
+  for a use…» and «Add version…» (Asset versions, the LODs) write the stamp
+  BEFORE the version enters the graph (`version_stamp.py`, the writer of
+  `birth_stamp`): the input of the step by id and digest (the mother version, or
+  the master datablock with its fingerprint and the sha256 of its .blend), the
+  recipe as `how.parameters`, the technique, the software, `was_revision_of`
+  for a revision; a stamp that cannot be written, or measures other bytes than
+  the graph will register, cancels the version. The graph keeps the receipt
+  (`stamp_receipt`, the Shelf's form). «Where it comes from» says «stamp ✓ … ·
+  from its mother», checked member by member. The package on disk is stamped
+  too (a tree, made from the versions it carries).
+- **The package on disk carries what the old exporter carried.** «Write the
+  package on disk» has its old parameters with the defaults the .blend kept
+  (RM, RMDoc, RMSF, proxies, DosCo, panorama, zip, keep tilesets already
+  there): a glTF with its textures goes in `versions/<model>@<tag>/`, each file
+  checked and the set against its members digest; a tileset's tree in
+  `tilesets/`, checked by its content digest; the url of an RMDoc or an RMSF is
+  its version's (Heriverse opens an RMDoc by its own url); the proxies' glb in
+  `proxies/`, the DosCo in `dosco/` (urls rewritten), the default sky in
+  `panorama/` named in `defaults.panorama` with the epochs' HDRs; the models
+  not published are left out of its em.json (left in, Heriverse asked for 97
+  versions outside the package). The same version for two models is written
+  once. Measured: Heriverse opens the package from the folder, the RM with its
+  glTF, .bin and texture, no request to a node.
+
 ### Changed — Clean panels (MICRO pannelli puliti, 6 October 2026)
 - **Where you work says only what says something.** On this computer it is one
   line, «□ On this computer · <file>» with Change… (and Log… as an icon):
