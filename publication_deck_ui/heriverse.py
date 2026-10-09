@@ -389,13 +389,15 @@ def extras_for(context, graphs: Dict[str, Any], *, proxies=True, dosco=True,
     if panorama:
         sky = os.path.join(_addon_root(), "resources", "panorama", PH.DEFAULT_PANORAMA)
         out["panorama"] = sky if os.path.isfile(sky) else ""
-        lights = {}
-        for epoch in context.scene.em_tools.epochs.list:
-            if getattr(epoch, "epoch_lighting_enabled", False) and getattr(epoch, "epoch_hdr_path", ""):
-                lights[epoch.name] = {"path": bpy.path.abspath(epoch.epoch_hdr_path),
-                                      "rotation": epoch.epoch_hdr_rotation,
-                                      "intensity": epoch.epoch_hdr_intensity}
-        out["epoch_panoramas"] = lights
+    #: the epochs' own lighting goes whatever the default sky says: the old
+    #: exporter copied it always (its STEP 5b)
+    lights = {}
+    for epoch in context.scene.em_tools.epochs.list:
+        if getattr(epoch, "epoch_lighting_enabled", False) and getattr(epoch, "epoch_hdr_path", ""):
+            lights[epoch.name] = {"path": bpy.path.abspath(epoch.epoch_hdr_path),
+                                  "rotation": epoch.epoch_hdr_rotation,
+                                  "intensity": epoch.epoch_hdr_intensity}
+    out["epoch_panoramas"] = lights
     return out
 
 
