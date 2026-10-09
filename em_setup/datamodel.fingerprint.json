@@ -1,20 +1,20 @@
 {
-  "digest": "sha256:ac5ab0ff636a6907f93af5f89c8fbea6e9aca3196772507d68680f4147d705a5",
+  "digest": "sha256:b8359379c74c9a0376aa41beadfa551f885c2b0e41f47fb065b903cd60f3ced5",
   "versions": {
     "nodes": "1.6.26",
     "node_registry": "1.6.26",
     "connections": "1.6.37",
     "visual_rules": "1.6.33",
-    "qualia": "1.6.7",
-    "translations": "1.8"
+    "qualia": "1.6.8",
+    "translations": "1.9"
   },
   "digests": {
     "nodes": "sha256:6002f34c8a5485eae0068271badcbe18d8d6f8eecf5baba263ee348b5a7772ea",
     "node_registry": "sha256:f8d33c7643d3909254412a33a3622560cec44d8c158e0de7826d5f3466267a93",
     "connections": "sha256:52730324fd266e3c7c3325dec38bf5e7f1ebbbcc7f63e74f1dc9760b124b88d9",
     "visual_rules": "sha256:025bfe566a5cdc1239f4f7f727c0a783be9faae8e3b5a93183d59395566a04d9",
-    "qualia": "sha256:0f02e26795aa0635d0ee9d6c088110fcef1d6739f7af2500c1c98f80d9c509a9",
-    "translations": "sha256:42e2afb1f25101726a99aa1a4711ac01dae31ee3a0a37b0af1866f9adf330354"
+    "qualia": "sha256:4c40e55e0f39406c11a7f021658f52c09f3f40e1ae4c8607e2f30db0cb5b04bb",
+    "translations": "sha256:446f43a09a6c362cfa25dc74414fae38edca9c81bbd14b8c5cd89d800bc9e478"
   },
   "files": {
     "nodes": {
@@ -39,15 +39,15 @@
     },
     "qualia": {
       "file": "em_qualia_types.json",
-      "digest": "sha256:0f02e26795aa0635d0ee9d6c088110fcef1d6739f7af2500c1c98f80d9c509a9",
-      "version": "1.6.7"
+      "digest": "sha256:4c40e55e0f39406c11a7f021658f52c09f3f40e1ae4c8607e2f30db0cb5b04bb",
+      "version": "1.6.8"
     },
     "translations": {
       "file": "datamodel_translations.json",
-      "digest": "sha256:42e2afb1f25101726a99aa1a4711ac01dae31ee3a0a37b0af1866f9adf330354",
-      "version": "1.8"
+      "digest": "sha256:446f43a09a6c362cfa25dc74414fae38edca9c81bbd14b8c5cd89d800bc9e478",
+      "version": "1.9"
     }
   },
-  "s3dgraphy": "1.6.0.dev41",
+  "s3dgraphy": "1.6.0.dev42",
   "_note": "the datamodel the pinned s3dgraphy wheel carries; written by scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup by em_setup/version_banner.check_datamodel. Never edit by hand."
 }
