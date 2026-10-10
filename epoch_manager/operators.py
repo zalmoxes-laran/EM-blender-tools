@@ -464,7 +464,6 @@ class EM_UpdateUSListOperator(Operator):
                         item.name = other_node.name
                         item.description = other_node.description
                         item.status = status
-                        item.y_pos = str(other_node.attributes.get('y_pos', 0))
             # Ensure index is in range
             epochs.selected_us_index = 0 if len(epochs.selected_us_list) > 0 else -1
         else:

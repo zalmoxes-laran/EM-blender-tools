@@ -3,7 +3,6 @@
 import bpy
 from bpy.props import (
     CollectionProperty,
-    FloatProperty,
     IntProperty,
     StringProperty,
 )
@@ -28,10 +27,6 @@ class ActivityItem(PropertyGroup):
     description: StringProperty(
         name="Description",
         description="Description of the activity",
-    ) # type: ignore
-    y_pos: FloatProperty(
-        name="Y position",
-        description="Y position of the node",
     ) # type: ignore
 
 

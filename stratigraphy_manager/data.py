@@ -12,7 +12,7 @@ This module contains:
 """
 
 import bpy # type: ignore
-from bpy.props import StringProperty, FloatProperty, BoolProperty # type: ignore
+from bpy.props import StringProperty, BoolProperty # type: ignore
 from bpy.types import PropertyGroup # type: ignore
 
 
@@ -101,11 +101,6 @@ class EMListItem(PropertyGroup):
         name="Shape",
         description="Shape of this unit",
         default=""
-    ) # type: ignore
-    y_pos: FloatProperty(
-        name="Y Position",
-        description="Y-axis position value",
-        default=0.0
     ) # type: ignore
     epoch: StringProperty(
         name="Epoch",

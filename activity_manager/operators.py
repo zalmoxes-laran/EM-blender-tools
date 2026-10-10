@@ -37,7 +37,6 @@ class ACTIVITY_OT_refresh_list(Operator):
                 epoch_node = graph_data.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
                 item.epoch_name = epoch_node.name if epoch_node else 'Unknown'
                 item.description = node.description
-                item.y_pos = node.attributes.get('y_pos', 0.0)
 
         # Keep ``filtered_activities`` in sync — empty filter means
         # "no epoch restriction", i.e. every activity is admissible.
@@ -61,7 +60,6 @@ def _populate_filtered_activities(activity_manager, epoch_name: str):
         new.name = item.name
         new.epoch_name = item.epoch_name
         new.description = item.description
-        new.y_pos = item.y_pos
 
 
 class ACTIVITY_OT_filter_by_epoch(Operator):

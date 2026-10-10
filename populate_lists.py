@@ -109,7 +109,6 @@ def populate_stratigraphic_node(scene, node, index, graph, instance_chains=None)
     em_item.name = node.name
     em_item.description = node.description
     em_item.shape = node.attributes.get('shape', "")
-    em_item.y_pos = node.attributes.get('y_pos', 0.0)
     em_item.fill_color = node.attributes.get('fill_color', "")
     em_item.border_style = node.attributes.get('border_style', "")
     em_item.id_node = node.node_id

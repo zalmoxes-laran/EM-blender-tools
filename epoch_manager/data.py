@@ -127,7 +127,6 @@ class EMUSItem(PropertyGroup):
     name: StringProperty(name="Name", default="") # type: ignore
     description: StringProperty(name="Description", default="") # type: ignore
     status: StringProperty(name="Status", default="") # type: ignore
-    y_pos: StringProperty(name="y_pos", default="") # type: ignore
 
 
 def update_epoch_selection(self, context):

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — The units' order comes from the chronology, not from y_pos (MICRO, E.D. 10 October 2026)
+- **`y_pos` is a fossil of the GraphML**: the yEd coordinate, which only the
+  GraphML importer needs to rebuild the chronology from the drawing. The
+  em.json will stop carrying it (s3dgraphy), so EM-tools stops depending on
+  it first: an em.json opened here would otherwise put every unit at 0.0.
+- **The instance-chain filter** (Stratigraphy Manager) sorted by `y_pos`; it
+  now sorts with `chrono_order.chronological_order`: s3dgraphy's chronology
+  (`Graph.chronology()`, most recent first, undated last), then the
+  stratigraphic order (what lies above first, along `is_after` / `cuts` /
+  `overlies` / `fills`), then the name.
+- **The `y_pos` properties are gone** from the units' list item
+  (`FloatProperty`), the activities (`FloatProperty`) and the epoch's unit
+  list (`StringProperty`): they were written and never read. A .blend saved
+  before keeps the old values as orphan ID properties, which Blender ignores.
+- Measured: Templu Mare (s3dgraphy fixture through a GraphML, and the real
+  `TempluMare_EM_GT25.graphml`, 93 units) gives the same order from the
+  GraphML and from its em.json without `y_pos`
+  (`tests/test_chrono_order.py`).
+
 ### Changed — The parameters become the recipe of the version (MICRO, E.D. 6 October 2026)
 - **The recipe of a version.** «Prepare for a use…» has the parameters of the
   old Heriverse export, preset by the object's category and written in the

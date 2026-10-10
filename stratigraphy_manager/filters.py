@@ -445,8 +445,10 @@ class EM_filter_by_instance_chain(Operator):
             if node.node_id in chain_ids:
                 matching_nodes.append(node)
 
-        # Sort by y_pos (most recent = smallest y_pos first)
-        matching_nodes.sort(key=lambda n: n.attributes.get('y_pos', 0.0))
+        # Most recent first, from the chronology — never from y_pos, the
+        # GraphML drawing coordinate an em.json does not carry
+        from ..chrono_order import chronological_order
+        matching_nodes = chronological_order(graph, matching_nodes)
 
         # Rebuild list with filtered items
         EM_list_clear(context, "em_list")
