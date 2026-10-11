@@ -88,6 +88,11 @@ def resolve_active(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover 
                    # R2 · the row says the file and its document, not «Link to D.32»
                    "described": {r["id"]: describe(graph, r["id"], r) for r in results},
                    "models": model_states(graph, results)})
+    try:                                   # the Storage list is rebuilt with the results
+        from . import files_list
+        files_list.fill(context, files_list.build_rows(graph, results, ULTIMI["described"]))
+    except Exception as exc:  # noqa: BLE001 — the old rows still say something
+        ULTIMI["list_error"] = str(exc)
     return results
 
 
@@ -505,36 +510,10 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
     if chosen:
         box.label(text=sign("file." + chosen)[1] + " — " + sign("file." + chosen)[2],
                   icon="FILTER")
-    from . import room as room_cfg
-    in_room = bool(room_cfg.room().get("room_id"))
-    described = ULTIMI.get("described") or {}
-    for r in results:
-        if chosen and r["state"] != chosen:
-            continue
-        icon, text, meaning = sign("file." + r["state"])
-        said = described.get(r["id"]) or {"file": r.get("name") or r["id"][:8], "doc": ""}
-        col = box.column(align=True)
-        row = col.row(align=True)
-        row.alert = r["state"] in ("missing", "empty_copy")
-        row.label(text=said["file"], icon=icon)
-        row.label(text=text)
-        if r["state"] in ("missing", "empty_copy"):
-            row.operator("em.files_find_here", text="", icon="VIEWZOOM").resource_id = r["id"]
-        if r["state"] == "on_disk" and in_room:
-            row.operator("em.files_upload", text="", icon="EXPORT").resource_id = r["id"]
-        if r["state"] == "on_node":
-            row.operator("em.files_keep", text="", icon="IMPORT").resource_id = r["id"]
-        if r.get("path"):
-            row.operator("em.files_open_where", text="", icon="FILEBROWSER").path = r["path"]
-        # D1 · where it comes from: its card under the list (Files has no
-        # selection of its own, so the row's «Where it comes from» button selects it)
-        shown = getattr(context.window_manager, "em_provenance_resource", "") == r["id"]
-        row.operator("em.provenance_show", text="", icon="NODETREE",
-                     depress=shown).resource_id = r["id"]
-        if said.get("doc"):
-            sub = col.row(align=True)
-            sub.active = False
-            sub.label(text=said["doc"], icon="BLANK1")
+    from . import files_list
+    if ULTIMI.get("list_error"):
+        box.label(text=f"List: {ULTIMI['list_error']}", icon="ERROR")
+    files_list.draw(box, context, results)
 
 
 def filter_chips(c: Dict[str, int]) -> List[tuple]:

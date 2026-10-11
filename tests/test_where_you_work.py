@@ -93,7 +93,7 @@ def test_with_emstudio_counts_the_clients_and_says_the_document():
     z = where.zones({"place": "emstudio", "clients": 1, "same_document": True})
     assert z["place"][1] == "⇄ With EMStudio · 1 client · same document ✓"
     other = where.zones({"place": "emstudio", "clients": 2, "same_document": False})
-    assert "≠ another document" in other["place"][1] and not other["healthy"]
+    assert "≠ another document" in other["place"][1] and other["healthy"]  # said, not a fault
     assert other["message"]["text"].startswith("≠ EMStudio has another document open")
 
 

@@ -27,6 +27,7 @@ import select
 import socket
 import struct
 import threading
+import time
 
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -73,6 +74,31 @@ def _handshake(conn: socket.socket) -> bool:
     except OSError:
         return False
     return True
+
+
+def _send_all(conn: socket.socket, data: bytes, timeout: float = 15.0) -> None:
+    """Send ALL of ``data`` on a NON-BLOCKING socket, waiting for the peer to
+    drain it.
+
+    ``sendall`` on a non-blocking socket gives up with ``BlockingIOError`` as
+    soon as the kernel buffer is full, and the frame leaves cut in the middle.
+    A snapshot of a real study (Temple: 1.1 MB) is far past that buffer, so the
+    peer never saw it and the client was dropped from the list. Here the wait is
+    explicit and bounded: ``select`` for writability, up to ``timeout`` seconds
+    in total, then ``TimeoutError`` (an ``OSError``) like any other failure.
+    """
+    view = memoryview(data)
+    deadline = time.monotonic() + timeout
+    while len(view):
+        try:
+            sent = conn.send(view)
+        except (BlockingIOError, InterruptedError):
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise TimeoutError("the peer did not drain the frame in time")
+            select.select([], [conn], [], left)
+            continue
+        view = view[sent:]
 
 
 def _encode_text(text: str) -> bytes:
@@ -211,11 +237,18 @@ class WsServer:
             dead = []
             for c in self._clients:
                 try:
-                    c.conn.sendall(frame)
+                    _send_all(c.conn, frame)
                 except OSError:
                     dead.append(c)
             for c in dead:
                 self._clients.remove(c)
+                # the socket is closed too: removing the client from the list
+                # alone left a half-open connection that the peer still
+                # believed in (EMStudio showed «connected» and got nothing)
+                try:
+                    c.conn.close()
+                except OSError:
+                    pass
 
     # ---- loop ----------------------------------------------------------
     def _run(self):

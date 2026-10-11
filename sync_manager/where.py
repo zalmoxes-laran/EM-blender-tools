@@ -120,7 +120,10 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
                "≠ another document" if same is False else "no document declared yet")
         out["place"] = ("LINKED", f"{_glyph('room.paired', '⇄')} With EMStudio · {n} "
                                   f"client{'s' if n != 1 else ''} · {doc}")
-        problem = same is False
+        # a different document on the two ends is LEGITIMATE (one models, the
+        # other writes the narrative; the alignment module says so too): it is
+        # said, in words, but it is not a fault, so it does not turn the zone red
+        problem = False
     else:
         study = s.get("study_file") or "no study loaded"
         out["place"] = ("FILE_BLEND", f"{_glyph('room.outside', '□')} On this computer · {study}")
@@ -176,8 +179,8 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
         msg.update(text=f"Last time this file worked in the room {s['declared_room']}",
                    op="em.room_reconnect", op_text="Reconnect")
     elif place == PLACE_EMSTUDIO and s.get("same_document") is False:
-        msg.update(icon="ERROR", text="≠ EMStudio has another document open: a node id "
-                                      "from there will not be found here")
+        msg.update(icon="INFO", text="≠ EMStudio has another document open: a node id "
+                                     "from there will not be found here")
     elif s.get("transition") and not quiet(str(s["transition"])):
         msg.update(text=str(s["transition"]))
     elif s.get("signin_line"):
