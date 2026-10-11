@@ -43,9 +43,10 @@ def get_graph_code_from_graph(graph):
     Returns:
         str or None: The graph code if available, None otherwise
     """
-    if graph and hasattr(graph, 'attributes'):
-        return graph.attributes.get('graph_code', None)
-    return None
+    # the study's code, else the GraphML header's, else the retired em_id
+    # (E.D., 11 Oct 2026) — one reader, graph_code.py
+    from ..graph_code import graph_code_of
+    return graph_code_of(graph)
 
 
 def node_name_to_proxy_name(node_name, context=None, graph=None):

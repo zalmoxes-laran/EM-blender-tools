@@ -232,16 +232,30 @@ def peek_graph_names(path: str) -> Dict[str, Tuple[str, str]]:
         for member_id, section in (graphs or {}).items():
             if not isinstance(section, dict):
                 continue
-            data = section.get("data") if isinstance(section.get("data"), dict) else {}
-            attrs = (section.get("attributes")
-                     if isinstance(section.get("attributes"), dict) else {})
-            code = str(attrs.get("graph_code") or data.get("graph_code") or "")
+            # the study's code first (E.D., 11 Oct 2026), see graph_code.py
+            code = _section_code(section)
             gid = str(section.get("graph_id") or member_id)
             out[gid] = (_text(section.get("name")), code)
     except (OSError, ValueError):
         out = {}
     _names[key] = (st.st_mtime, st.st_size, out)
     return out
+
+
+def _section_code(section: Dict[str, Any]) -> str:
+    """``graph_code.section_code``, also when this module is loaded alone (by
+    file, as the tests do) and has no package to import it from."""
+    try:
+        from .graph_code import section_code
+    except ImportError:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_emtools_graph_code",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "graph_code.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        section_code = module.section_code
+    return section_code(section)
 
 
 def conflicts(incoming_ids: Iterable[str], entries: Iterable[Any],

@@ -2024,9 +2024,8 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
         _INJECTOR_ID = None
 
     # Get graph code for prefix handling
-    graph_code = None
-    if hasattr(graph_instance, 'attributes') and 'graph_code' in graph_instance.attributes:
-        graph_code = graph_instance.attributes['graph_code']
+    from .graph_code import graph_code_of
+    graph_code = graph_code_of(graph_instance)
 
     updated_count = 0
 

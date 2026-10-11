@@ -193,12 +193,13 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
             georef.reference_graph = gid
         if hasattr(entry, "file_format"):
             entry.file_format = "EMJSON"
-        attrs = getattr(graph, "attributes", {}) or {}
-        if "graph_code" in attrs:
-            entry.graph_code = attrs["graph_code"]
-        elif (getattr(graph, "data", None) or {}).get("graph_code"):
-            # U4 · a graph made from a table carries its code in graph.data
-            entry.graph_code = str(graph.data["graph_code"])
+        # the code the proxies are named by: the STUDY's (E.D., 11 Oct 2026),
+        # else the GraphML header's, else the retired em_id — graph_code.py;
+        # U4's graph.data['graph_code'] (a graph made from a table) included
+        from ..graph_code import adopt_graph_code
+        code = adopt_graph_code(graph)
+        if code:
+            entry.graph_code = code
         if hasattr(entry, "import_warnings"):
             entry.import_warnings = "\n".join(warnings) if warnings else ""
         # Structured counterpart: the panel groups by `kind` instead of matching

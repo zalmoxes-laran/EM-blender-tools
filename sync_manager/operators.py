@@ -1717,9 +1717,10 @@ def _list_adopted_graphs(context) -> list:
         row.graphml_path = ""
         if hasattr(row, "file_format"):
             row.file_format = "EMJSON"
-        attrs = getattr(graph, "attributes", {}) or {}
-        if "graph_code" in attrs and hasattr(row, "graph_code"):
-            row.graph_code = attrs["graph_code"]
+        from ..graph_code import adopt_graph_code
+        code = adopt_graph_code(graph)
+        if code and hasattr(row, "graph_code"):
+            row.graph_code = code
         added.append(graph_id)
 
     # An index pointing nowhere is the same failure as an empty list, and a

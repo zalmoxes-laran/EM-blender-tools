@@ -176,7 +176,12 @@ class EM_import_GraphML(bpy.types.Operator):
                     # Aggiorna UI e continua con il popolamento
                     graphml.name = final_graph_id
                     # Aggiorna anche il codice del grafo se disponibile
-                    if 'graph_code' in graph_instance.attributes:
+                    # il codice dello studio (E.D., 11 ott 2026): graph_code.py
+                    from ..graph_code import adopt_graph_code
+                    _code = adopt_graph_code(graph_instance)
+                    if _code:
+                        graphml.graph_code = _code
+                    elif 'graph_code' in graph_instance.attributes:
                         graphml.graph_code = graph_instance.attributes['graph_code']
                     elif hasattr(graphml, 'graph_code'):  # Assicuriamoci che la proprietà esista
                         graphml.graph_code = "site_id"  # Valore di fallback
