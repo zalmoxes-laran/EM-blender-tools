@@ -78,6 +78,10 @@ def _classes():  # pragma: no cover — bpy
             if item.kind in ("version", "file"):
                 row.label(text="", icon="BLANK1")          # a version hangs under its asset
             row.label(text=item.file, icon=ic)
+            from . import file_states
+            b = (file_states.ULTIMI.get("bucket") or {}).get(item.id)
+            if b:
+                row.label(text=BUCKET_SIGN.get(b["state"], ("?", ""))[0])
             sub = row.row(align=True)
             sub.active = item.kind != "link"
             sub.alignment = "RIGHT"
@@ -179,8 +183,190 @@ def _classes():  # pragma: no cover — bpy
             self.report({"INFO"}, f"relinked {done} file(s)")
             return {"FINISHED"}
 
+    def _store_or_report(op):
+        """The object store the S3_* environment names, or the reason it is not
+        there — said where the person looks."""
+        from s3dgraphy import api
+        from s3dgraphy.resources.object_store import StoreError
+        try:
+            return api.open_object_store()
+        except StoreError as exc:
+            op.report({"ERROR"}, f"Object store: {exc}")
+        except Exception as exc:  # noqa: BLE001
+            op.report({"ERROR"}, f"Object store: {exc}")
+        return None
+
+    def _needs_config(op) -> bool:
+        if not os.environ.get("S3_ENDPOINT") or not os.environ.get("S3_BUCKET"):
+            op.report({"ERROR"}, "No bucket configured: Blender's environment has no S3_ENDPOINT / "
+                      "S3_BUCKET / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY (the same variables "
+                      "Heriverse uses). Start Blender from a terminal with them set.")
+            return True
+        return False
+
+    class EM_OT_files_bucket_check(bpy.types.Operator):
+        """Compare each file's disk copy with its bucket copy: quick (existence and
+        size) or «Verify bytes» (the bucket's bytes are read and their sha256 compared)"""
+        bl_idname = "em.files_bucket_check"
+        bl_label = "Check the bucket"
+        deep: bpy.props.BoolProperty(default=False)  # type: ignore
+
+        def execute(self, context):
+            from s3dgraphy import api
+            from . import file_states
+            from .asset_upload import sha256_of_file
+            from ..functions import is_graph_available
+            ok, graph = is_graph_available(context)
+            if not ok or graph is None or not file_states.ULTIMI.get("results"):
+                self.report({"ERROR"}, "«Check files» first")
+                return {"CANCELLED"}
+            if _needs_config(self):
+                return {"CANCELLED"}
+            store = _store_or_report(self)
+            if store is None:
+                return {"CANCELLED"}
+            try:
+                rows = api.bucket_alignment(graph, file_states.ULTIMI["results"], store,
+                                            deep=self.deep, hasher=sha256_of_file)
+            except Exception as exc:  # noqa: BLE001 — the reason is the person's
+                self.report({"ERROR"}, f"Bucket: {exc}")
+                return {"CANCELLED"}
+            file_states.ULTIMI["bucket"] = {r["id"]: r for r in rows}
+            tally: Dict[str, int] = {}
+            for r in rows:
+                tally[r["state"]] = tally.get(r["state"], 0) + 1
+            self.report({"INFO"}, "Bucket: " + (", ".join(f"{n} {k.replace('_', ' ')}"
+                                                           for k, n in tally.items()) or "nothing to compare"))
+            return {"FINISHED"}
+
+    class EM_OT_files_bucket_promote(bpy.types.Operator):
+        """Upload this file to the bucket, read it back and compare: only a verified
+        copy is recorded (the bucket becomes the main address; the disk path stays as
+        another address)"""
+        bl_idname = "em.files_bucket_promote"
+        bl_label = "Upload to the bucket"
+        resource_id: bpy.props.StringProperty()  # type: ignore
+
+        def execute(self, context):
+            from s3dgraphy import api
+            from . import file_states
+            from .asset_upload import sha256_of_file
+            from ..functions import is_graph_available
+            ok, graph = is_graph_available(context)
+            row = next((r for r in file_states.ULTIMI.get("results") or [] if r["id"] == self.resource_id), None)
+            if not ok or graph is None or not row or not row.get("path"):
+                self.report({"ERROR"}, "no file on the disk to upload")
+                return {"CANCELLED"}
+            if _needs_config(self):
+                return {"CANCELLED"}
+            store = _store_or_report(self)
+            if store is None:
+                return {"CANCELLED"}
+            try:
+                out = api.promote_to_bucket(graph, self.resource_id, row["path"], store,
+                                            hasher=sha256_of_file)
+            except Exception as exc:  # noqa: BLE001
+                self.report({"ERROR"}, f"Upload refused: {exc}")
+                return {"CANCELLED"}
+            self.report({"INFO"}, f"in the bucket, bytes verified: {out['bucket']}")
+            file_states.resolve_active(context, graph)
+            return {"FINISHED"}
+
+    class EM_OT_files_free_local(bpy.types.Operator):
+        """Free the disk copy of files the bucket holds, byte for byte"""
+        bl_idname = "em.files_free_local"
+        bl_label = "Free local copies…"
+        confirm_masters: bpy.props.BoolProperty(
+            name="Also masters and originals", default=False,
+            description="Masters and original documents cannot be remade")  # type: ignore
+        permanent: bpy.props.BoolProperty(
+            name="Delete permanently", default=False,
+            description="Off: the files are moved to a .em_freed folder, where you can take them back")  # type: ignore
+
+        def _plan(self, context):
+            from s3dgraphy import api
+            from . import file_states
+            from ..functions import is_graph_available
+            ok, graph = is_graph_available(context)
+            rows = list((file_states.ULTIMI.get("bucket") or {}).values())
+            root = file_states.project_root(context)
+            protect = [os.path.join(root, ".em_cache")] if root else []
+            return api.plan_free_local(graph, rows, protect=protect) if ok and graph else []
+
+        def invoke(self, context, event):
+            self.plan = self._plan(context)
+            if not self.plan:
+                self.report({"WARNING"}, "Nothing to free: run «Verify bytes» first — only files "
+                            "proved identical in the bucket can be freed")
+                return {"CANCELLED"}
+            return context.window_manager.invoke_props_dialog(self, width=560)
+
+        def draw(self, context):
+            plan = getattr(self, "plan", None) or self._plan(context)
+            safe = [p for p in plan if p["level"] == "safe"]
+            conf = [p for p in plan if p["level"] == "confirm"]
+            mb = lambda items: sum(p["size"] for p in items) / 1e6   # noqa: E731
+            col = self.layout.column()
+            box = col.box()
+            box.alert = True
+            box.label(text="WARNING — this removes files from your disk.", icon="ERROR")
+            for line in ("The bucket's bytes are compared with each file again just before it goes.",
+                         "Derived versions (LODs, GLBs) can be remade from their master.",
+                         "A master or an original cannot be remade by anyone:",
+                         "keep at least one other independent copy of it (another disk, a backup)."):
+                box.label(text=line)
+            col.label(text=f"Derived versions: {len(safe)} ({mb(safe):.0f} MB)", icon="CHECKMARK")
+            col.label(text=f"Masters and originals: {len(conf)} ({mb(conf):.0f} MB)", icon="ERROR")
+            col.prop(self, "confirm_masters")
+            col.prop(self, "permanent")
+            if self.permanent:
+                w = col.box()
+                w.alert = True
+                w.label(text="Permanent: the files are NOT moved anywhere; there is no way back.", icon="CANCEL")
+            if self.confirm_masters and any(p["copies"] == 0 for p in conf):
+                w = col.box()
+                w.alert = True
+                w.label(text=f"{sum(1 for p in conf if p['copies'] == 0)} of them have no copy "
+                             "but the bucket's.", icon="ERROR")
+
+        def execute(self, context):
+            import time
+            from s3dgraphy import api
+            from . import file_states
+            from .asset_upload import sha256_of_file
+            from ..functions import is_graph_available
+            plan = getattr(self, "plan", None) or self._plan(context)
+            if _needs_config(self):
+                return {"CANCELLED"}
+            store = _store_or_report(self)
+            if store is None:
+                return {"CANCELLED"}
+            root = file_states.project_root(context) or (
+                os.path.dirname(bpy.data.filepath) if bpy.data.filepath else os.path.expanduser("~"))
+            quarantine = os.path.join(root, ".em_freed", time.strftime("%Y-%m-%d_%H%M%S"))
+            report = api.free_local_copies(plan, store, confirm_masters=self.confirm_masters,
+                                           permanent=self.permanent, quarantine=quarantine,
+                                           hasher=sha256_of_file)
+            n = {k: sum(1 for r in report if r["action"] == k)
+                 for k in ("freed", "quarantined", "refused", "skipped")}
+            mb = sum(r["bytes"] for r in report) / 1e6
+            self.report({"WARNING" if n["refused"] else "INFO"},
+                        f"{n['freed'] + n['quarantined']} freed ({mb:.0f} MB)"
+                        + (f", moved to {quarantine}" if n["quarantined"] else "")
+                        + (f"; {n['refused']} refused (see the log)" if n["refused"] else "")
+                        + (f"; {n['skipped']} left (masters)" if n["skipped"] else ""))
+            for r in report:
+                if r["action"] == "refused":
+                    print(f"[free local] refused {r['path']}: {r['reason']}")
+            ok, graph = is_graph_available(context)
+            if ok and graph:
+                file_states.resolve_active(context, graph)
+            file_states.ULTIMI["bucket"] = {}
+            return {"FINISHED"}
+
     return (EMFileRow, EM_UL_files, EM_OT_files_select, EM_OT_files_find_moved,
-            EM_OT_files_relink_moved)
+            EM_OT_files_relink_moved, EM_OT_files_bucket_check, EM_OT_files_bucket_promote,
+            EM_OT_files_free_local)
 
 
 def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — bpy
@@ -224,6 +410,7 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     from ..state_symbols import sign
     wm = context.window_manager
     draw_moved(layout, context)
+    draw_bucket(layout, context)
     q = layout.row(align=True)
     q.prop(wm, "em_files_query", text="", icon="VIEWZOOM")
     f = layout.row(align=True)
@@ -256,6 +443,13 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
         col.label(text=f"{mark} {p.get('kind')}: {p.get('where') or '—'}", icon="BLANK1")
     if not (res or {}).get("positions") and it.where:
         col.label(text=it.where, icon="URL")
+    b = (file_states.ULTIMI.get("bucket") or {}).get(it.id)
+    if b:
+        sg = BUCKET_SIGN.get(b["state"], ("?", b["state"]))
+        col.label(text=f"Bucket: {sg[0]} {sg[1]}" + (f" — {b['note']}" if b.get("note") else ""),
+                  icon="WORLD")
+        if b.get("bucket"):
+            col.label(text=b["bucket"], icon="BLANK1")
     near = [i for i, x in enumerate(wm.em_files) if x.asset == it.asset and x.id != it.id]
     if near:
         col.separator()
@@ -272,6 +466,8 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
         acts.operator("em.files_find_here", text="Find here…", icon="VIEWZOOM").resource_id = it.id
     if it.state == "on_disk" and room_cfg.room().get("room_id"):
         acts.operator("em.files_upload", text="Upload", icon="EXPORT").resource_id = it.id
+    if it.state in ("on_disk", "both") and not (b and b["state"] in ("aligned", "same_size")):
+        acts.operator("em.files_bucket_promote", text="To the bucket", icon="EXPORT").resource_id = it.id
     if it.state == "on_node":
         acts.operator("em.files_keep", text="Keep here", icon="IMPORT").resource_id = it.id
     if res and res.get("path"):
@@ -313,6 +509,43 @@ def draw_moved(layout, context) -> None:  # pragma: no cover — bpy
                   + (f"  (+{len(x['matches']) - 1})" if len(x["matches"]) > 1 else ""))
     if len(moved) > 12:
         box.label(text=f"… and {len(moved) - 12} more")
+
+
+#: the sign beside a file for how its disk and bucket copies stand
+BUCKET_SIGN = {"aligned": ("✓", "same bytes on the disk and in the bucket (verified)"),
+               "same_size": ("≈", "in the bucket, same size — bytes not compared yet"),
+               "differ": ("≠", "the disk and the bucket DIFFER"),
+               "disk_only": ("⌂", "on the disk only: the bucket has no copy"),
+               "bucket_only": ("☁", "in the bucket only: no copy on this computer"),
+               "neither": ("✕", "recorded in the bucket, but not there and not on the disk"),
+               "unknown": ("?", "could not compare")}
+
+
+def draw_bucket(layout, context) -> None:  # pragma: no cover — bpy
+    """The bucket box: check it (quick, or byte for byte), how many stand in
+    each way, and the gesture that frees the disk copies the bucket proves."""
+    from . import file_states
+    box = layout.box()
+    head = box.row(align=True)
+    head.label(text="Bucket", icon="WORLD")
+    head.operator("em.files_bucket_check", text="Check", icon="FILE_REFRESH").deep = False
+    head.operator("em.files_bucket_check", text="Verify bytes", icon="CHECKMARK").deep = True
+    rows = file_states.ULTIMI.get("bucket") or {}
+    if not rows:
+        box.label(text="Not checked: it compares each file's disk copy with its bucket copy.", icon="INFO")
+        return
+    tally: Dict[str, int] = {}
+    for r in rows.values():
+        tally[r["state"]] = tally.get(r["state"], 0) + 1
+    grid = box.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
+    for k in ("aligned", "same_size", "differ", "disk_only", "bucket_only", "neither", "unknown"):
+        if tally.get(k):
+            g = grid.row()
+            g.alert = k in ("differ", "neither")
+            g.label(text=f"{BUCKET_SIGN[k][0]} {tally[k]} {k.replace('_', ' ')}")
+    if tally.get("aligned"):
+        box.operator("em.files_free_local", text=f"Free the disk copy of {tally['aligned']} verified files…",
+                     icon="TRASH")
 
 
 def register():  # pragma: no cover — bpy
