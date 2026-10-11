@@ -20,6 +20,7 @@ classes below are the Blender face of it.
 
 
 from typing import Any, Dict, List, Optional
+import os
 
 KINDS = (("all", "All kinds", "Every row"),
          ("master", "Masters", "The assets: the surveyed or authored source"),
@@ -27,94 +28,16 @@ KINDS = (("all", "All kinds", "Every row"),
          ("file", "Files of a set", "One file of a resource that is a set"),
          ("link", "Links", "A resource a document or a model points to"))
 
-_RANK = {"master": 0, "version": 1, "file": 2, "link": 3}
-_RM_TYPES = ("representation_model", "representation_model_doc", "representation_model_sf")
-
-
-def _live_edges(graph) -> List[Any]:
-    return [e for e in (getattr(graph, "edges", None) or [])
-            if not ((getattr(e, "attributes", None) or {}).get("removed"))]
-
-
-def _data(node) -> Dict[str, Any]:
-    d = getattr(node, "data", None)
-    return d if isinstance(d, dict) else {}
-
-
-def _level_key(level: str) -> int:
-    digits = "".join(c for c in str(level or "") if c.isdigit())
-    return int(digits) if digits else 99
-
-
 def build_rows(graph, results: List[Dict[str, Any]],
                described: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
-    """One row per resolved resource, grouped by asset: the master, its versions
-    by level, the files of each set under it. Every row is a dict of strings
-    (what the UIList shows and filters), never a node."""
-    from s3dgraphy.resources import versions as V
-    described = described or {}
-    nodes = {n.node_id: n for n in getattr(graph, "nodes", [])}
-    edges = _live_edges(graph)
-    set_of = {e.edge_target: e.edge_source for e in edges if e.edge_type == "has_file"}
-    used_by: Dict[str, List[str]] = {}
-    for e in edges:
-        if e.edge_type == "has_linked_resource":
-            src = nodes.get(e.edge_source)
-            if src is not None and str(getattr(src, "node_type", "")) in _RM_TYPES:
-                used_by.setdefault(e.edge_target, []).append(str(src.name))
-
-    rows: List[Dict[str, Any]] = []
-    for r in results:
-        rid = r["id"]
-        node = nodes.get(rid)
-        d = _data(node)
-        is_file = str(r.get("node_type") or getattr(node, "node_type", "")) == "resource_file"
-        owner_id = set_of.get(rid) if is_file else None
-        owner = nodes.get(owner_id) if owner_id else None
-        owner_d = _data(owner)
-        tier = str(d.get("tier") or owner_d.get("tier") or "")
-        kind = ("file" if is_file else
-                "master" if tier == "master" else
-                "version" if tier == "distribution" else "link")
-        subject = owner_id or rid
-        try:
-            asset_id = V.asset_of(graph, subject)
-        except Exception:  # noqa: BLE001 — a resource outside any chain is its own asset
-            asset_id = subject
-        asset = nodes.get(asset_id)
-        try:
-            level = V.lod_level_of(graph, subject) or ""
-        except Exception:  # noqa: BLE001
-            level = ""
-        raw_use = d.get("use") if d.get("use") is not None else owner_d.get("use")
-        uses = [str(u) for u in (raw_use or [])] if isinstance(raw_use, (list, tuple)) \
-            else ([str(raw_use)] if raw_use else [])
-        said = described.get(rid) or {}
-        file = said.get("file") or r.get("name") or rid[:8]
-        if file.lower().endswith(".blend") and getattr(node, "name", ""):
-            file = str(node.name)       # an object of a .blend: the name of the object says more
-        rms = used_by.get(rid, []) + (used_by.get(owner_id, []) if owner_id else [])
-        where = r.get("path") or ""
-        if not where:
-            where = str(d.get("url") or "") or next(
-                (str(a.get("locator")) for a in (d.get("addresses") or [])
-                 if isinstance(a, dict) and a.get("locator")), "")
-        tag = {"master": "master",
-               "version": (level or "version") + (" · " + ", ".join(uses) if uses else ""),
-               "file": "file of a set", "link": "link"}[kind]
-        asset_name = str(getattr(asset, "name", "") or asset_id)
-        rows.append({
-            "id": rid, "file": file, "doc": said.get("doc") or "", "asset": asset_name,
-            "kind": kind, "tier": tier, "level": level, "use": ",".join(uses),
-            "state": r.get("state") or "", "where": where, "tag": tag,
-            "rm": ", ".join(dict.fromkeys(rms)),
-            "search": " ".join([file, said.get("doc") or "", asset_name, tier, level,
-                                " ".join(uses), " ".join(rms), kind]).lower(),
-            "_order": (asset_name.lower(), asset_id, _RANK[kind], _level_key(level), file.lower()),
-        })
-    rows.sort(key=lambda x: x["_order"])
+    """The rows of the list: ``s3dgraphy.api.storage_rows`` (the same grouping
+    EMStudio draws), with the lists written as text for the Blender properties.
+    ``described`` is no longer needed: the library names the file and its document."""
+    from s3dgraphy import api
+    rows = api.storage_rows(graph, results)
     for x in rows:
-        del x["_order"]
+        x["use"] = ",".join(x["use"])
+        x["rm"] = ", ".join(x["rm"])
     return rows
 
 
@@ -193,7 +116,71 @@ def _classes():  # pragma: no cover — bpy
             context.window_manager.em_files_index = self.index
             return {"FINISHED"}
 
-    return (EMFileRow, EM_UL_files, EM_OT_files_select)
+    class EM_OT_files_find_moved(bpy.types.Operator):
+        """Find moved files: look for the files that are not here any more in a
+        folder (by their sha256, then by name and size). It only proposes."""
+        bl_idname = "em.files_find_moved"
+        bl_label = "Find moved files…"
+        directory: bpy.props.StringProperty(subtype="DIR_PATH")  # type: ignore
+
+        def invoke(self, context, event):
+            from . import file_states
+            self.directory = file_states.project_root(context) or (
+                os.path.dirname(bpy.data.filepath) if bpy.data.filepath else "")
+            context.window_manager.fileselect_add(self)
+            return {"RUNNING_MODAL"}
+
+        def execute(self, context):
+            from s3dgraphy import api
+            from . import file_states
+            from ..functions import is_graph_available
+            from .asset_upload import sha256_of_file
+            ok, graph = is_graph_available(context)
+            if not ok or graph is None or not file_states.ULTIMI.get("results"):
+                self.report({"ERROR"}, "«Check files» first: the search is for the ones it found missing")
+                return {"CANCELLED"}
+            folders = [bpy.path.abspath(self.directory)] if self.directory else []
+            folders += [d for d in (file_states.project_root(context),) if d]
+            found = api.find_moved_files(graph, file_states.ULTIMI["results"], list(dict.fromkeys(folders)),
+                                         hasher=sha256_of_file, max_hash_bytes=1 << 30)
+            file_states.ULTIMI["moved"] = found
+            lost = sum(1 for r in file_states.ULTIMI["results"] if r["state"] in ("missing", "empty_copy"))
+            self.report({"INFO"}, f"{len(found)} of {lost} missing files have a candidate")
+            return {"FINISHED"}
+
+    class EM_OT_files_relink_moved(bpy.types.Operator):
+        """Point this file at where it was found (one file, or every sure one)"""
+        bl_idname = "em.files_relink_moved"
+        bl_label = "Relink"
+        resource_id: bpy.props.StringProperty(default="")  # type: ignore
+        path: bpy.props.StringProperty(default="")  # type: ignore
+
+        def execute(self, context):
+            from . import file_states
+            from ..functions import is_graph_available
+            ok, graph = is_graph_available(context)
+            if not ok or graph is None:
+                return {"CANCELLED"}
+            done = 0
+            for item in list(file_states.ULTIMI.get("moved") or []):
+                if self.resource_id and item["id"] != self.resource_id:
+                    continue
+                best = item["matches"][0]
+                path = self.path if self.resource_id else best["path"]
+                if not self.resource_id and best["how"] not in ("exact", "exact_renamed"):
+                    continue                       # «all» relinks only the sure ones
+                file_states.relink(graph, item["id"], path)
+                done += 1
+            sure = ("exact", "exact_renamed")
+            file_states.ULTIMI["moved"] = [
+                x for x in file_states.ULTIMI.get("moved") or []
+                if (x["id"] != self.resource_id if self.resource_id else x["matches"][0]["how"] not in sure)]
+            file_states.resolve_active(context, graph)
+            self.report({"INFO"}, f"relinked {done} file(s)")
+            return {"FINISHED"}
+
+    return (EMFileRow, EM_UL_files, EM_OT_files_select, EM_OT_files_find_moved,
+            EM_OT_files_relink_moved)
 
 
 def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — bpy
@@ -208,7 +195,8 @@ def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — b
     for x in rows:
         it = wm.em_files.add()
         for k, v in x.items():
-            setattr(it, k, str(v))
+            if k in it.bl_rna.properties:
+                setattr(it, k, str(v))
     wm.em_files_index = next((i for i, x in enumerate(rows) if x["id"] == keep), 0)
 
 
@@ -235,6 +223,7 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     from . import room as room_cfg
     from ..state_symbols import sign
     wm = context.window_manager
+    draw_moved(layout, context)
     q = layout.row(align=True)
     q.prop(wm, "em_files_query", text="", icon="VIEWZOOM")
     f = layout.row(align=True)
@@ -288,6 +277,42 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     if res and res.get("path"):
         acts.operator("em.files_open_where", text="Open where it is",
                       icon="FILEBROWSER").path = res["path"]
+
+
+def draw_moved(layout, context) -> None:  # pragma: no cover — bpy
+    """«Find moved files…», and what it found: the candidate of each, how it was
+    recognised, and the gesture to relink it."""
+    from . import file_states
+    lost = [r for r in file_states.ULTIMI.get("results") or []
+            if r["state"] in ("missing", "empty_copy")]
+    moved = file_states.ULTIMI.get("moved") or []
+    if not lost and not moved:
+        return
+    box = layout.box()
+    head = box.row(align=True)
+    head.label(text=f"Not here: {len(lost)}", icon="ERROR")
+    head.operator("em.files_find_moved", text="Find moved files…", icon="VIEWZOOM")
+    if not moved:
+        return
+    sure = sum(1 for x in moved if x["matches"][0]["how"] in ("exact", "exact_renamed"))
+    if sure:
+        box.operator("em.files_relink_moved", text=f"Relink the {sure} sure ones",
+                     icon="LINKED").resource_id = ""
+    said = {"exact": "same bytes", "exact_renamed": "same bytes, other name",
+            "probable": "same name and size", "possible": "same name only"}
+    for x in moved[:12]:
+        m = x["matches"][0]
+        col = box.column(align=True)
+        row = col.row(align=True)
+        row.label(text=x.get("name") or x["id"][:8], icon="FILE")
+        op = row.operator("em.files_relink_moved", text="Relink", icon="LINKED")
+        op.resource_id, op.path = x["id"], m["path"]
+        sub = col.row()
+        sub.active = False
+        sub.label(text=f"{said.get(m['how'], m['how'])}: {m['path']}"
+                  + (f"  (+{len(x['matches']) - 1})" if len(x["matches"]) > 1 else ""))
+    if len(moved) > 12:
+        box.label(text=f"… and {len(moved) - 12} more")
 
 
 def register():  # pragma: no cover — bpy
