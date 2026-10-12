@@ -79,11 +79,6 @@ _ICONA_MEDIA = {
     "other": "DOT",
 }
 
-#: D6 · lo stato del grafo rispetto alla stanza. Nessuna è `ERROR`: non essere
-#: in una stanza non è un guasto, è la situazione in cui vive la maggior parte
-#: degli studi.
-_ICONA_GRAFO = {"no_room": "UNLINKED", "aligned": "LINKED",
-                "room_ahead": "IMPORT", "unknown": "QUESTION"}
 
 _ICONA_PRONTO = {"yes": "CHECKMARK", "no": "CANCEL", "unknown": "QUESTION",
                  #: `n/a` non è un rifiuto: la domanda non si pone, e un'icona
@@ -368,8 +363,11 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
         # ciò che dice cosa un glb rappresenta; il deck lo mostra e non lo
         # pubblica, perché quel gesto è il push nella stanza e vive altrove.
         if deck.grafo_frase:
+            # le icone sono quelle della regola: una copia qui era rimasta
+            # senza lo stato «senza rete» (offline)
+            from ..publication_room import ICONE
             _frase(layout, deck.grafo_frase, larghezza,
-                   icona=_ICONA_GRAFO.get(deck.grafo_stato, 'QUESTION'))
+                   icona=ICONE.get(deck.grafo_stato, 'QUESTION'))
 
     # ── lo stato vuoto ─────────────────────────────────────────────────────
 

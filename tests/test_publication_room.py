@@ -4,11 +4,10 @@ Il grafo è ciò che dice **cosa un glb rappresenta**: senza di lui una derivata
 pubblicata è un file orfano. Quindi il deck lo mostra — e non lo pubblica,
 perché quel gesto è il push nella stanza e vive in `sync_manager`.
 
-Il prompt chiedeva quattro stati. **I distinguibili sono tre**, e la ragione è
-nel codice, non in una mancanza di zelo: in EM Tools ogni mutazione locale
-parte nell'istante in cui avviene (`sync_manager/operators.py::emit_op`), non
-esiste una coda di op non spedite, e quindi non esiste lo stato «ho roba che la
-stanza non ha». Un quarto stato sarebbe una casella che non si accende mai.
+Connessi, ogni mutazione locale parte nell'istante in cui avviene
+(`sync_manager/operators.py::emit_op`): «ho roba che la stanza non ha» esiste
+solo SENZA RETE, ed è lo stato `offline`, con il numero delle modifiche che
+aspettano (misurato il 12 ott 2026: prima lo si chiamava «nessuna stanza»).
 """
 
 from __future__ import annotations
@@ -33,9 +32,19 @@ class Sessione:
         self.room_id = kw.get("room_id")
         self.last_applied = kw.get("last_applied")
         self.error = kw.get("error")
+        self.seated = kw.get("seated", self.joined)
+        self.unconfirmed = ["op"] * kw.get("da_confermare", 0)
         self.inbox = queue.Queue()
         for _ in range(kw.get("in_attesa", 0)):
             self.inbox.put("{}")
+
+    #: come `RoomSession`: seduti in una stanza, e la connessione caduta
+    @property
+    def offline(self):
+        return self.seated and not self.joined
+
+    def waiting(self):
+        return len(self.unconfirmed)
 
 
 def test_fuori_da_una_stanza_lo_dice_e_non_e_un_errore():
@@ -80,6 +89,7 @@ def test_gli_stati_dichiarati_sono_quelli_che_si_producono():
         PR.stato_della_stanza(dentro=True, stanza="x")["stato"],
         PR.stato_della_stanza(dentro=True, stanza="x", in_attesa=1)["stato"],
         PR.stato_della_stanza(dentro=True, errore="boom")["stato"],
+        PR.stato_della_stanza(dentro=False, seduti=True)["stato"],
     }
     assert prodotti == set(PR.STATI_GRAFO)
     assert set(PR.ICONE) == set(PR.STATI_GRAFO)
@@ -110,3 +120,47 @@ def test_una_coda_che_non_sa_dire_quanto_e_lunga_non_vale_ZERO():
     #: non saperlo non è «niente in attesa»: si ripiega su zero MA senza
     #: sollevare, e la riga resta leggibile
     assert PR.dalla_sessione(s)["stato"] in PR.STATI_GRAFO
+
+
+# ── il buio: seduti in una stanza, senza rete ─────────────────────────────
+
+def test_SENZA_RETE_non_e_nessuna_stanza():
+    """Prova 8 del tavolo (12 ott 2026): proxy ucciso, `joined: false`,
+    `seated: true`, 1 modifica in attesa — e la riga diceva «this study is in
+    no room». Chi la legge va a cercare una stanza da cui non è mai uscito."""
+    esito = PR.stato_della_stanza(dentro=False, seduti=True, stanza="tavolo",
+                                  da_confermare=1)
+    assert esito["stato"] == "offline"
+    assert esito["frase"] == "in room tavolo, no network — 1 edit waiting"
+    assert PR.ICONE["offline"] != PR.ICONE["no_room"]
+    assert PR.ICONE["offline"] not in ("ERROR", "CANCEL")
+
+
+def test_senza_rete_le_modifiche_in_attesa_si_CONTANO():
+    tre = PR.stato_della_stanza(dentro=False, seduti=True, stanza="t", da_confermare=3)
+    assert "3 edits waiting" in tre["frase"]
+    zero = PR.stato_della_stanza(dentro=False, seduti=True, stanza="t")
+    assert zero["stato"] == "offline" and "nothing waiting" in zero["frase"]
+
+
+def test_l_adattatore_legge_offline_e_waiting_dalla_sessione():
+    s = Sessione(joined=False, seated=True, room_id="tavolo", da_confermare=1)
+    esito = PR.dalla_sessione(s)
+    assert esito["stato"] == "offline" and "1 edit waiting" in esito["frase"]
+    #: uscita davvero (non seduta): resta «nessuna stanza»
+    assert PR.dalla_sessione(Sessione(joined=False, seated=False))["stato"] == "no_room"
+
+
+def test_una_sessione_SENZA_offline_si_legge_da_seated():
+    """Una sessione più vecchia, o un doppio di prova, che non sa dire
+    `offline`: seduta e non dentro è la stessa cosa."""
+    class Vecchia:
+        joined, seated, room_id, last_applied, error = False, True, "t", None, None
+        inbox = queue.Queue()
+        unconfirmed = []
+    assert PR.dalla_sessione(Vecchia())["stato"] == "offline"
+
+
+def test_rientrati_si_torna_ALLINEATI():
+    s = Sessione(joined=True, seated=True, room_id="tavolo")
+    assert PR.dalla_sessione(s)["stato"] == "aligned"
