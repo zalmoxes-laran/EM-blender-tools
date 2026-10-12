@@ -384,25 +384,19 @@ def _apply_incoming_select_many(node_ids, active_id, context, graph) -> bool:
     return True
 
 
-def _reflect_in_em_list(context, node, patch: dict):
-    """Mirror a node patch onto its EMListItem so the EM panel updates.
-
-    EMListItems are keyed by NAME (the node_id field is frequently empty on
-    populated items), so we match name first and fall back to node_id. A
-    targeted patch keeps the current selection; a full repopulate
-    (populate_blender_lists_from_graph) is the tool for STRUCTURAL ops
-    (add/delete) — the lists are a projection of the graph, the s3dgraphy
-    multigraph in memory is the source of truth."""
+def _reflect_in_em_list(context, node, old_name=None) -> list:
+    """Mirror a node's fields onto the rows that show it so the EM panel
+    follows the room (`list_mirror`: found by node id, then by the name it had
+    BEFORE the write). A targeted write keeps the current selection; a full
+    repopulate is the tool for STRUCTURAL ops (add/delete) — the lists are a
+    projection of the graph, the s3dgraphy multigraph in memory is the source
+    of truth. → the `list.field`s that changed."""
+    from . import list_mirror
     try:
-        units = context.scene.em_tools.stratigraphy.units
+        em_tools = context.scene.em_tools
     except Exception:
-        return
-    nid = getattr(node, "node_id", None)
-    for item in units:
-        if item.name == node.name or (nid and getattr(item, "node_id", "") == nid):
-            if "description" in patch:
-                item.description = patch["description"]
-            return
+        return []
+    return list_mirror.mirror(em_tools, node, old_name)
 
 
 def _node_from_payload(payload: dict):
@@ -489,13 +483,15 @@ def _apply_wire_op(op: dict, context, graph) -> bool:
                     f"'{op.get('node_id') or op.get('id')}' is not in this graph")
             return False
         name = str(op["field"])
+        # the row is found by the name it had BEFORE: after the write the node
+        # already answers to the new one
+        old_name = getattr(node, "name", None)
         if op.get("remove") is True:
             api.clear_field(node, name, author=op.get("author"), at=op.get("ts"))
         else:
             api.set_field(node, name, op.get("value"), author=op.get("author"),
                           at=op.get("ts"))
-        if name in ("name", "description"):
-            _reflect_in_em_list(context, node, {name: getattr(node, name, "")})
+        if _reflect_in_em_list(context, node, old_name):
             _redraw()
         return False
     if kind == "add_node":
