@@ -253,6 +253,43 @@ class EM_OT_rebuild_graph_indices(Operator):
         return {'FINISHED'}
 
 
+# Graph codes that are placeholders, not real codes.
+_INVALID_GRAPH_CODES = {"", "site_id", "site_ID", "MISSINGCODE", None}
+
+
+def _valid_graph_code(code):
+    return code if code not in _INVALID_GRAPH_CODES else None
+
+
+def _active_graph_code(em_tools):
+    if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        return _valid_graph_code(getattr(graphml, 'graph_code', None))
+    return None
+
+
+def _known_graph_codes(em_tools):
+    """Graph codes of every graph slot in the study: the only strings
+    that count as a prefix. Splitting on the first dot is not enough,
+    because a dot can belong to the name itself (``D.07``) or be the
+    suffix Blender adds on a name clash (``US80.001``)."""
+    codes = set()
+    for graphml in em_tools.graphml_files:
+        code = _valid_graph_code(getattr(graphml, 'graph_code', None))
+        if code:
+            codes.add(code)
+    return codes
+
+
+def _split_known_prefix(name, codes):
+    """Return (code, base_name) if ``name`` starts with ``<code>.`` for a
+    known code (longest match first), else (None, name)."""
+    for code in sorted(codes, key=len, reverse=True):
+        if name.startswith(f"{code}."):
+            return code, name[len(code) + 1:]
+    return None, name
+
+
 class EM_OT_manage_object_prefixes(Operator):
     bl_idname = "em.manage_object_prefixes"
     bl_label = "Manage Object Prefixes"
@@ -282,63 +319,80 @@ class EM_OT_manage_object_prefixes(Operator):
         layout = self.layout
         layout.prop(self, "action", expand=True)
 
-        # Get current graph code
-        em_tools = context.scene.em_tools
-        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
-            graphml = em_tools.graphml_files[em_tools.active_file_index]
-            graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["site_id"] else None
+        graph_code = _active_graph_code(context.scene.em_tools)
 
-            if self.action == 'ADD' and graph_code:
-                layout.label(text=f"Will add prefix: {graph_code}.")
-                layout.label(text=f"Example: SU001 → {graph_code}.SU001")
-            elif self.action == 'ADD' and not graph_code:
-                layout.label(text="Warning: No valid graph code available", icon='ERROR')
-                layout.label(text="Please set a valid graph code first")
-            else:  # REMOVE
-                layout.label(text="Will remove existing prefixes")
-                layout.label(text="Example: GT16.SU001 → SU001")
+        if self.action == 'ADD' and graph_code:
+            layout.label(text=f"Will add prefix: {graph_code}.")
+            layout.label(text=f"Example: SU001 → {graph_code}.SU001")
+        elif self.action == 'ADD':
+            layout.label(text="Warning: No valid graph code available", icon='ERROR')
+            layout.label(text="Please set a valid graph code first")
+        elif graph_code:  # REMOVE while the active graph has a code
+            layout.label(text=f"The active graph has code {graph_code}.", icon='ERROR')
+            layout.label(text=f"Its proxies are linked to their US as {graph_code}.<name>:")
+            layout.label(text="removing the prefix would unlink them.")
+            layout.label(text="To work without prefixes, remove the code from the graph header.")
+        else:  # REMOVE
+            layout.label(text="Will remove the graph code prefixes")
+            layout.label(text="Example: GT16.SU001 → SU001")
 
     def execute(self, context):
         em_tools = context.scene.em_tools
+        graph_code = _active_graph_code(em_tools)
+        known_codes = _known_graph_codes(em_tools)
 
-        # Get the active graph code
-        graph_code = None
-        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
-            graphml = em_tools.graphml_files[em_tools.active_file_index]
-            if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["site_ID"]:
-                graph_code = graphml.graph_code
-
-        # Check if we have a valid graph code when adding prefixes
         if self.action == 'ADD' and not graph_code:
             self.report({'ERROR'}, "No valid graph code available. Please set a valid graph code first.")
             return {'CANCELLED'}
 
-        # Process selected objects
-        processed_count = 0
-        for obj in context.selected_objects:
-            if obj.type == 'MESH':  # Only process mesh objects
-                if self.action == 'ADD':
-                    # Check if object already has a prefix
-                    if '.' in obj.name:
-                        prefix, base_name = obj.name.split('.', 1)
-                        # If prefix is not the current graph code, replace it
-                        if prefix != graph_code:
-                            obj.name = f"{graph_code}.{base_name}"
-                            processed_count += 1
-                    else:
-                        # No prefix, add one
-                        obj.name = f"{graph_code}.{obj.name}"
-                        processed_count += 1
-                else:  # REMOVE
-                    # Check if object has a prefix
-                    if '.' in obj.name:
-                        prefix, base_name = obj.name.split('.', 1)
-                        obj.name = base_name
-                        processed_count += 1
+        # While the active graph has a code, every lookup node → proxy
+        # goes through "<code>.<name>" (node_name_to_proxy_name), so a
+        # proxy without the prefix is no longer found (issue #36).
+        if self.action == 'REMOVE' and graph_code:
+            self.report(
+                {'ERROR'},
+                f"The active graph has code '{graph_code}': its proxies are linked "
+                f"to their US through the prefix '{graph_code}.'. Removing it would "
+                f"unlink them. To work without prefixes, remove the code from the graph header.")
+            return {'CANCELLED'}
 
-        # Report results
+        processed_count = 0
+        clashes = []
+        for obj in context.selected_objects:
+            if obj.type != 'MESH':  # Only process mesh objects
+                continue
+
+            prefix, base_name = _split_known_prefix(obj.name, known_codes)
+            if self.action == 'ADD':
+                if prefix == graph_code:
+                    continue  # already prefixed with the active code
+                new_name = f"{graph_code}.{base_name}"
+            else:  # REMOVE
+                if prefix is None:
+                    continue  # no graph code prefix on this object
+                new_name = base_name
+
+            # Never let Blender rename to "<name>.001": the proxy would
+            # point to no node. Leave the object as it is and report it.
+            existing = bpy.data.objects.get(new_name)
+            if existing is not None and existing != obj:
+                clashes.append(f"{obj.name} → {new_name}")
+                continue
+
+            obj.name = new_name
+            processed_count += 1
+
         action_str = "added to" if self.action == 'ADD' else "removed from"
-        self.report({'INFO'}, f"Prefixes {action_str} {processed_count} objects")
+        if clashes:
+            for clash in clashes:
+                print(f"[EM prefixes] skipped, name already in use: {clash}")
+            self.report(
+                {'WARNING'},
+                f"Prefixes {action_str} {processed_count} objects; "
+                f"{len(clashes)} skipped because the target name is already "
+                f"in use (e.g. {clashes[0]}). See the console for the list.")
+        else:
+            self.report({'INFO'}, f"Prefixes {action_str} {processed_count} objects")
 
         # Update the em_list to reflect the name changes
         if processed_count > 0:
