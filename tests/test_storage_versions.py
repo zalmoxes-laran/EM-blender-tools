@@ -10,7 +10,8 @@ graph built as the room was:
   room sees it;
 * a second identical sync writes nothing;
 * «Withdraw» tombstones the resource, its revisions and its edges;
-* «Use this version» makes the chosen bytes current and moves the citation.
+* «Use» moves the citation — the pointer — and creates nothing (MICRO lo
+  storage parla come una persona, 13 Oct 2026: tests/test_storage_readable.py).
 """
 
 import importlib.util
@@ -163,36 +164,35 @@ def test_a_room_migrated_before_is_repaired_at_the_next_sync():
     before = build_emjson(g)["graph"]
 
     closed = GOV.close_legacy_models(g)
-    forwarded = GOV.forward_proxy_citations(g)
 
     assert sorted(c["unit_id"] for c in closed["closed"]) == ["US1", "US2"]
     assert g.find_node_by_id("US2.model") is None and g.find_node_by_id("US1.model") is None
-    assert _cites(g, shape.node_id) == [second]                 # the current revision
-    assert forwarded == [{"shape": shape.node_id, "old": canonical, "new": second}]
+    # the citation is the pointer (13 Oct 2026): nothing moves it but «Use»
+    # or new bytes — the version in use is the cited one
+    assert _cites(g, shape.node_id) == [canonical]
+    assert GOV.in_use(g, second) == canonical
 
     ops = SYNC.section_delta_ops(before, build_emjson(g)["graph"])
     removed_nodes = {o["id"] for o in ops if o["op"] == "remove_node"}
     assert {"US1.model", "US2.model"} <= removed_nodes
-    gone = [o for o in ops if o["op"] == "remove_edge"
-            and o["source"] == shape.node_id and o["target"] == canonical]
-    came = [o for o in ops if o["op"] == "add_edge"
-            and o["source"] == shape.node_id and o["target"] == second]
-    assert len(gone) == 1 and len(came) == 1
-    assert gone[0]["id"] != came[0]["id"], "the moved edge kept the id the room already has"
+    assert not any(o["op"] == "add_node" for o in ops)
 
     # …and once repaired, a second pass changes nothing
     again = build_emjson(g)["graph"]
-    assert GOV.close_legacy_models(g)["closed"] == [] and GOV.forward_proxy_citations(g) == []
+    assert GOV.close_legacy_models(g)["closed"] == []
     assert SYNC.section_delta_ops(again, build_emjson(g)["graph"]) == []
 
-    # the scene of the measure: the changed proxy and the old one materialised again
+    # the scene of the measure: the bytes in use (OLD) are there, nothing is owed
     scene = [_Obj("US 2 · dopo A", NEW, first), _Obj("US 2 · dopo A.001", OLD, "US2.model")]
     assert _nothing_fetched(g, scene)["materialised"] == []
     removed = {i for c in closed["closed"] for i in c["removed"]}
     assert GOV.object_status(g, "US2.model", OLD, removed=removed) == GOV.STATUS_WITHDRAWN
-    # bound to the first of two revisions with the same bytes: current, not superseded
+    # bound to a later version with other bytes than the one in use: superseded
+    assert GOV.object_status(g, first, NEW) == GOV.STATUS_SUPERSEDED
+    assert GOV.object_status(g, canonical, OLD) == GOV.STATUS_CURRENT
+    # bound to another version with the bytes in use: current
+    GOV.use_version(g, second)
     assert GOV.object_status(g, first, NEW) == GOV.STATUS_CURRENT
-    assert GOV.object_status(g, canonical, OLD) == GOV.STATUS_SUPERSEDED
     # a resource of another graph is not «withdrawn» just because it is not here
     assert GOV.object_status(g, "elsewhere", OLD, removed=removed) == GOV.STATUS_CURRENT
 
@@ -235,7 +235,7 @@ def test_a_second_identical_sync_writes_nothing():
     for rid in (res.node_id, first["resource_id"]):
         again = GOV.revise_and_cite(g, rid, _spec(NEW))
         assert again == {"resource_id": first["resource_id"], "revision_of": None,
-                         "created": False, "moved": 0}
+                         "created": False, "moved": 0, "reused": None}
     assert SYNC.section_delta_ops(before, build_emjson(g)["graph"]) == []
 
 
@@ -255,7 +255,6 @@ def test_an_object_bound_to_an_old_revision_revises_the_current_one():
 def test_withdraw_tombstones_the_resource_its_revisions_and_its_edges():
     g, canonical, first, second = _room_as_measured()
     GOV.close_legacy_models(g)
-    GOV.forward_proxy_citations(g)
     shape, _r = PC.glb_proxy(g, "US2")
     plan = GOV.withdraw_plan(g, first)
     assert plan["members"] == [canonical, first, second]
@@ -275,28 +274,30 @@ def test_withdraw_tombstones_the_resource_its_revisions_and_its_edges():
     assert kinds.index("remove_node") > max(i for i, k in enumerate(kinds) if k == "remove_edge")
 
 
-def test_use_this_version_makes_the_old_bytes_current_and_moves_the_edge():
+def test_use_moves_the_pointer_back_and_creates_nothing():
     g = _room()
     PC.migrate_unit_models(g)
     shape, res = PC.glb_proxy(g, "US2")
     newer = GOV.revise_and_cite(g, res.node_id, _spec(NEW))["resource_id"]
+    nodes = len(g.nodes)
     before = build_emjson(g)["graph"]
     out = GOV.use_version(g, res.node_id)
-    assert out["created"] and out["revision_of"] == newer
-    head = out["resource_id"]
-    assert api.current_revision(g, res.node_id) == head
-    assert GOV.digest_of(g, head) == GOV.bare_digest(OLD)
-    assert g.find_node_by_id(head).data.get("residency") == "resident"
-    assert _cites(g, shape.node_id) == [head]
+    assert out["created"] is False and out["from"] == newer and out["moved"] == 1
+    assert len(g.nodes) == nodes
+    assert GOV.in_use(g, newer) == res.node_id
+    assert api.current_revision(g, res.node_id) == newer        # the later one is history
+    assert _cites(g, shape.node_id) == [res.node_id]
     ops = SYNC.section_delta_ops(before, build_emjson(g)["graph"])
+    assert {o["op"] for o in ops} == {"add_edge", "remove_edge"}
     assert any(o["op"] == "add_edge" and o["source"] == shape.node_id
-               and o["target"] == head for o in ops)
-    # the current one: nothing to do
-    assert GOV.use_version(g, head)["created"] is False
+               and o["target"] == res.node_id for o in ops)
+    # the one in use: nothing to do
+    assert GOV.use_version(g, res.node_id)["moved"] == 0
 
 
 def test_the_rows_of_one_resource_are_grouped_by_revision():
     g, canonical, first, second = _room_as_measured()
     info = GOV.revision_info(g, [first])
     assert info[canonical]["head"] == second and info[second]["index"] == 2
+    assert info[first]["in_use"] == canonical                   # the cited one
     assert info[first]["chain"] == [canonical, first, second]

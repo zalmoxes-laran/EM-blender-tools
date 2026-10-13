@@ -304,6 +304,34 @@ def test_promoting_a_unit_again_adds_no_second_chain(commands, fake_room, monkey
     assert resource.data["checksum"] == room.content_id(b"glTF changed")
 
 
+def test_a_resource_with_bytes_is_never_rewritten(commands, fake_room, monkeypatch):
+    """Measured on 13 Oct 2026, 09:20:17 UTC: the proxies of US1 and US2, sent
+    as «new» because their objects had lost their digest, rewrote `checksum`
+    and `url` of the resources the room had. Other bytes are a revision; the
+    bytes of a version already in the chain move the pointer back to it."""
+    graph = _graph_with_unit()
+    commands.promote_model("US101", {"residency": "resident"}, None, graph)
+    _p, _s, first = _proxy_resource(graph)
+    kept = (first.node_id, dict(first.data))
+    monkeypatch.setattr(commands, "_export_gltf", lambda obj, context: b"glTF changed")
+    out = commands.promote_model("US101", {"residency": "resident"}, None, graph)
+    same = graph.find_node_by_id(kept[0])
+    assert same.data["checksum"] == kept[1]["checksum"]
+    assert same.data["url"] == kept[1]["url"]
+    assert out["info"]["kept"] == "revision" and out["info"]["revision_of"] == kept[0]
+    _p, _s, now = _proxy_resource(graph)
+    assert now.node_id == out["info"]["resource_id"] != kept[0]
+    assert now.data["checksum"] == room.content_id(b"glTF changed")
+    # …and back to the first bytes: the pointer, no third version
+    monkeypatch.setattr(commands, "_export_gltf",
+                        lambda obj, context: b"glTF\x02\x00\x00\x00US101")
+    nodes = len(graph.nodes)
+    back = commands.promote_model("US101", {"residency": "resident"}, None, graph)
+    assert back["info"]["kept"] == "pointer" and back["info"]["resource_id"] == kept[0]
+    assert len(graph.nodes) == nodes
+    assert _proxy_resource(graph)[2].node_id == kept[0]
+
+
 def test_a_representation_model_keeps_its_own_road(commands, fake_room):
     """The RM is not a proxy: its `<RM>.model`, linked from the RM, as before."""
     from s3dgraphy.nodes.representation_node import RepresentationModelNode

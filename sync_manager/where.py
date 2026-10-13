@@ -99,19 +99,21 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     problem = False
     if place == PLACE_ROOM:
         title = s.get("room_title") or s.get("room_id") or "the room"
+        # 13 Oct 2026 · «Tavolo · prova mul…cal:8000 · 2 present»: one line
+        # cut in the middle of the room's name. The name whole, with its
+        # state; the node's host and port on a line of their own
+        out["place_detail"] = ("BLANK1", host) if host else ("", "")
         if s.get("not_connected"):
             # V1 · a file reopened in its room: the room is where it works,
             # and this Blender is not in it yet — said, with Reconnect below
-            out["place"] = ("UNLINKED", f"{_glyph('room.inside', '▣')} {title} · {host} · "
-                                        f"not connected")
+            out["place"] = ("UNLINKED", f"{_glyph('room.inside', '▣')} {title} · not connected")
             problem = True
         elif s.get("offline"):
-            out["place"] = ("UNLINKED", f"{_glyph('room.inside', '▣')} {title} · {host} · offline")
+            out["place"] = ("UNLINKED", f"{_glyph('room.inside', '▣')} {title} · offline")
             problem = True
         else:
             n = int(s.get("members") or 0)
-            out["place"] = ("COMMUNITY", f"{_glyph('room.inside', '▣')} {title} · {host} · "
-                                         f"{n} present")
+            out["place"] = ("COMMUNITY", f"{_glyph('room.inside', '▣')} {title} · {n} present")
             problem = bool(s.get("refused"))
     elif place == PLACE_EMSTUDIO:
         n = int(s.get("clients") or 0)

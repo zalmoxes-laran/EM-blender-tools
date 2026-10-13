@@ -92,6 +92,11 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         row.operator("em.where_change", text="Change…")
         if not z["log"][1]:
             row.operator("em.sync_log", text="", icon="TEXT")
+        detail = z.get("place_detail") or ("", "")
+        if detail[1]:
+            sub = col.row(align=True)
+            sub.active = False
+            sub.label(text=detail[1], icon=detail[0] or "BLANK1")
         if z["who"][1]:
             col.label(text=z["who"][1], icon=z["who"][0])
         msg = z["message"]

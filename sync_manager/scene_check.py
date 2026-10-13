@@ -418,10 +418,10 @@ def _operator_classes():  # pragma: no cover — bpy
                 ULTIMA_VERIFICA.setdefault("sentences", []).append(
                     f"{len(moved['closed'])} old proxy resource(s) withdrawn from the "
                     f"room (their bytes are the canonical chain's)")
-            if moved.get("forwarded"):
+            if moved.get("formats"):
                 ULTIMA_VERIFICA.setdefault("sentences", []).append(
-                    f"{len(moved['forwarded'])} proxy citation(s) moved to the "
-                    f"current revision")
+                    f"{len(moved['formats'])} resource(s) written in the one form "
+                    f"(sha256: digest, one address for the room's store)")
             groups = scene_sync.candidates(context, graph) if SESSION.seated else {
                 "changed": [], "new": [], "baseline": [], "skipped": []}
             report["edited"] = len(groups["changed"])

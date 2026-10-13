@@ -134,12 +134,33 @@ def superseded_out(graph: Any, summary: Dict[str, Any]) -> Dict[str, Any]:
     (``new ──was_revision_of──▶ old``) and the old one stays in the graph, as
     it was and citable. Its bytes are history, not something the scene is
     missing: without this the next check listed the old revision as «missing»
-    beside the new one that the scene holds."""
+    beside the new one that the scene holds.
+
+    Since 13 Oct 2026 the version owed is the one IN USE — the one cited
+    (`resource_governance.in_use`) — and not the newest: «Use» on an older
+    version moves the citation back, and the scene gets those bytes."""
     edges = getattr(graph, "edges", None) or []
-    old = {e.edge_target for e in edges
-           if getattr(e, "edge_type", "") == "was_revision_of"}
-    if not old:
+    members = ({e.edge_target for e in edges
+                if getattr(e, "edge_type", "") == "was_revision_of"}
+               | {e.edge_source for e in edges
+                  if getattr(e, "edge_type", "") == "was_revision_of"})
+    if not members:
         return summary
+    try:
+        from .. import resource_governance as governance
+    except ImportError:              # loaded by path, outside the package (the suite)
+        import resource_governance as governance
+    used = {}
+    for rid in members:
+        if rid not in used and graph.find_node_by_id(rid) is not None:
+            try:
+                chain = governance.chain_of(graph, rid)
+                pick = governance.in_use(graph, rid)
+            except Exception:  # noqa: BLE001 — a fork: as before, the newest
+                chain, pick = [rid], rid
+            for m in chain:
+                used[m] = pick
+    old = {m for m, pick in used.items() if m != pick}
     out = dict(summary)
     out["resident"] = [r for r in summary.get("resident") or []
                        if r.get("resource_id") not in old]
@@ -163,9 +184,17 @@ def scene_digests(objects: Any = None) -> Dict[str, Any]:
             digest = obj.get(PROP_DIGEST)
         except Exception:                   # noqa: BLE001 — an odd object is not a cache hit
             continue
-        if digest and digest not in out:
-            out[str(digest)] = obj
+        if digest and _full(digest) not in out:
+            out[_full(digest)] = obj
     return out
+
+
+def _full(digest: Any) -> str:
+    """`sha256:<hex>`, with or without the prefix as written (13 Oct 2026: a
+    revision written without it missed the cache and came in twice)."""
+    text = str(digest or "").strip()
+    bare = text[7:] if text.lower().startswith("sha256:") else text
+    return f"sha256:{bare.lower()}" if bare else ""
 
 
 def _default_fetch(checksum: str):
@@ -271,7 +300,7 @@ def materialise(graph: Any, *,
     }
 
     for record in todo:
-        checksum = str(record.get("checksum") or "")
+        checksum = _full(record.get("checksum"))
         if not checksum:
             report["skipped"].append({**_row(record),
                                       "reason": "no checksum: nothing to fetch by"})

@@ -118,6 +118,31 @@ def is_configured() -> bool:
     return bool(_session["base_url"] and _session["room_id"])
 
 
+#: base → the public base that node declares ("" when it declares none)
+_PUBLIC: Dict[str, str] = {}
+
+
+def public_base(timeout: float = 5.0) -> str:
+    """The address the node DECLARES as the one another machine reaches
+    (`GET /v1/node` → `public_base`, set with `EM_PUBLIC_BASE`). Asked once per
+    node; any doubt is "" — the caller then uses the room's own base. Never a
+    guess: a node that names no public address has none to give."""
+    base = _session["base_url"]
+    if not base:
+        return ""
+    if base not in _PUBLIC:
+        found = ""
+        try:
+            request = urllib.request.Request(f"{base}/v1/node", method="GET")
+            with _urlopen(request, timeout=timeout) as response:
+                found = str((json.loads(response.read().decode("utf-8")) or {})
+                            .get("public_base") or "").strip().rstrip("/")
+        except Exception:  # noqa: BLE001 — an older node, or none answering
+            found = ""
+        _PUBLIC[base] = found
+    return _PUBLIC[base]
+
+
 def ws_url(path: str = "ws") -> str:
     """The room's WebSocket address (STEP 3 joins here).
 

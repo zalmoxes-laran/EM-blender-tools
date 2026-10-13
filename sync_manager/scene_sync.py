@@ -290,44 +290,63 @@ def revise_object(context, graph, obj, rid: str, *, kind: str = "",
             rid = chain.node_id
     data = commands._export_gltf(obj, context)
     info = room_cfg.put_asset(data, room_cfg.GLTF_MEDIA_TYPE)
-    spec = {"path": f"{obj.name}.glb", "url": info["url"], "checksum": info["sha256"],
-            "size_bytes": len(data), "media_type": room_cfg.GLTF_MEDIA_TYPE}
+    spec = {"path": f"{obj.name}.glb",
+            "url": commands._store_url(graph, info["ref"]) or info["url"],
+            "checksum": info["ref"], "size_bytes": len(data),
+            "media_type": room_cfg.GLTF_MEDIA_TYPE}
     out = governance.revise_and_cite(graph, rid, spec)
     obj["em_resource_id"] = out["resource_id"]
     obj["em_asset_sha256"] = info["ref"]
     record_fingerprint(obj)
     if not out["created"]:
+        # the same bytes as the version in use, or as an older one: then the
+        # pointer moved to it — never a second version of the same bytes
         return {"ok": True, "info": {"object": obj.name, "resource_id": out["resource_id"],
-                                     "revision_of": None, "size": 0, "same": True,
-                                     "stored": False}}
+                                     "revision_of": None, "size": 0,
+                                     "same": not out.get("reused"),
+                                     "reused": out.get("reused"), "stored": False}}
     return {"ok": True, "info": {"object": obj.name, "resource_id": out["resource_id"],
                                  "revision_of": out["revision_of"], "size": len(data),
                                  "stored": bool(info.get("created"))}}
 
 
 def repair_versions(graph) -> Dict[str, Any]:  # pragma: no cover — bpy
-    """A room migrated before the old form was closed, or revised before the
-    citation moved: the `<US>.model` left alive are closed, the proxy shapes
-    citing a superseded revision cite the current one, and the objects bound
-    to an old revision with the current one's bytes are bound to it."""
+    """A room migrated before the old form was closed, or written by an older
+    EMtools: the `<US>.model` left alive are closed, a checksum without its
+    `sha256:` and a store url on another host take the one form
+    (`normalise_formats`), and the objects bound to another version with the
+    bytes of the version IN USE are bound to it.
+
+    No citation is moved here any more: since 13 Oct 2026 the version in use
+    IS the cited one, and a shape that cites an older version is a choice
+    («Use»), not a lag to repair."""
     import bpy  # type: ignore
     from .. import resource_governance as governance
+    from . import room as room_cfg
     from .materialise import PROP_DIGEST, PROP_RESOURCE
 
     closed = governance.close_legacy_models(graph)
-    forwarded = governance.forward_proxy_citations(graph)
+    where = room_cfg.room()
+    room_id = str(where.get("room_id") or "")
+    base = governance.room_base(graph, room_id, declared=room_cfg.public_base(),
+                                connected=str(where.get("base_url") or "")) \
+        if room_cfg.is_configured() else ""
+    formats = governance.normalise_formats(graph, room_id, base)
     rebound = 0
     for obj in bpy.data.objects:
         rid = str(obj.get(PROP_RESOURCE) or "")
         if not rid or graph.find_node_by_id(rid) is None:
             continue
-        head = governance.head_of(graph, rid)
-        if head != rid and governance.object_status(
+        used = governance.in_use(graph, rid)
+        if used != rid and governance.object_status(
                 graph, rid, str(obj.get(PROP_DIGEST) or "")) == governance.STATUS_CURRENT:
-            obj[PROP_RESOURCE] = head
+            obj[PROP_RESOURCE] = used
             rebound += 1
+        digest = str(obj.get(PROP_DIGEST) or "")
+        if digest and not digest.startswith("sha256:"):
+            obj[PROP_DIGEST] = governance.full_digest(digest)
     return {"closed": closed["closed"], "warnings": closed["warnings"],
-            "forwarded": forwarded, "rebound": rebound}
+            "formats": formats, "rebound": rebound}
 
 
 def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover — bpy
@@ -354,7 +373,7 @@ def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover 
     repaired = repair_versions(graph)
     report["closed"] = list(report.get("closed") or []) + repaired["closed"]
     report["warnings"] = list(report["warnings"]) + repaired["warnings"]
-    report["forwarded"] = repaired["forwarded"]
+    report["formats"] = repaired["formats"]
     delta = section_delta_ops(before, _section(graph))
     if not delta and not report["migrated"]:
         report["ops"] = 0
@@ -376,7 +395,7 @@ def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover 
     em_log(f"[sync] proxies migrated to the canonical form (property → shape → "
            f"resource): {', '.join(m['unit_id'] for m in report['migrated']) or 'none'}"
            f" · old form closed: {', '.join(i for c in report['closed'] for i in c['removed']) or 'none'}"
-           f" · citations moved to the current revision: {len(report['forwarded'])}"
+           f" · checksums and store urls put in one form: {len(report['formats'])}"
            f" · {len(delta)} change(s) to the room"
            + (f" · {'; '.join(report['warnings'])}" if report["warnings"] else ""),
            "WARNING")

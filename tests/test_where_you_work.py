@@ -102,7 +102,8 @@ def test_in_a_room_the_title_the_node_who_and_the_log():
          "node": "https://em.localhost:8443/em", "members": 1, "author": "dev",
          "role": "owner", "sent": 12, "answered": 12}
     z = where.zones(s)
-    assert z["place"][1] == "▣ Templu Mare · em.localhost:8443/em · 1 present"
+    assert z["place"][1] == "▣ Templu Mare · 1 present"
+    assert z["place_detail"][1] == "em.localhost:8443/em"     # its own line
     assert z["who"][1] == "dev ✓ · ★ owner"
     assert z["log"][1] == "✓ aligned · 12 sent, 12 answered"
     waiting = where.zones({**s, "waiting": 3})

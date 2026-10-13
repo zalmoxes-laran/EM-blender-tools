@@ -350,6 +350,21 @@ def _chain_edge_ids(graph, unit_id: str, chain: Dict[str, Any]) -> List[str]:
             if (e.edge_source, e.edge_target) in links]
 
 
+def _store_url(graph, ref: str) -> str:
+    """The `url` a resident resource records: one base for the room
+    (`resource_governance.room_base`), whatever host this Blender reached the
+    node by. Empty outside a room."""
+    from .. import resource_governance as governance
+    from . import room
+    if not room.is_configured():
+        return ""
+    where = room.room()
+    base = governance.room_base(graph, str(where.get("room_id") or ""),
+                                declared=room.public_base(),
+                                connected=str(where.get("base_url") or ""))
+    return governance.store_url(base, str(where.get("room_id") or ""), ref) if base else ""
+
+
 def promote_model(target: str, params: Dict[str, Any], context,
                   graph) -> Dict[str, Any]:
     """Publish a node's mesh into the room's store, and reference it (DP-76).
@@ -423,8 +438,39 @@ def promote_model(target: str, params: Dict[str, Any], context,
         migrate_unit_models(graph, [target])
         chain = ensure_unit_proxy(graph, target, node_name, author=info.get("author"))
         resource_id = str(chain.get("resource_id") or resource_id)
+    # A resource that already HOLDS bytes is never rewritten (decision of 30
+    # Sep 2026). Measured on 13 Oct 2026, 09:20:17 UTC: two proxies whose
+    # objects had lost their digest were sent as «new», and `promote_resource`
+    # wrote the new checksum and url over the resource the room had. Other
+    # bytes are a revision; bytes a version already has move the pointer.
+    from .. import resource_governance as governance
+    url = _store_url(graph, info["ref"]) or info["url"]
+    held = governance.write_bytes(
+        graph, resource_id,
+        {"path": f"{obj.name}.glb", "url": url, "checksum": info["sha256"],
+         "size_bytes": info.get("size") or len(data), "media_type": room.GLTF_MEDIA_TYPE},
+        residency=residency)
+    if held["action"] != "write":
+        rid = held["resource_id"]
+        obj["em_resource_id"] = rid
+        obj["em_asset_ref"] = info["ref"]
+        obj["em_asset_sha256"] = info["ref"]
+        from .scene_sync import record_fingerprint
+        record_fingerprint(obj)
+        return {"ok": True,
+                "delta": build_delta(graph, [rid], [e.edge_id for e in graph.edges
+                                                    if rid in (e.edge_source, e.edge_target)]),
+                "info": {"object": obj.name, "resource_id": rid,
+                         "property_id": chain.get("property_id"),
+                         "shape_id": chain.get("shape_id"),
+                         "ref": info["ref"], "size": info.get("size"),
+                         "stored": bool(info.get("created")),
+                         "already": bool(info.get("already")),
+                         "revision_of": held.get("revision_of"),
+                         "kept": held["action"], "process_id": None,
+                         "warnings": []}}
     result = promote_resource(
-        graph, resource_id, url=info["url"], sha256=info["sha256"],
+        graph, resource_id, url=url, sha256=info["sha256"],
         media_type=room.GLTF_MEDIA_TYPE, author=info.get("author"),
         link_to=None if (is_resource or unit_proxy) else target,
         name=params.get("name") or f"{node_name} (glTF)",

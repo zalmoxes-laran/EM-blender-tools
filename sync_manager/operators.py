@@ -1826,8 +1826,16 @@ def _adopt_snapshot(doc: dict, context) -> str:
         return "the room sent no document"
     path = None
     try:
-        from .room_session import REMOVED_IN_ROOM, live_view, removed_node_ids
+        from .room_session import (REMOVED_IN_ROOM, WITHDRAWN, live_view, removed_node_ids,
+                                   withdrawn_resources)
         REMOVED_IN_ROOM.update(removed_node_ids(doc))
+        try:
+            # what the room remembers as withdrawn: the Storage panel says by
+            # whom and when, and offers «Undo» (a room that forgot it: gone)
+            WITHDRAWN.clear()
+            WITHDRAWN.update(withdrawn_resources(doc))
+        except Exception as exc:  # noqa: BLE001 — the entry goes on without it
+            print(f"[sync] withdrawn resources not read: {exc}")
         doc = live_view(doc)
         with tempfile.NamedTemporaryFile("w", suffix=".em.json", delete=False,
                                          encoding="utf-8") as handle:

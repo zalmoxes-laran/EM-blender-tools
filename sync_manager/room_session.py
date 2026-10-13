@@ -131,6 +131,30 @@ def plan_rejoin(base: Optional[str], gc_watermark: Optional[str]) -> str:
 #: belongs to another graph
 REMOVED_IN_ROOM: set = set()
 
+#: the resources withdrawn that the room still remembers (its tombstones, or
+#: a «Withdraw» of this Blender): resource id → what «Undo» puts back,
+#: who withdrew it and when (`resource_governance.withdrawal_record`)
+WITHDRAWN: Dict[str, Dict[str, Any]] = {}
+
+
+def withdrawn_resources(doc: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """The withdrawals the room's document carries as tombstones."""
+    try:
+        from .. import resource_governance as governance
+    except ImportError:              # loaded by path, outside the package (the suite)
+        import resource_governance as governance
+    out: Dict[str, Dict[str, Any]] = {}
+    if not isinstance(doc, dict):
+        return out
+    sections = list((doc.get("graphs") or {}).values()) if isinstance(doc.get("graphs"), dict) else []
+    if isinstance(doc.get("graph"), dict):
+        sections.append(doc["graph"])
+    for sec in sections:
+        if isinstance(sec, dict) and isinstance(sec.get("nodes"), list):
+            for record in governance.withdrawn_in_section(sec):
+                out[record["id"]] = record
+    return out
+
 
 def removed_node_ids(doc: Dict[str, Any]) -> set:
     """The ids of the nodes the room's document carries as tombstones."""

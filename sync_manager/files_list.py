@@ -25,49 +25,162 @@ import os
 KINDS = (("all", "All kinds", "Every row"),
          ("master", "Masters", "The assets: the surveyed or authored source"),
          ("version", "Versions", "LODs and other versions derived from a master"),
-         ("file", "Files of a set", "One file of a resource that is a set"),
-         ("link", "Links", "A resource a document or a model points to"))
+         ("file", "Parts", "One file of a resource made of several files"),
+         ("link", "Linked files", "A file a document, a model or a proxy points to"))
 
-def build_rows(graph, results: List[Dict[str, Any]],
-               described: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
-    """The rows of the list: ``s3dgraphy.api.storage_rows`` (the same grouping
-    EMStudio draws), with the lists written as text for the Blender properties.
-    ``described`` is no longer needed: the library names the file and its document."""
-    from s3dgraphy import api
-    rows = api.storage_rows(graph, results)
-    revs = _revisions(graph, [x["id"] for x in rows])
-    for x in rows:
-        x["use"] = ",".join(x["use"])
-        x["rm"] = ", ".join(x["rm"])
-        # the revisions of one resource are ONE entry: the current one shows,
-        # the history opens under it (13 Oct 2026: «US 2 · dopo A.glb» twice)
-        r = revs.get(x["id"])
-        x["head"] = r["head"] if r else x["id"]
-        x["revs"] = len(r["chain"]) if r else 1
-        x["rev"] = ("" if not r or len(r["chain"]) < 2 else
-                    "current" if r["head"] == x["id"] else f"{r['index'] + 1}")
-    return rows
+#: where the bytes are, said in one short sentence
+STATE_SENTENCE = {"on_disk": "On this computer, not on the node.",
+                  "on_node": "On the node; not on this computer yet.",
+                  "both": "On this computer and on the node.",
+                  "missing": "Not found: neither here nor on the node.",
+                  "reference_only": "Kept elsewhere: this study points at it."}
+
+#: what a row says of its kind, in plain words (the jargon stays in Details)
+TAGS = {"master": "master", "file": "", "link": ""}
 
 
-def _revisions(graph, ids):
+def _gov():
     try:
         from .. import resource_governance as governance
     except ImportError:              # loaded by path, outside the package (the suite)
         import resource_governance as governance
+    return governance
+
+
+def build_rows(graph, results: List[Dict[str, Any]],
+               described: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """The rows of the list: ``s3dgraphy.api.storage_rows`` (the same grouping
+    EMStudio draws), said for a person (MICRO lo storage parla come una
+    persona, 13 Oct 2026):
+
+    * **one row per resource**: its versions are not rows — the row is the
+      version IN USE (the cited one), with ``versions`` «v3/4» when there are
+      more; the card lists them;
+    * **names, never codes**: ``file`` is what the resource is for («US 2 —
+      proxy», «Epoch 1 — RM», a document's title), never a digest or a UUID;
+    * the files of a resource made of ONE file are not rows of their own, nor
+      those of a version not in use."""
+    from s3dgraphy import api
+    gov = _gov()
+    rows = api.storage_rows(graph, results)
+    revs = _revisions(graph, [x["id"] for x in rows])
+    set_of = {e.edge_target: e.edge_source for e in graph.edges if e.edge_type == "has_file"}
+    parts: Dict[str, int] = {}
+    for owner in set_of.values():
+        parts[owner] = parts.get(owner, 0) + 1
+    kept: List[Optional[Dict[str, Any]]] = []
+    chains: Dict[str, int] = {}
+    for x in rows:
+        if x["kind"] == "file":
+            owner = set_of.get(x["id"])
+            r = revs.get(owner) if owner else None
+            if owner and (parts.get(owner, 0) <= 1 or (r and owner != r["in_use"])):
+                continue
+            kept.append(x)
+            continue
+        r = revs.get(x["id"])
+        key = r["chain"][-1] if r else x["id"]
+        if key in chains:
+            if r and x["id"] == r["in_use"]:     # the version in use takes the row
+                kept[chains[key]] = None
+                chains[key] = len(kept)
+                kept.append(x)
+            continue
+        chains[key] = len(kept)
+        kept.append(x)
+    out = []
+    for x in kept:
+        if x is None:
+            continue
+        if x["kind"] == "file":
+            x["file"] = gov.readable(x["file"], "Unnamed part")
+            x.update(head=x["id"], revs=1, versions="", later="")
+        else:
+            r = revs.get(x["id"])
+            chain = r["chain"] if r else [x["id"]]
+            if r and r["in_use"] in chain:
+                x["id"] = r["in_use"]
+            x["file"] = gov.readable(gov.display_name(graph, x["id"]))
+            x["head"] = chain[-1]
+            x["revs"] = len(chain)
+            x["versions"] = (f"v{chain.index(x['id']) + 1}/{len(chain)}"
+                             if len(chain) > 1 and x["id"] in chain else "")
+            x["later"] = "1" if x["id"] != chain[-1] else ""
+        x["doc"] = "" if gov.looks_like_code(x.get("doc")) else x.get("doc") or ""
+        x["use"] = ",".join(x["use"])
+        x["rm"] = ", ".join(x["rm"])
+        x["tag"] = TAGS.get(x["kind"], x["tag"])
+        x["search"] = " ".join([x["file"].lower(), x["search"]])
+        out.append(x)
+    return out
+
+
+def _revisions(graph, ids):
     try:
-        return governance.revision_info(graph, ids)
+        return _gov().revision_info(graph, ids)
     except Exception:  # noqa: BLE001 — a list never fails on a revision it cannot read
         return {}
-
-
-def is_history(row) -> bool:
-    """A past revision: under its current one, not a row of its own."""
-    return bool(row.get("rev")) and row["rev"] != "current"
 
 
 def siblings(rows: List[Dict[str, Any]], row: Dict[str, Any]) -> List[int]:
     """Indexes of the other rows of the same asset (its master, versions, files)."""
     return [i for i, x in enumerate(rows) if x["asset"] == row["asset"] and x["id"] != row["id"]]
+
+
+def when(stamp: str, today: Optional[str] = None) -> str:
+    """``2026-10-13T09:24:05Z`` → «11:24» in this computer's time (Rome, +2 in
+    October), «12 Oct 11:24» when it is not today. Empty for no stamp."""
+    import datetime as dt
+    text = str(stamp or "").strip()
+    if not text:
+        return ""
+    try:
+        at = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text[:16]
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=dt.timezone.utc)
+    local = at.astimezone()
+    day = today or dt.datetime.now().astimezone().strftime("%Y-%m-%d")
+    clock = local.strftime("%H:%M")
+    return clock if local.strftime("%Y-%m-%d") == day else f"{local.day} {local.strftime('%b')} {clock}"
+
+
+def version_line(v: Dict[str, Any], today: Optional[str] = None) -> str:
+    """One version, one line: «v2 · 11:24 · Editor Due · in use»."""
+    bits = [f"v{v['n']}", when(v.get("at") or "", today), v.get("by") or ""]
+    if v.get("in_use"):
+        bits.append("in use")
+    elif v.get("later"):
+        bits.append("later")
+    return " · ".join(b for b in bits if b)
+
+
+def people(members: List[Dict[str, Any]]) -> Dict[str, str]:
+    """The people of the room: their id → the name they go by."""
+    out: Dict[str, str] = {}
+    for m in members or []:
+        if not isinstance(m, dict):
+            continue
+        name = str(m.get("name") or m.get("display_name") or m.get("label") or "")
+        for key in ("user", "id", "sub", "author", "orcid"):
+            if m.get(key) and name:
+                out[str(m[key])] = name
+    return out
+
+
+def withdrawn_name(graph, record: Dict[str, Any]) -> str:
+    """What a withdrawn resource was, by what cited it (still in the graph),
+    or by its own name — never its id."""
+    gov = _gov()
+    for src in record.get("cited_by") or []:
+        said = gov.citer_name(graph, src)
+        if said:
+            return said
+    for node in record.get("nodes") or []:
+        if node.get("id") == record.get("id"):
+            return gov.readable(node.get("name"), "A resource")
+    return "A resource"
 
 
 # ── the Blender face ────────────────────────────────────────────────────────
@@ -93,30 +206,36 @@ def _classes():  # pragma: no cover — bpy
         rm: bpy.props.StringProperty()  # type: ignore
         search: bpy.props.StringProperty()  # type: ignore
         head: bpy.props.StringProperty()  # type: ignore
-        rev: bpy.props.StringProperty()  # type: ignore
         revs: bpy.props.StringProperty()  # type: ignore
+        versions: bpy.props.StringProperty()  # type: ignore
+        later: bpy.props.StringProperty()  # type: ignore
 
     class EM_UL_files(bpy.types.UIList):
+        """One row per resource: where it is (here, on the node, both), its
+        name, which version is in use of how many, and ✕ to withdraw it."""
+
         def draw_item(self, context, layout, data, item, icon, active_data, active_prop, index):
             from ..state_symbols import sign
             ic, _text, _meaning = sign("file." + item.state)
             row = layout.row(align=True)
             row.alert = item.state in ("missing", "empty_copy")
-            if item.kind in ("version", "file") or (item.rev and item.rev != "current"):
-                row.label(text="", icon="BLANK1")          # a version hangs under its asset
+            if item.kind == "file":
+                row.label(text="", icon="BLANK1")          # a part hangs under its resource
             row.label(text=item.file, icon=ic)
-            if item.rev == "current":
-                row.label(text=f"⟳ {item.revs}")           # its history is under it
-            elif item.rev:
-                row.label(text=f"rev {item.rev}/{item.revs}")
             from . import file_states
             b = (file_states.ULTIMI.get("bucket") or {}).get(item.id)
             if b:
                 row.label(text=BUCKET_SIGN.get(b["state"], ("?", ""))[0])
             sub = row.row(align=True)
-            sub.active = item.kind != "link"
             sub.alignment = "RIGHT"
-            sub.label(text=item.tag)
+            if item.versions:
+                sub.label(text=item.versions)              # «v3/4»: in use, of how many
+            elif item.tag:
+                sub.active = False
+                sub.label(text=item.tag)
+            if item.kind != "file" and _may_write(context):
+                sub.operator("em.files_withdraw", text="", icon="X",
+                             emboss=False).resource_id = item.id
 
         def draw_filter(self, context, layout):
             layout.label(text="Filters are above the list.", icon="INFO")
@@ -131,11 +250,9 @@ def _classes():  # pragma: no cover — bpy
             use = getattr(wm, "em_files_use", "all")
             use = "" if use == "all" else use
             words = (getattr(wm, "em_files_query", "") or "").lower().split()
-            history = getattr(wm, "em_files_history", False)
             flags = [self.bitflag_filter_item] * len(items)
             for i, it in enumerate(items):
-                ok = ((history or not it.rev or it.rev == "current")
-                      and (not state or it.state == state) and (not kind or it.kind == kind)
+                ok = ((not state or it.state == state) and (not kind or it.kind == kind)
                       and (not use or use in it.use.split(","))
                       and all(w in it.search for w in words))
                 if not ok:
@@ -420,11 +537,10 @@ def _classes():  # pragma: no cover — bpy
             print(f"[storage] the list was not rebuilt: {exc}")
 
     class EM_OT_files_use_version(bpy.types.Operator):
-        """Use this version: its bytes become the current revision of the
-        resource (a new revision, the old ones stay as history) and what cited
-        the resource cites it"""
+        """Use this version: what cites the resource cites this version again.
+        No new version is made; the later ones stay as history"""
         bl_idname = "em.files_use_version"
-        bl_label = "Use this version"
+        bl_label = "Use"
         resource_id: bpy.props.StringProperty()  # type: ignore
 
         def execute(self, context):
@@ -438,12 +554,15 @@ def _classes():  # pragma: no cover — bpy
             except Exception as exc:  # noqa: BLE001 — the reason is the person's
                 self.report({"ERROR"}, f"could not use this version: {exc}")
                 return {"CANCELLED"}
+            if not out["moved"]:
+                self.report({"INFO"}, "this version is already in use")
+                return {"FINISHED"}
+            shown = show_in_scene(context, graph, self.resource_id)
             _refresh(context, graph)
-            if not out["created"]:
-                self.report({"INFO"}, "this is already the current version")
-            else:
-                self.report({"INFO"}, f"current again, as a new revision · {out['moved']} "
-                            f"citation(s) moved · «Sync the scene…» brings its bytes here")
+            n = next((v["n"] for v in governance.versions(graph, self.resource_id)
+                      if v["id"] == self.resource_id), "?")
+            self.report({"WARNING" if shown["kept"] else "INFO"},
+                        f"v{n} in use · no new version · {shown['said']}")
             return {"FINISHED"}
 
     class EM_OT_files_replace(bpy.types.Operator):
@@ -484,9 +603,9 @@ def _classes():  # pragma: no cover — bpy
             return {"FINISHED"}
 
     class EM_OT_files_withdraw(bpy.types.Operator):
-        """Withdraw from the room: the resource and its revisions leave the
-        graph (tombstones, signed by you). The bytes stay in the node's store,
-        as history"""
+        """Withdraw from the room… — the resource and its versions leave the
+        room's graph, for everybody (you can undo it). The bytes stay in the
+        node's store"""
         bl_idname = "em.files_withdraw"
         bl_label = "Withdraw from the room…"
         resource_id: bpy.props.StringProperty()  # type: ignore
@@ -506,9 +625,10 @@ def _classes():  # pragma: no cover — bpy
             box.alert = True
             box.label(text="This withdraws the resource from the room's graph.", icon="ERROR")
             box.label(text="Everybody in the room stops seeing it; its bytes stay in the store.")
+            box.label(text="You can undo it while the room remembers it.")
             n = len(plan["members"])
-            col.label(text=f"{n} revision(s)" + (f" and {len(plan['files'])} file node(s)"
-                                                 if plan["files"] else ""), icon="FILE")
+            col.label(text=f"{n} version(s)" + (f" and {len(plan['files'])} part(s)"
+                                                if plan["files"] else ""), icon="FILE")
             if plan["citing"]:
                 col.label(text="It is cited by — these citations go with it:", icon="LINKED")
                 for c in plan["citing"][:8]:
@@ -526,12 +646,64 @@ def _classes():  # pragma: no cover — bpy
             graph = _graph_or_report(self, context)
             if graph is None:
                 return {"CANCELLED"}
+            import datetime as dt
+            from .room_session import WITHDRAWN
+            from .scene_sync import _section
+            before = _section(graph)
+            name = governance.display_name(graph, self.resource_id)
             plan = to_the_room(graph, lambda g: governance.withdraw(g, self.resource_id))
             REMOVED_IN_ROOM.update(plan["members"] + plan["files"])
+            record = governance.withdrawal_record(
+                before, plan, by=_me(context),
+                at=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+            record["name"] = name
+            WITHDRAWN[record["id"]] = record
             _refresh(context, graph)
-            self.report({"INFO"}, f"withdrawn: {len(plan['members'])} revision(s), "
-                        f"{len(plan['citing'])} citation(s) with them · the objects in the "
-                        f"scene that show it are marked «withdrawn»")
+            self.report({"INFO"}, f"{name} withdrawn ({len(plan['members'])} version(s), "
+                        f"{len(plan['citing'])} citation(s)) · Undo is under the list")
+            return {"FINISHED"}
+
+    class EM_OT_files_undo_withdraw(bpy.types.Operator):
+        """Undo the withdrawal: the resource, its versions and its citations
+        come back, for everybody in the room"""
+        bl_idname = "em.files_undo_withdraw"
+        bl_label = "Undo"
+        record_id: bpy.props.StringProperty()  # type: ignore
+
+        def execute(self, context):
+            import datetime as dt
+            from .. import resource_governance as governance
+            from . import operators as ops
+            from .room_session import REMOVED_IN_ROOM, WITHDRAWN
+            graph = _graph_or_report(self, context)
+            record = WITHDRAWN.get(self.record_id)
+            if graph is None or record is None:
+                return {"CANCELLED"}
+            name = record.get("name") or withdrawn_name(graph, record)
+            at = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            for op in governance.undo_ops(record, at=at):
+                try:
+                    ops._apply_wire_op(op, context, graph)
+                except Exception as exc:  # noqa: BLE001 — one op is one line
+                    print(f"[storage] undo: {op.get('op')} not applied here: {exc}")
+                ops.emit_op(op)
+            for node in record.get("nodes") or []:
+                REMOVED_IN_ROOM.discard(node.get("id"))
+            WITHDRAWN.pop(self.record_id, None)
+            _refresh(context, graph)
+            self.report({"INFO"}, f"{name} is back in the room")
+            return {"FINISHED"}
+
+    class EM_OT_files_copy(bpy.types.Operator):
+        """Copy this value"""
+        bl_idname = "em.files_copy"
+        bl_label = "Copy"
+        bl_options = {"INTERNAL"}
+        value: bpy.props.StringProperty()  # type: ignore
+
+        def execute(self, context):
+            context.window_manager.clipboard = self.value
+            self.report({"INFO"}, "copied")
             return {"FINISHED"}
 
     class EM_OT_files_remove_from_scene(bpy.types.Operator):
@@ -557,7 +729,95 @@ def _classes():  # pragma: no cover — bpy
     return (EMFileRow, EM_UL_files, EM_OT_files_select, EM_OT_files_find_moved,
             EM_OT_files_relink_moved, EM_OT_files_bucket_check, EM_OT_files_bucket_promote,
             EM_OT_files_free_local, EM_OT_files_use_version, EM_OT_files_replace,
-            EM_OT_files_withdraw, EM_OT_files_remove_from_scene)
+            EM_OT_files_withdraw, EM_OT_files_undo_withdraw, EM_OT_files_copy,
+            EM_OT_files_remove_from_scene)
+
+
+def _may_write(context) -> bool:  # pragma: no cover — bpy
+    """In a room with a role that writes (or outside any room)."""
+    try:
+        from . import operators as ops
+        session = ops.current_session(context)
+        return not ((session.joined or session.seated) and not session.can_write)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _me(context) -> str:  # pragma: no cover — bpy
+    try:
+        from . import operators as ops
+        return str(getattr(ops.current_session(context), "author", "") or "you")
+    except Exception:  # noqa: BLE001
+        return "you"
+
+
+def _people(context) -> Dict[str, str]:  # pragma: no cover — bpy
+    try:
+        from . import operators as ops
+        return people(list(getattr(ops.current_session(context), "members", []) or []))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def show_in_scene(context, graph, res_id: str) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """After «Use»: the scene shows the version in use. Its bytes are fetched
+    (or found in the scene by their digest); an object of the same resource
+    with OTHER bytes leaves the scene and gives its name to the one that came
+    — unless it was changed here and not sent: then it stays, marked, and
+    the sentence says so (a gesture never throws away work)."""
+    import bpy  # type: ignore
+    from .. import resource_governance as governance
+    from .materialise import PROP_DIGEST, PROP_RESOURCE, materialise, plan
+    from .scene_sync import PROP_FINGERPRINT, mesh_fingerprint
+    try:
+        records = [r for r in plan(graph)["resident"] if r.get("resource_id") == res_id]
+        report = materialise(graph, records=records) if records else {"materialised": [], "reused": []}
+    except Exception as exc:  # noqa: BLE001 — the pointer moved; the bytes come at the next check
+        return {"kept": [], "said": f"its geometry comes at the next «Check the scene» ({exc})"}
+    came = [bpy.data.objects.get(n) for m in report.get("materialised") or []
+            for n in m.get("objects") or []]
+    came = [o for o in came if o is not None]
+    chain = set(governance.chain_of(graph, res_id))
+    removed, kept = [], []
+    for obj in list(bpy.data.objects):
+        rid = str(obj.get(PROP_RESOURCE) or "")
+        if obj in came or rid not in chain or governance.object_status(
+                graph, rid, str(obj.get(PROP_DIGEST) or "")) != governance.STATUS_SUPERSEDED:
+            continue
+        recorded = str(obj.get(PROP_FINGERPRINT) or "")
+        if recorded and mesh_fingerprint(obj) != recorded:
+            kept.append(obj.name)
+            continue
+        removed.append(obj.name)
+        bpy.data.objects.remove(obj, do_unlink=True)
+    if came and removed:
+        came[0].name = removed[0]
+    said = ("its geometry is in the scene" if came or report.get("reused")
+            else "its geometry comes at the next «Check the scene»")
+    if kept:
+        said += f" · {', '.join(kept)} has changes not sent: kept, marked «superseded»"
+    return {"kept": kept, "said": said}
+
+
+def draw_withdrawn(layout, context, graph) -> None:  # pragma: no cover — bpy
+    """What was withdrawn and the room still remembers: by whom, when, Undo."""
+    from .room_session import WITHDRAWN
+    records = [r for r in WITHDRAWN.values()
+               if graph is None or graph.find_node_by_id(r.get("id") or "") is None]
+    if not records:
+        return
+    box = layout.box()
+    box.label(text=f"Withdrawn · {len(records)}", icon="TRASH")
+    names = _people(context)
+    for r in sorted(records, key=lambda r: r.get("at") or "", reverse=True)[:6]:
+        row = box.row(align=True)
+        who = names.get(r.get("by") or "", r.get("by") or "")
+        name = r.get("name") or withdrawn_name(graph, r)
+        bits = [name, f"by {who}" if who else "", when(r.get("at") or "")]
+        row.label(text=" · ".join(b for b in bits if b), icon="BLANK1")
+        if _may_write(context):
+            row.operator("em.files_undo_withdraw", text="Undo",
+                         icon="LOOP_BACK").record_id = r["id"]
 
 
 def marked_objects(context) -> List[Dict[str, Any]]:  # pragma: no cover — bpy
@@ -608,7 +868,9 @@ def draw_marked(layout, context) -> None:  # pragma: no cover — bpy
                   icon="TRASH").object_name = ""
     for m in marked[:10]:
         row = box.row(align=True)
-        row.label(text=f"{m['object']} — {m['status']}", icon="OBJECT_DATA")
+        said = {"superseded": "another version is in use",
+                "withdrawn": "withdrawn from the room"}.get(m["status"], m["status"])
+        row.label(text=f"{m['object']} — {said}", icon="OBJECT_DATA")
         row.operator("em.files_remove_from_scene", text="",
                      icon="X").object_name = m["object"]
     if len(marked) > 10:
@@ -649,12 +911,16 @@ def _picked(self, context):  # pragma: no cover — bpy
 
 
 def draw(layout, context, results) -> None:  # pragma: no cover — bpy
-    """The list, its filters, and the card of the selected row."""
+    """The list, its filters, and the card of the selected row: its name, its
+    state in a sentence, its versions, the Details (closed), the gestures."""
     import bpy  # type: ignore
     from . import file_states
     from . import room as room_cfg
+    from ..functions import is_graph_available
     from ..state_symbols import sign
     wm = context.window_manager
+    ok, graph = is_graph_available(context)
+    graph = graph if ok else None
     draw_marked(layout, context)
     draw_moved(layout, context)
     draw_bucket(layout, context)
@@ -663,65 +929,41 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     f = layout.row(align=True)
     f.prop(wm, "em_files_kind", text="")
     f.prop(wm, "em_files_use", text="")
-    f.prop(wm, "em_files_history", text="", icon="RECOVER_LAST")
     layout.template_list("EM_UL_files", "", wm, "em_files", wm, "em_files_index", rows=8)
+    draw_withdrawn(layout, context, graph)
     try:
         it = wm.em_files[wm.em_files_index]
     except IndexError:
         return
     card = layout.box()
     icon, text, meaning = sign("file." + it.state)
+    # 1 · the name
     card.label(text=it.file, icon=icon)
     col = card.column(align=True)
-    col.scale_y = 0.9
-    col.label(text=f"{text} — {meaning}" if meaning else text)
-    if it.doc:
-        col.label(text="Document: " + it.doc, icon="DOCUMENTS")
-    what = {"master": "Master (asset)", "version": "Version of " + it.asset,
-            "file": "File of a set of " + it.asset, "link": "Link"}.get(it.kind, it.kind)
-    col.label(text=what + (f" · {it.level}" if it.level else "")
-              + (f" · tier {it.tier}" if it.tier else ""), icon="OUTLINER_OB_GROUP_INSTANCE")
-    if it.use:
-        col.label(text="Used for: " + it.use.replace(",", ", ").replace("_", " "), icon="SHADERFX")
-    if it.rm:
-        col.label(text="Shown by: " + it.rm, icon="MESH_CUBE")
+    # 2 · the state, in a sentence (the shared vocabulary's longer meaning,
+    # with its digests and residencies, is for the tooltip of other panels)
+    col.label(text=STATE_SENTENCE.get(it.state) or (f"{text}: {meaning}" if meaning else text))
+    if it.later:
+        col.label(text="A later version exists.", icon="INFO")
+    # 3 · the versions, oldest first, one line each
+    if graph is not None and it.kind != "file" and int(it.revs or 1) > 1:
+        from .. import resource_governance as governance
+        col.separator()
+        col.label(text="Versions", icon="RECOVER_LAST")
+        for v in governance.versions(graph, it.id, people=_people(context)):
+            row = col.row(align=True)
+            row.label(text=version_line(v), icon="CHECKMARK" if v["in_use"] else "BLANK1")
+            if not v["in_use"] and _may_write(context):
+                row.operator("em.files_use_version", text="Use").resource_id = v["id"]
+    # 4 · Details, closed
     res = next((r for r in file_states.ULTIMI.get("results") or [] if r["id"] == it.id), None)
-    for p in (res or {}).get("positions") or []:
-        mark = {True: "✓", False: "✗"}.get(p.get("ok"), "?")
-        col.label(text=f"{mark} {p.get('kind')}: {p.get('where') or '—'}", icon="BLANK1")
-    if not (res or {}).get("positions") and it.where:
-        col.label(text=it.where, icon="URL")
     b = (file_states.ULTIMI.get("bucket") or {}).get(it.id)
-    if b:
-        sg = BUCKET_SIGN.get(b["state"], ("?", b["state"]))
-        col.label(text=f"Bucket: {sg[0]} {sg[1]}" + (f" — {b['note']}" if b.get("note") else ""),
-                  icon="WORLD")
-        if b.get("bucket"):
-            col.label(text=b["bucket"], icon="BLANK1")
-    history = [i for i, x in enumerate(wm.em_files) if x.head == it.head and x.id != it.id]
-    if it.rev:
-        col.separator()
-        col.label(text=("Current version" if it.rev == "current" else
-                        f"Revision {it.rev} of {it.revs} — not the current one")
-                  + f" · history · {it.revs}:", icon="RECOVER_LAST")
-        for i in sorted(history, key=lambda i: wm.em_files[i].rev != "current"):
-            x = wm.em_files[i]
-            row = col.row(align=True)
-            label = "current" if x.rev == "current" else f"rev {x.rev}"
-            row.operator("em.files_select", text=f"{label} · {x.file}  ({x.tag})",
-                         icon=sign("file." + x.state)[0], emboss=False).index = i
-    near = [i for i, x in enumerate(wm.em_files)
-            if x.asset == it.asset and x.id != it.id and i not in history]
-    if near:
-        col.separator()
-        col.label(text=f"Same asset · {len(near)}:", icon="LINKED")
-        for i in near[:8]:
-            x = wm.em_files[i]
-            row = col.row(align=True)
-            row.operator("em.files_select", text=f"{x.file}  ({x.tag})",
-                         icon=sign("file." + x.state)[0], emboss=False).index = i
-        if len(near) > 8:
-            col.label(text=f"… and {len(near) - 8} more (filter by name)")
+    det = card.row(align=True)
+    det.prop(wm, "em_files_details", text="Details", emboss=False,
+             icon="TRIA_DOWN" if wm.em_files_details else "TRIA_RIGHT")
+    if wm.em_files_details:
+        _draw_details(card.column(align=True), graph, it, res, b)
+    # 5 · the gestures
     acts = card.row(align=True)
     if it.state in ("missing", "empty_copy"):
         acts.operator("em.files_find_here", text="Find here…", icon="VIEWZOOM").resource_id = it.id
@@ -734,22 +976,63 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     if res and res.get("path"):
         acts.operator("em.files_open_where", text="Open where it is",
                       icon="FILEBROWSER").path = res["path"]
-    if it.kind == "file":
-        return                       # a file of a set: its resource is the entry
-    gov = card.column(align=True)
-    if it.rev and it.rev != "current":
-        gov.operator("em.files_use_version", text="Use this version",
-                     icon="LOOP_BACK").resource_id = it.id
-    if room_cfg.room().get("room_id"):
+    if it.kind != "file" and room_cfg.room().get("room_id") and _may_write(context):
         obj = context.active_object
-        gov.operator("em.files_replace",
-                     text=f"Replace with the scene's object ({obj.name})" if obj is not None
-                     else "Replace with the scene's object (select one)",
-                     icon="FILE_REFRESH").resource_id = it.id
-    w = gov.row()
-    w.alert = True
-    w.operator("em.files_withdraw", text="Withdraw from the room…",
-               icon="CANCEL").resource_id = it.id
+        card.operator("em.files_replace",
+                      text=f"Replace with the scene's object ({obj.name})" if obj is not None
+                      else "Replace with the scene's object (select one)",
+                      icon="FILE_REFRESH").resource_id = it.id
+
+
+def _details(graph, it, res, bucket) -> List[tuple]:  # pragma: no cover — bpy
+    """``[(label, value)]`` of the Details: the codes, the addresses, the
+    jargon — everything a row and a title never show."""
+    data: Dict[str, Any] = {}
+    node = graph.find_node_by_id(it.id) if graph is not None else None
+    if node is not None and isinstance(getattr(node, "data", None), dict):
+        data = node.data
+    what = {"master": "master (the asset)", "version": "a version of " + it.asset,
+            "file": "one file of a resource made of several", "link": "a linked file"}
+    out = [("What", what.get(it.kind, it.kind) + (f" · {it.level}" if it.level else "")
+            + (f" · tier {it.tier}" if it.tier else ""))]
+    if it.doc:
+        out.append(("Document", it.doc))
+    if it.rm:
+        out.append(("Shown by", it.rm))
+    if it.use:
+        out.append(("Used for", it.use.replace(",", ", ").replace("_", " ")))
+    if data.get("residency"):
+        out.append(("Kept", {"resident": "in the room's store (resident)",
+                             "reference": "in another store (reference)"}.get(
+                                 data["residency"], data["residency"])))
+    out.append(("Id", it.id))
+    if data.get("checksum"):
+        out.append(("Digest", str(data["checksum"])))
+    if data.get("size_bytes"):
+        out.append(("Size", f"{int(data['size_bytes']) / 1e6:.2f} MB"))
+    for p in (res or {}).get("positions") or []:
+        mark = {True: "✓", False: "✗"}.get(p.get("ok"), "?")
+        out.append((f"{mark} {p.get('kind')}", str(p.get("where") or "—")))
+    if not (res or {}).get("positions") and it.where:
+        out.append(("Address", it.where))
+    if bucket:
+        sg = BUCKET_SIGN.get(bucket["state"], ("?", bucket["state"]))
+        out.append(("Bucket", f"{sg[0]} {sg[1]}" + (f" — {bucket['note']}" if bucket.get("note") else "")))
+        if bucket.get("bucket"):
+            out.append(("Bucket address", bucket["bucket"]))
+    return out
+
+
+def _draw_details(col, graph, it, res, bucket) -> None:  # pragma: no cover — bpy
+    """Two lines per value: the label, then the value whole (never cut in the
+    middle) with its Copy."""
+    for label, value in _details(graph, it, res, bucket):
+        head = col.row(align=True)
+        head.active = False
+        head.label(text=label)
+        row = col.row(align=True)
+        row.label(text=value)
+        row.operator("em.files_copy", text="", icon="COPYDOWN", emboss=False).value = value
 
 
 def draw_moved(layout, context) -> None:  # pragma: no cover — bpy
@@ -838,17 +1121,17 @@ def register():  # pragma: no cover — bpy
         name="Search", description="Words of the file, document, asset, level, use or model")
     wm.em_files_kind = bpy.props.EnumProperty(name="Kind", items=KINDS)
     wm.em_files_use = bpy.props.EnumProperty(name="Use", items=_use_items)
-    wm.em_files_history = bpy.props.BoolProperty(
-        name="History", default=False,
-        description="Show the past revisions as rows of their own (they are under "
-                    "their current version in the card)")
+    wm.em_files_details = bpy.props.BoolProperty(
+        name="Details", default=False,
+        description="The codes and addresses of this resource: id, digest, where its "
+                    "bytes are, the cache — to copy")
 
 
 def unregister():  # pragma: no cover — bpy
     import bpy  # type: ignore
     wm = bpy.types.WindowManager
     for name in ("em_files", "em_files_index", "em_files_query", "em_files_kind", "em_files_use",
-                 "em_files_history"):
+                 "em_files_details"):
         if hasattr(wm, name):
             delattr(wm, name)
     for cls in reversed(_CLASSES):
