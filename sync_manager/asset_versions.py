@@ -1112,6 +1112,12 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str = "", purpose: str = "
                           tool="EM Tools", **more)
     asset_id = out["asset_id"]
     vnode = graph.find_node_by_id(out["version_id"])
+    # MICRO-RM-WEB · a version of a model in the .blend is named after the
+    # object, not «Blend datablock for <object> lod0»
+    from ..resource_governance import DATABLOCK_PREFIX
+    if (out.get("created") and vnode is not None
+            and str(vnode.name or "").startswith(DATABLOCK_PREFIX)):
+        vnode.name = f"{obj.name} {out['level']}"
     #: a file set is identified by its members digest, not by its door's bytes
     digest = str(((vnode.data or {}) if vnode is not None else {}).get("checksum") or digest)
     if stamped is not None:

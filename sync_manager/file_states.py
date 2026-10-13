@@ -326,34 +326,114 @@ def _operator_classes():  # pragma: no cover — bpy
             resolve_active(context, graph)
             return {"FINISHED"}
 
+    def _send(where, path, sha256, media_type=""):
+        """The bytes at `path` into the room's store (by reference on a
+        personal node)."""
+        from . import room as room_cfg
+        from .asset_upload import upload_asset
+        if _personal(where["base_url"]):
+            return _upload_by_reference(where, {"path": path, "sha256": sha256})
+        return upload_asset(where["base_url"], where["room_id"], path, sha256 or None,
+                            media_type, room_cfg._session.get("token"))
+
+    def _store_url(graph):
+        from .commands import _store_url as store_url_of
+        return lambda digest: store_url_of(graph, digest)
+
     class EM_OT_files_upload(bpy.types.Operator):
-        """Upload to the room: send this file's bytes to the room's store"""
+        """Upload to the room: send this file's bytes to the room's store, and
+        record them on its resource (a model in the .blend: «Send a web
+        version»)"""
         bl_idname = "em.files_upload"
         bl_label = "Upload to the room"
         resource_id: bpy.props.StringProperty()  # type: ignore
 
         def execute(self, context):
             from . import room as room_cfg
-            from .asset_upload import upload_asset
+            from . import web_version
+            from .scene_sync import _section, emit_delta
             graph = _graph(context)
             row = next((r for r in ULTIMI["results"] if r["id"] == self.resource_id), None)
             where = room_cfg.room()
-            if graph is None or row is None or not row.get("path"):
+            if graph is None or row is None:
                 self.report({"ERROR"}, "nothing on the disk to upload")
+                return {"CANCELLED"}
+            # MICRO-RM-WEB · a model in the .blend is never sent as its .blend
+            refusal = web_version.upload_refusal(graph, row["id"])
+            if refusal:
+                self.report({"ERROR"}, refusal)
                 return {"CANCELLED"}
             if not where.get("room_id"):
                 self.report({"ERROR"}, "not in a room: «Bring into a room» first")
                 return {"CANCELLED"}
+            before = _section(graph)
             try:
-                out = _upload_by_reference(where, row) if _personal(where["base_url"]) else \
-                    upload_asset(where["base_url"], where["room_id"], row["path"],
-                                 row.get("sha256") or None, "",
-                                 room_cfg._session.get("token"))
+                out = web_version.upload_row(
+                    graph, row, store_url=_store_url(graph),
+                    upload=lambda r: _send(where, r["path"], r.get("sha256")))
             except Exception as exc:  # noqa: BLE001 — the reason is the user's
                 self.report({"ERROR"}, f"upload failed: {exc}")
                 return {"CANCELLED"}
+            if not out["ok"]:
+                self.report({"ERROR"}, out["error"])
+                return {"CANCELLED"}
+            # what was sent is said in the graph, and the room hears it
+            emit_delta(graph, before, [row["id"]])
             self.report({"INFO"}, "already in the room" if out.get("already")
                         else f"uploaded {os.path.basename(row['path'])}")
+            resolve_active(context, graph)
+            return {"FINISHED"}
+
+    class EM_OT_files_send_web_version(bpy.types.Operator):
+        """Send a web version: the model as it lives in the .blend, exported as
+        a glb («Prepare for a use…», for the web), sent to the room's store and
+        cited by the graph as a distribution version of the model"""
+        bl_idname = "em.files_send_web_version"
+        bl_label = "Send a web version"
+        resource_id: bpy.props.StringProperty()  # type: ignore
+
+        def execute(self, context):
+            from . import room as room_cfg
+            from . import web_version
+            from .asset_versions import PREPARED
+            from .scene_sync import _section, emit_delta
+            graph = _graph(context)
+            where = room_cfg.room()
+            if graph is None:
+                self.report({"ERROR"}, "no graph loaded")
+                return {"CANCELLED"}
+            if not where.get("room_id"):
+                self.report({"ERROR"}, "not in a room: «Bring into a room» first")
+                return {"CANCELLED"}
+
+            def prepare(name):
+                obj = bpy.data.objects.get(name)
+                if obj is None or obj.type != "MESH":
+                    raise RuntimeError(f"{name} is not a mesh of this .blend")
+                PREPARED.clear()
+                with context.temp_override(active_object=obj, object=obj,
+                                           selected_objects=[obj]):
+                    done = bpy.ops.em.asset_prepare_for_use("EXEC_DEFAULT", use={"web"})
+                if done != {"FINISHED"}:
+                    raise RuntimeError(f"{name}: the web version was not made")
+                return dict(PREPARED)
+
+            before = _section(graph)
+            try:
+                out = web_version.send_web_version(
+                    graph, self.resource_id, prepare=prepare, store_url=_store_url(graph),
+                    upload=lambda f: _send(where, f["url"], f.get("checksum"),
+                                           f.get("media_type") or web_version.GLB_MEDIA))
+            except Exception as exc:  # noqa: BLE001 — the reason is the user's
+                self.report({"ERROR"}, f"web version not sent: {exc}")
+                return {"CANCELLED"}
+            if not out["ok"]:
+                self.report({"ERROR"}, out["error"])
+                return {"CANCELLED"}
+            # the version, its step and — when the room lacks them — the RM,
+            # its epoch and its datablock (MICRO RM e aggancio)
+            emit_delta(graph, before, [out["rm_id"]] if out["rm_id"] else [])
+            self.report({"INFO"}, web_version.said(out, graph))
             resolve_active(context, graph)
             return {"FINISHED"}
 
@@ -474,8 +554,8 @@ def _operator_classes():  # pragma: no cover — bpy
             return {"FINISHED"}
 
     return (EM_OT_files_check, EM_OT_files_filter, EM_OT_files_find_here,
-            EM_OT_files_upload, EM_OT_files_open_where, EM_OT_files_keep,
-            EM_OT_new_em_project, EM_OT_reorder_em_project)
+            EM_OT_files_upload, EM_OT_files_send_web_version,
+            EM_OT_files_open_where, EM_OT_files_keep, EM_OT_new_em_project, EM_OT_reorder_em_project)
 
 
 #: the reorder's preview between invoke and the yes

@@ -70,6 +70,14 @@ def _gov():
     return governance
 
 
+def _web():
+    try:
+        from . import web_version
+    except ImportError:              # loaded by path, outside the package (the suite)
+        import web_version
+    return web_version
+
+
 def shown(state: str, kind: str, item_state: str, item_kind: str) -> bool:
     """Does the menu let this row through? A withdrawn row only under
     «Withdrawn», and «Withdrawn» shows only them."""
@@ -1161,14 +1169,22 @@ def draw_card(layout, context, graph, it) -> None:  # pragma: no cover — bpy
         acts.operator("em.files_keep", text="Download", icon="IMPORT").resource_id = it.id
     if it.state in ("missing", "empty_copy"):
         acts.operator("em.files_find_here", text="Find here…", icon="VIEWZOOM").resource_id = it.id
-    if it.state == "on_disk" and _in_room():
+    # MICRO-RM-WEB · a model as it lives in the .blend is never uploaded as
+    # its .blend: the room gets a web version of it
+    in_blend = graph is not None and _web().is_datablock(graph, it.id)
+    if in_blend and _in_room() and _may_write(context):
+        acts.operator("em.files_send_web_version", text="Send a web version",
+                      icon="WORLD").resource_id = it.id
+    elif it.state == "on_disk" and _in_room():
         acts.operator("em.files_upload", text="Upload", icon="EXPORT").resource_id = it.id
     if res and res.get("path") and not in_cache(res["path"]):
         # a copy in the cache (`/var/folders/…`) is nowhere a person keeps
         # files: its folder is in the Details, not a gesture
         acts.operator("em.files_open_where", text="Open where it is",
                       icon="FILEBROWSER").path = res["path"]
-    obj = bound_object(context, it.id) if _in_room() and _may_write(context) else None
+    # a glb is not a version of a model in the .blend: no «Replace» on it
+    obj = (bound_object(context, it.id)
+           if _in_room() and _may_write(context) and not in_blend else None)
     if obj is not None:
         card.operator("em.files_replace", text=f"Replace with the selected object ({obj.name})",
                       icon="FILE_REFRESH").resource_id = it.id

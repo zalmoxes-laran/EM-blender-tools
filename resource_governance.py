@@ -579,6 +579,11 @@ def datablock_object(graph, res_id: str) -> str:
     for member in chain:
         node = graph.find_node_by_id(member)
         name = str(getattr(node, "name", "") or "")
+        data = getattr(node, "data", None)
+        # MICRO-RM-WEB · a version of the datablock (a glb for the web) is
+        # named after it by `add_version`, and is never the datablock
+        if isinstance(data, dict) and data.get("tier") == "distribution":
+            continue
         if name.startswith(DATABLOCK_PREFIX):
             return name[len(DATABLOCK_PREFIX):]
     return ""
