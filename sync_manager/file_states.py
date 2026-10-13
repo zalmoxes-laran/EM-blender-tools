@@ -417,6 +417,18 @@ def _operator_classes():  # pragma: no cover — bpy
                 # the object shows (`em_asset_id`) is read first: say it.
                 from .asset_versions import PROP_ASSET
                 obj[PROP_ASSET] = self.resource_id
+                # …and the model it is prepared FOR is the one that cites this
+                # asset. Measured 13 Oct, after Reload Scripts: the object still
+                # named the RMSF (`em_rm_node_id`), which the room's graph does
+                # not have → «is in no loaded graph».
+                citing = [e.edge_source for e in graph.edges
+                          if e.edge_type == "has_linked_resource"
+                          and e.edge_target == self.resource_id
+                          and getattr(graph.find_node_by_id(e.edge_source), "node_type", "")
+                          in ("representation_model", "representation_model_sf",
+                              "representation_model_doc")]
+                if citing and obj.get("em_rm_node_id") not in citing:
+                    obj["em_rm_node_id"] = citing[0]
                 with context.temp_override(active_object=obj, object=obj,
                                            selected_objects=[obj]):
                     done = bpy.ops.em.asset_prepare_for_use("EXEC_DEFAULT", use={"web"})
