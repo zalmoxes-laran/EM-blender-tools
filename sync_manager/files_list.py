@@ -98,6 +98,18 @@ def summary_line(c: Dict[str, int], in_room: bool = False) -> str:
     return " · ".join(bits)
 
 
+def row_counts(rows) -> Dict[str, int]:
+    """The head counts what the list shows (MICRO una verità, 13 Oct 2026:
+    «11 files» over 4 rows — the resolver counted versions and parts): one
+    per row, by state; withdrawn rows are not files of the study."""
+    out: Dict[str, int] = {}
+    for x in rows or []:
+        state = x.get("state") if isinstance(x, dict) else getattr(x, "state", "")
+        if state and state != "withdrawn":
+            out[state] = out.get(state, 0) + 1
+    return out
+
+
 def build_rows(graph, results: List[Dict[str, Any]],
                described: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """The rows of the list: ``s3dgraphy.api.storage_rows`` (the same grouping
@@ -149,6 +161,7 @@ def build_rows(graph, results: List[Dict[str, Any]],
         x["rm"] = ", ".join(x["rm"])
         x["tag"] = ""
         x["what"] = _kind(graph, x["id"])
+        x["withdraw"] = "1" if gov.withdrawable(graph, x["id"]) else ""
         x["search"] = " ".join([x["file"].lower(), x["search"]])
         out.append(x)
     return out
@@ -306,6 +319,7 @@ def _classes():  # pragma: no cover — bpy
         versions: bpy.props.StringProperty()  # type: ignore
         later: bpy.props.StringProperty()  # type: ignore
         what: bpy.props.StringProperty()  # type: ignore
+        withdraw: bpy.props.StringProperty()  # type: ignore
 
     class EM_UL_files(bpy.types.UIList):
         """One row per resource: where it is (here, on the node, both), its
@@ -330,7 +344,7 @@ def _classes():  # pragma: no cover — bpy
             sub.alignment = "RIGHT"
             if item.versions:
                 sub.label(text=item.versions)              # «v3/4»: in use, of how many
-            if _may_write(context):
+            if item.withdraw and _may_write(context):
                 sub.operator("em.files_withdraw", text="", icon="X",
                              emboss=False).resource_id = item.id
 
@@ -687,7 +701,7 @@ def _classes():  # pragma: no cover — bpy
             # the card's resource is the selected row: only ITS object (13 Oct
             # 2026: US 3's mesh was offered as a version of US 2)
             try:
-                rid = context.window_manager.em_files[context.window_manager.em_files_index].id
+                rid = selected(context.window_manager).id
             except (IndexError, AttributeError):
                 return False
             if not bound_object(context, rid):
@@ -707,8 +721,9 @@ def _classes():  # pragma: no cover — bpy
             if not ops.current_session(context).seated:
                 self.report({"ERROR"}, "not in a room: there is nowhere to send the bytes to")
                 return {"CANCELLED"}
-            obj = context.active_object
-            if not bound_object(context, self.resource_id):
+            obj = bound_object(context, self.resource_id)
+            if obj is None:
+                obj = context.active_object
                 self.report({"ERROR"}, f"{obj.name if obj else 'nothing selected'}: "
                             "not the object of this resource")
                 return {"CANCELLED"}
@@ -875,7 +890,7 @@ def bound_object(context, rid: str):  # pragma: no cover — bpy
     ok, graph = is_graph_available(context)
     if not ok or graph is None:
         return None
-    props = {k: obj.get(k) for k in ("em_resource_id", "em_rm_node_id")}
+    props = {k: obj.get(k) for k in ("em_resource_id", "em_rm_node_id", "em_asset_sha256")}
     try:
         return obj if _gov().bound_to(graph, rid, props) else None
     except Exception:  # noqa: BLE001 — not sure is not bound
@@ -1013,9 +1028,10 @@ def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — b
     """Rebuild the list (keeping the selected row when it is still there),
     with the withdrawn resources the room keeps after the others."""
     wm = context.window_manager
-    keep = ""
+    keep, keep_head = "", ""
     try:
-        keep = wm.em_files[wm.em_files_index].id
+        keep = selected(wm).id
+        keep_head = selected(wm).head
     except (IndexError, AttributeError):
         pass
     try:
@@ -1032,7 +1048,30 @@ def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — b
         for k, v in x.items():
             if k in it.bl_rna.properties:
                 setattr(it, k, str(v))
-    wm.em_files_index = next((i for i, x in enumerate(rows) if x["id"] == keep), 0)
+    wm.em_files_index = kept_index(rows, keep, keep_head)
+
+
+def selected(wm):
+    """The selected row of Files; IndexError when none (a Blender collection
+    reads -1 as the LAST row: «no row» must stay no row)."""
+    i = int(getattr(wm, "em_files_index", -1))
+    if i < 0:
+        raise IndexError("no row selected")
+    return wm.em_files[i]
+
+
+def kept_index(rows, keep: str, keep_head: str = "") -> int:
+    """The row selected before the list was rebuilt: by its id, or by its
+    chain (`head`) — after «Use» the row of a resource takes the id of the
+    version in use. Gone → no row (-1), never another one: measured on 13 Oct
+    2026 at 16:10, after «Use» the card fell back on row 0 («Blend datablock
+    for ME_EST_bk_LOD2») and «Replace» sent US 2 as a revision of it."""
+    if not keep and not keep_head:
+        return 0 if rows else -1
+    for i, x in enumerate(rows):
+        if x.get("id") == keep or (keep_head and x.get("head") == keep_head):
+            return i
+    return -1
 
 
 def _in_room() -> bool:  # pragma: no cover — bpy
@@ -1055,7 +1094,7 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     graph = graph if ok else None
     # 1 · the head: what there is, and what to do about it
     head = layout.row(align=True)
-    c = file_states.counts(results) if results else {}
+    c = row_counts(wm.em_files) if results else {}
     head.label(text=summary_line(c, _in_room()) if results else "Files not checked yet",
                icon="FILE_FOLDER")
     if c.get("on_node") and _in_room():
@@ -1072,7 +1111,7 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     q.menu("EM_MT_files_filter", text="", icon="FILTER" if filtered else "DOWNARROW_HLT")
     layout.template_list("EM_UL_files", "", wm, "em_files", wm, "em_files_index", rows=6)
     try:
-        it = wm.em_files[wm.em_files_index]
+        it = selected(wm)
     except IndexError:
         return
     if not shown(wm.em_files_state, wm.em_files_kind, it.state, it.what):
@@ -1120,7 +1159,9 @@ def draw_card(layout, context, graph, it) -> None:  # pragma: no cover — bpy
         acts.operator("em.files_find_here", text="Find here…", icon="VIEWZOOM").resource_id = it.id
     if it.state == "on_disk" and _in_room():
         acts.operator("em.files_upload", text="Upload", icon="EXPORT").resource_id = it.id
-    if res and res.get("path"):
+    if res and res.get("path") and not in_cache(res["path"]):
+        # a copy in the cache (`/var/folders/…`) is nowhere a person keeps
+        # files: its folder is in the Details, not a gesture
         acts.operator("em.files_open_where", text="Open where it is",
                       icon="FILEBROWSER").path = res["path"]
     obj = bound_object(context, it.id) if _in_room() and _may_write(context) else None
@@ -1244,11 +1285,34 @@ BUCKET_SIGN = {"aligned": ("✓", "same bytes on the disk and in the bucket (ver
                "unknown": ("?", "could not compare")}
 
 
-def bucket_todo(checked: bool, rows: Dict[str, Dict[str, Any]], has_files: bool = True) -> str:
+def bucket_configured(env=None) -> bool:
+    """A bucket is set when Blender's environment names one (the S3_*
+    variables Heriverse uses)."""
+    env = os.environ if env is None else env
+    return bool(env.get("S3_ENDPOINT") and env.get("S3_BUCKET"))
+
+
+def in_cache(path: str, caches=None) -> bool:
+    """A path in a cache: the temporary folders of this computer or the add-on's
+    own cache (`em_cache`), never where a person put a file."""
+    import tempfile
+    p = os.path.realpath(str(path or ""))
+    roots = list(caches or []) + [tempfile.gettempdir(), "/var/folders", "/private/var/folders"]
+    if f"{os.sep}em_cache{os.sep}" in p:
+        return True
+    return any(p.startswith(os.path.realpath(r).rstrip(os.sep) + os.sep) for r in roots if r)
+
+
+def bucket_todo(checked: bool, rows: Dict[str, Dict[str, Any]], has_files: bool = True,
+                configured: bool = True) -> str:
     """What the bucket asks of you, said on the head of Project storage even
-    when it is closed: «Bucket not checked», «Bucket: 2 differ», or nothing."""
+    when it is closed: «No bucket» (grey: none configured), «Bucket not
+    checked» (grey), «Bucket: 2 differ» (red: a difference measured), or
+    nothing. `bucket_alert` says which are red."""
     if not has_files:
         return ""
+    if not configured:
+        return "No bucket"
     if not checked:
         return "Bucket not checked"
     tally: Dict[str, int] = {}
@@ -1261,6 +1325,12 @@ def bucket_todo(checked: bool, rows: Dict[str, Dict[str, Any]], has_files: bool 
     if tally.get("disk_only"):
         return f"Bucket: {tally['disk_only']} not uploaded"
     return ""
+
+
+def bucket_alert(said: str) -> bool:
+    """Red only for a difference measured — never for a bucket not set or not
+    checked (13 Oct 2026: «Bucket not checked» in red over no bucket at all)."""
+    return said.startswith("Bucket: ")
 
 
 def draw_bucket(layout, context) -> None:  # pragma: no cover — bpy
@@ -1288,7 +1358,7 @@ def draw_bucket(layout, context) -> None:  # pragma: no cover — bpy
                 g.label(text=f"{BUCKET_SIGN[k][0]} {tally[k]} {k.replace('_', ' ')}")
     wm = context.window_manager
     try:
-        it = wm.em_files[wm.em_files_index]
+        it = selected(wm)
     except (IndexError, AttributeError):
         it = None
     b = rows.get(it.id) if it is not None else None

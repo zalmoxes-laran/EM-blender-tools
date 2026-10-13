@@ -15,7 +15,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 #: the last answer, for the panel (session state)
 FOUND: Dict[str, Any] = {}
@@ -64,6 +64,96 @@ def find(typed: str = "") -> Dict[str, Any]:
     FOUND.update(find_nodes(saved=saved, typed=typed, lang="en",
                             prober=lambda u: probe(u, fetch=trust.fetch_json)))
     return FOUND
+
+
+#: address → the identity the node declares (`GET /v1/node` → `public_base`),
+#: or "" when it declares none: read once per address and session
+IDENTITY: Dict[str, str] = {}
+
+
+def identity_of(url: str, fetch=None) -> str:
+    """The node behind `url`, as it says it: its ``public_base`` (MICRO una
+    verità, 13 Oct 2026: ``localhost:8000``, ``em.localhost:8443/em`` and
+    ``<mac>.local:8000`` were three rows of ONE node). The node declares no id
+    of its own yet: the public base is the identity it guarantees. "" if it
+    does not say."""
+    url = str(url or "").rstrip("/")
+    if url in IDENTITY:
+        return IDENTITY[url]
+    if fetch is None:
+        from . import trust
+        fetch = trust.fetch_json
+    try:
+        said = fetch(f"{url}/v1/node", 2.0) or {}
+    except Exception:  # noqa: BLE001
+        said = {}
+    ident = str(said.get("node_id") or said.get("public_base") or "").rstrip("/")
+    IDENTITY[url] = ident
+    return ident
+
+
+def one_row_per_node(found: Dict[str, Any], identities: Dict[str, str], *,
+                     in_use: str = "", saved=()) -> List[Dict[str, Any]]:
+    """The nodes of «Choose the node», ONE row each, whatever the number of
+    addresses it answers on: grouped by the identity the node declares
+    (`identity_of`), shown by its public address (the others in Details).
+    ``in_use`` is the address this project uses: its node is «● in use» and
+    has no «Use». → ``[{url, addresses, where, reachable, version, profile,
+    saved, in_use, name}]`` in the order This computer, the local network,
+    Saved, typed."""
+    norm = lambda u: str(u or "").rstrip("/")  # noqa: E731
+    saved = {norm(u) for u in saved}
+    in_use = norm(in_use)
+    rows: Dict[str, Dict[str, Any]] = {}
+    order: List[str] = []
+    for group in ("local", "lan", "saved", "typed"):
+        for n in found.get(group) or []:
+            url = norm(n.get("url"))
+            if not url:
+                continue
+            key = identities.get(url) or url
+            row = rows.get(key)
+            if row is None:
+                row = {"url": key if identities.get(url) else url, "addresses": [],
+                       "where": group, "reachable": False, "version": "",
+                       "profile": "", "saved": False, "in_use": False, "name": ""}
+                rows[key] = row
+                order.append(key)
+            if url not in row["addresses"]:
+                row["addresses"].append(url)
+            row["reachable"] = row["reachable"] or bool(n.get("reachable"))
+            row["version"] = row["version"] or str(n.get("version") or "")
+            row["profile"] = row["profile"] or str(n.get("profile") or "")
+            row["name"] = row["name"] or str(n.get("name") or "")
+            row["saved"] = row["saved"] or url in saved
+            if in_use and (url == in_use or key == in_use):
+                row["in_use"] = True
+    out = [rows[k] for k in order]
+    for row in out:
+        if row["url"] not in row["addresses"]:
+            # the public address is how the node is shown, even when it was
+            # found through another one
+            row["addresses"].insert(0, row["url"])
+        if in_use and in_use in row["addresses"]:
+            row["in_use"] = True
+    return out
+
+
+def advice(rows: List[Dict[str, Any]], *, personal_on: bool) -> Dict[str, Any]:
+    """What the window suggests — only what is true: no «there is a node on
+    your computer: use it» when it is already the one in use; no «Turn on a
+    node» when one answers on this computer. → ``{sentence, turn_on}``."""
+    using = next((r for r in rows if r["in_use"]), None)
+    local = [r for r in rows if r["where"] == "local" and r["reachable"]]
+    if using is not None:
+        sentence = ""
+    elif local:
+        sentence = "There is a node on this computer: Use it to work offline."
+    elif any(r["reachable"] for r in rows):
+        sentence = "A node answers: Use it to enter its rooms."
+    else:
+        sentence = "No node found: work on this computer, or type a node's address."
+    return {"sentence": sentence, "turn_on": not local and not personal_on}
 
 
 def _operator_classes():  # pragma: no cover — bpy

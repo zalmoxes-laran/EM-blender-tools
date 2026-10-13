@@ -2105,7 +2105,7 @@ def _operator_classes():  # pragma: no cover — bpy
                 except Exception as exc:  # noqa: BLE001
                     print(f"[asset versions] where it comes from: {exc}")
             # F1 · the starting package is in «The .blend in the room…», with
-            # the snapshots (`windows.EM_OT_room_blend`)
+            # the snapshots (Project storage)
 
     return (EM_OT_asset_add_version, EM_OT_asset_prepare_for_use, EM_OT_asset_lod_step, EM_OT_asset_set_level,
             EM_OT_asset_level_menu, EM_MT_asset_levels_selected, VIEW3D_PT_em_asset_versions)

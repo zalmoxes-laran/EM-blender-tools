@@ -19,8 +19,12 @@ The panel shows where you are and the commands the place makes possible
   inbound message (what was a box of the panel);
 * **Room settings…** (`em.room_settings`) — members, roles, invitations and who
   sees the study, for whoever may assign them (C1);
-* **The .blend in the room…** (`em.room_blend`) — the snapshots (yours only,
-  with Restore) and the starting package (for whoever has no cache) (F1).
+* the snapshots of the .blend and the starting package are Project storage's
+  (EM Scene ▸ Contents), no longer a window.
+
+MICRO una verità (13 Oct 2026): Change…, Choose the node and Enter a
+collaborative room are the three steps of ONE window — never one window over
+another, «‹ Back» to go back.
 
 What the panel used to explain in lines of grey text is in the tooltips of
 these operators.
@@ -55,133 +59,281 @@ def _redraw() -> None:
         pass
 
 
-# ── the three places: «Change…» and EM ▸ Mode draw the same ────────────────
+# ── ONE window, in steps (MICRO una verità, 13 Oct 2026) ────────────────────
+#
+# E.D.: «ci sono molti sottomenu da aprire». In a room, Change… opened «Where
+# you work», and «Choose the node…» opened a SECOND window over the first. Now
+# Change…, Choose the node and Enter a collaborative room are the three steps
+# of ONE window: a step is a property of the window manager (`em_where_step`),
+# so moving between them redraws the same window — never one over another —
+# and «‹ Back» goes back without closing. A gesture that leaves (Use, Enter,
+# a place) closes it; what follows opens alone, one window at a time.
 
-def draw_places(layout, context) -> None:
+STEP_PLACES, STEP_NODE, STEP_ROOMS = "places", "node", "rooms"
+_STEPPING = {"busy": False}
+
+
+def _on_step(self, context):
+    """Entering a step reads what it shows: the nodes, or the node's rooms.
+    A room step without a node goes to the node step first."""
+    if _STEPPING["busy"]:
+        return
+    _STEPPING["busy"] = True
+    try:
+        wm = context.window_manager
+        if wm.em_where_step == STEP_ROOMS and not _base(context):
+            wm.em_where_then = "enter"
+            wm.em_where_step = STEP_NODE
+        if wm.em_where_step == STEP_NODE:
+            _look_for_nodes(context)
+        elif wm.em_where_step == STEP_ROOMS:
+            _load_rooms(context)
+    finally:
+        _STEPPING["busy"] = False
+
+
+def _look_for_nodes(context) -> None:
+    from . import node_choice
+    try:
+        node_choice.find(str(context.window_manager.em_node_address or ""))
+        node_choice.personal("status")
+    except Exception as exc:  # noqa: BLE001 — the window still opens
+        node_choice.FOUND.clear()
+        node_choice.FOUND["suggestion"] = f"could not look for nodes: {exc}"
+
+
+def _load_rooms(context) -> None:
+    from . import rooms_ui
+    if not len(context.window_manager.em_rooms_cache) or \
+            rooms_ui.STATO.get("base") != _base(context):
+        try:
+            bpy.ops.em.room_list_refresh(wait=True)
+        except RuntimeError as exc:      # the node's refusal, said in the window
+            rooms_ui.STATO["error"] = str(exc)
+    for item in context.window_manager.em_rooms_cache:
+        if item.title:
+            where.ROOM_TITLES[item.room_id] = item.title
+
+
+def _back(layout, context) -> None:
+    layout.prop_enum(context.window_manager, "em_where_step", STEP_PLACES, text="‹ Back")
+
+
+def draw_places(layout, context, *, window: bool = False) -> None:
+    """The three places — «Change…» and EM ▸ Mode draw the same. In the
+    window the node and the rooms are steps of it, not other windows."""
     from . import operators as ops
     state = where.read_state(context)
-    now = state["place"]
+    wm = context.window_manager
     layout.label(text="Where you work")
-    for value, label, icon, tip in where.PLACES:
+    for row_ in where.place_rows(state):
         row = layout.row()
-        mark = "RADIOBUT_ON" if value == now else "RADIOBUT_OFF"
-        if value == where.PLACE_HERE:
-            row.operator("em.set_mode", text=label, icon=mark).mode = ops.MODE_STANDALONE
-        elif value == where.PLACE_EMSTUDIO:
-            row.operator("em.set_mode", text=label, icon=mark).mode = ops.MODE_SIDECAR
+        mark = "RADIOBUT_ON" if row_["now"] else "RADIOBUT_OFF"
+        if row_["now"]:
+            # where you are is not a button: nothing to choose there
+            row.label(text=row_["label"], icon=mark)
+        elif row_["value"] == where.PLACE_HERE:
+            row.operator("em.set_mode", text=row_["label"], icon=mark).mode = ops.MODE_STANDALONE
+        elif row_["value"] == where.PLACE_EMSTUDIO:
+            row.operator("em.set_mode", text=row_["label"], icon=mark).mode = ops.MODE_SIDECAR
+        elif window:
+            row.prop_enum(wm, "em_where_step", STEP_ROOMS, text=f"{row_['label']}…", icon=mark)
         else:
-            row.operator("em.room_enter", text=f"{label}…", icon=mark)
+            row.operator("em.room_enter", text=f"{row_['label']}…", icon=mark)
     node = where.host_of(_base(context))
     line = layout.row(align=True)
     line.label(text=f"Node: {node or 'none chosen'}", icon="WORLD")
-    line.operator("em.node_choose", text="Choose the node…")
-    zones = where.zones(state)
-    if zones["message"]["text"]:
-        layout.label(text=zones["message"]["text"][:80], icon=zones["message"]["icon"])
+    if window:
+        line.prop_enum(wm, "em_where_step", STEP_NODE, text="Choose the node…")
+    else:
+        line.operator("em.where_change", text="Choose the node…").step = STEP_NODE
+
+
+def draw_node_step(layout, context) -> None:
+    """Choose the node — one row per node (`node_choice.one_row_per_node`):
+    the one in use says so and has no Use; the others Use; the saved ones ✕."""
+    from . import node_choice, servers
+    from ..state_symbols import sign
+    wm = context.window_manager
+    found = node_choice.FOUND
+    saved = [s["url"] for s in servers.saved()]
+    urls = [n.get("url") for g in ("local", "lan", "saved", "typed") for n in found.get(g) or []]
+    idents = {str(u).rstrip("/"): node_choice.identity_of(u) for u in urls if u}
+    from . import room as room_cfg
+    using = (room_cfg.room().get("base_url") or _base(context)) or ""
+    rows = node_choice.one_row_per_node(found, idents, in_use=using, saved=saved)
+    tip = node_choice.advice(rows, personal_on=bool(node_choice.PERSONAL.get("running")
+                                                    or node_choice.PERSONAL.get("pid")))
+    head = layout.row(align=True)
+    _back(head, context)
+    head.label(text="Choose the node", icon="WORLD")
+    if tip["sentence"]:
+        layout.label(text=tip["sentence"], icon="INFO")
+    col = layout.column(align=True)
+    if not rows:
+        col.label(text="No node found", icon="BLANK1")
+    for n in rows:
+        line = col.row(align=True)
+        icon = sign("node.reachable" if n["reachable"] else "node.unreachable")[0]
+        facts = " · ".join(x for x in (n.get("version", ""),
+                                        "personal" if n.get("profile") == "personal" else "",
+                                        {"local": "this computer", "lan": "local network",
+                                         "saved": "saved", "typed": ""}.get(n["where"], "")) if x)
+        line.label(text=f"{where.host_of(n['url'])}" + (f"  {facts}" if facts else ""), icon=icon)
+        right = line.row(align=True)
+        right.ui_units_x = 6
+        if n["in_use"]:
+            right.label(text="● in use")
+        elif n["reachable"]:
+            op = right.operator("em.node_use", text="Use")
+            op.url, op.then = n["url"], wm.em_where_then
+        else:
+            right.label(text="")
+        if n["saved"]:
+            right.operator("em.server_forget", text="", icon="X").url = n["url"]
+        else:
+            right.label(text="", icon="BLANK1")
+        if wm.em_node_details and len(n["addresses"]) > 1:
+            more = col.row()
+            more.active = False
+            more.label(text="also " + ", ".join(where.host_of(a) for a in n["addresses"]
+                                                if a != n["url"]), icon="BLANK1")
+    if any(len(n["addresses"]) > 1 for n in rows):
+        layout.prop(wm, "em_node_details", text="Details: every address of a node")
+    if tip["turn_on"]:
+        op = layout.operator("em.node_personal", text="Turn on a node on this computer",
+                             icon="PLAY")
+        op.action, op.lan = "start", False
+    elif node_choice.PERSONAL.get("running") or node_choice.PERSONAL.get("pid"):
+        acts = layout.row(align=True)
+        acts.label(text="Personal node on", icon="HOME")
+        acts.operator("em.node_personal", text="Turn off").action = "stop"
+    try:
+        layout.prop(wm, "em_node_address", text="Another node",
+                    placeholder="https://node.example.org")
+    except TypeError:                     # a Blender without placeholders
+        layout.prop(wm, "em_node_address", text="Another node (https://…)")
+
+
+def draw_rooms_step(layout, context) -> None:
+    """Enter a collaborative room — the node's rooms, by id, from a link."""
+    from . import rooms_ui
+    wm = context.window_manager
+    head = layout.row(align=True)
+    _back(head, context)
+    head.label(text=f"Rooms on {where.host_of(_base(context))}", icon="COMMUNITY")
+    head.prop_enum(wm, "em_where_step", STEP_NODE, text="Another node…")
+    head.operator("em.room_list_refresh", text="Refresh")
+    if rooms_ui.STATO.get("error"):
+        layout.label(text=rooms_ui.STATO["error"][:90], icon="ERROR")
+    layout.prop(wm, "em_rooms_filter", text="", icon="VIEWZOOM")
+    groups = {g: [i for i in wm.em_rooms_cache if i.group == g] for g in ("mine", "shared")}
+    for group, title, icon, index in (("mine", "Your rooms", "USER", "em_rooms_index_mine"),
+                                      ("shared", "Shared with you", "COMMUNITY",
+                                       "em_rooms_index_shared")):
+        if not groups[group]:
+            sub = layout.row()
+            sub.active = False
+            sub.label(text=f"{title}: none", icon=icon)
+            continue
+        layout.label(text=title, icon=icon)
+        layout.template_list("EM_UL_rooms", group, wm, "em_rooms_cache", wm, index, rows=4)
+        picked = rooms_ui.picked(wm, group)
+        if picked is not None:
+            sub = layout.row()
+            sub.active = False
+            sub.label(text=picked.room_id, icon="BLANK1")
+    by = layout.row(align=True)
+    by.prop(context.scene, "em_room_id", text="By id")
+    by.operator("em.room_reconnect", text="Enter")
+    link = layout.row(align=True)
+    try:
+        link.prop(wm, "em_room_link_text", text="From a link",
+                  placeholder="stratigraph://open?server=…&room=…")
+    except TypeError:
+        link.prop(wm, "em_room_link_text", text="From a link")
+    link.operator_context = "EXEC_DEFAULT"
+    go = link.operator("em.room_open_link", text="Enter")
+    go.link = wm.em_room_link_text
 
 
 class EM_OT_where_change(bpy.types.Operator):
     """Change where you work: on this computer, with EMStudio on this
-    computer, or in a collaborative room — the same choice as EM ▸ Mode"""
+    computer, or in a collaborative room — the node and the rooms are steps of
+    this same window"""
 
     bl_idname = "em.where_change"
     bl_label = "Change where you work"
 
+    step: bpy.props.StringProperty(default=STEP_PLACES, options={"SKIP_SAVE"})  # type: ignore
+    then: bpy.props.StringProperty(default="", options={"HIDDEN", "SKIP_SAVE"})  # type: ignore
+
     def invoke(self, context, event):
-        return context.window_manager.invoke_popup(self, width=360)
+        wm = context.window_manager
+        wm.em_where_then = self.then
+        if wm.em_where_step != self.step:
+            wm.em_where_step = self.step       # its update reads the step
+        else:
+            _on_step(None, context)
+        return wm.invoke_popup(self, width=520)
 
     def draw(self, context):
-        draw_places(self.layout, context)
+        draw_window(self.layout, context)
 
     def execute(self, context):
         return {"FINISHED"}
 
 
-# ── N1 · Choose the node ────────────────────────────────────────────────────
+def draw_window(layout, context) -> None:
+    step = context.window_manager.em_where_step
+    if step == STEP_NODE:
+        draw_node_step(layout, context)
+    elif step == STEP_ROOMS:
+        draw_rooms_step(layout, context)
+    else:
+        draw_places(layout, context, window=True)
+
 
 def _on_address(self, context):
-    """The address probes itself: typed and confirmed, it is asked what it is."""
+    """The address probes itself while it is typed: a moment after the last
+    key (a probe per key would freeze the window on a slow node)."""
     typed = str(getattr(self, "em_node_address", "") or "").strip()
+    _PROBE["typed"] = typed
     if not typed:
         return
+    if not bpy.app.timers.is_registered(_probe_typed):
+        bpy.app.timers.register(_probe_typed, first_interval=0.6)
+
+
+_PROBE: Dict[str, str] = {"typed": ""}
+
+
+def _probe_typed():
     from . import node_choice
+    typed = _PROBE.get("typed") or ""
     try:
         node_choice.find(typed)
     except Exception as exc:  # noqa: BLE001 — a probe never breaks typing
         node_choice.FOUND["suggestion"] = f"{typed}: {exc}"
     _redraw()
-
-
-def _node_rows(layout, title, nodes, empty, then):
-    from ..state_symbols import sign
-    col = layout.column(align=True)
-    col.label(text=title)
-    if not nodes:
-        col.label(text=empty, icon="BLANK1")
-    for n in nodes:
-        icon = sign("node.reachable" if n.get("reachable") else "node.unreachable")[0]
-        line = col.row(align=True)
-        facts = " · ".join(x for x in (
-            n.get("name") if n.get("name") and n.get("name") not in ("stratigraph-server",) else "",
-            n.get("version", ""),
-            "personal" if n.get("profile") == "personal" else "") if x)
-        line.label(text=f"{where.host_of(n['url'])}" + (f"  {facts}" if facts else ""), icon=icon)
-        if n.get("reachable"):
-            op = line.operator("em.node_use", text="Use")
-            op.url, op.then = n["url"], then
-        if n.get("saved"):
-            line.operator("em.server_forget", text="", icon="X").url = n["url"]
+    return None
 
 
 class EM_OT_node_choose(bpy.types.Operator):
-    """Choose the node: this computer, the local network, the saved ones, or an
-    address — each by its host and port. Opens by itself when a gesture needs
-    a node and none is chosen"""
+    """Choose the node: one row per node (whatever the addresses it answers
+    on), the one in use marked. Opens by itself when a gesture needs a node and
+    none is chosen — the node step of the one window"""
 
     bl_idname = "em.node_choose"
     bl_label = "Choose the node"
 
     then: bpy.props.StringProperty(default="", options={"HIDDEN", "SKIP_SAVE"})  # type: ignore
 
-    def invoke(self, context, event):
-        from . import node_choice
-        try:
-            node_choice.find(str(context.window_manager.em_node_address or ""))
-            node_choice.personal("status")
-        except Exception as exc:  # noqa: BLE001 — the window still opens
-            node_choice.FOUND.clear()
-            node_choice.FOUND["suggestion"] = f"could not look for nodes: {exc}"
-        return context.window_manager.invoke_popup(self, width=520)
-
-    def draw(self, context):
-        from . import node_choice, servers
-        layout = self.layout
-        found = node_choice.FOUND
-        layout.label(text="Choose the node", icon="WORLD")
-        if found.get("suggestion"):
-            layout.label(text=str(found["suggestion"])[:90], icon="LIGHT")
-        saved = {s["url"].rstrip("/") for s in servers.saved()}
-        for group in ("local", "lan", "saved"):
-            for n in found.get(group) or []:
-                n["saved"] = n.get("url", "").rstrip("/") in saved
-        _node_rows(layout, "This computer", found.get("local") or [], "none", self.then)
-        acts = layout.row(align=True)
-        if node_choice.PERSONAL.get("running") or node_choice.PERSONAL.get("pid"):
-            acts.label(text="Personal node on", icon="HOME")
-            acts.operator("em.node_personal", text="Turn off").action = "stop"
-        else:
-            op = acts.operator("em.node_personal", text="Turn on a node on this computer",
-                               icon="PLAY")
-            op.action, op.lan = "start", False
-        _node_rows(layout, "The local network", found.get("lan") or [],
-                   found.get("lan_note") or "no node announces itself on this network",
-                   self.then)
-        _node_rows(layout, "Saved", found.get("saved") or [], "none", self.then)
-        layout.prop(context.window_manager, "em_node_address", text="Address",
-                    icon="URL")
-
     def execute(self, context):
-        return {"FINISHED"}
+        return bpy.ops.em.where_change("INVOKE_DEFAULT", step=STEP_NODE, then=self.then)
+
+    def invoke(self, context, event):
+        return self.execute(context)
 
 
 class EM_OT_node_use(bpy.types.Operator):
@@ -206,70 +358,38 @@ class EM_OT_node_use(bpy.types.Operator):
             pass
         note_transition(f"node: {where.host_of(url)}")
         self.report({"INFO"}, f"node {where.host_of(url)}")
-        follow = {"enter": "room_enter", "create": "room_bring"}.get(self.then)
-        if follow:
-            getattr(bpy.ops.em, follow)("INVOKE_DEFAULT")
+        # what needed a node goes on — in the SAME window, at its step
+        if self.then == "enter":
+            bpy.ops.em.where_change("INVOKE_DEFAULT", step=STEP_ROOMS)
+        elif self.then == "create":
+            bpy.ops.em.room_bring("INVOKE_DEFAULT")
         return {"FINISHED"}
 
 
 def need_node(context, then: str) -> bool:
-    """True when a node is chosen; otherwise Choose the node opens, and the
-    gesture `then` goes on after Use."""
+    """True when a node is chosen; otherwise the window opens at its node
+    step, and the gesture `then` goes on after Use."""
     if _base(context):
         return True
-    bpy.ops.em.node_choose("INVOKE_DEFAULT", then=then)
+    bpy.ops.em.where_change("INVOKE_DEFAULT", step=STEP_NODE, then=then)
     return False
 
-
-# ── N1 · Enter a collaborative room… ────────────────────────────────────────
 
 class EM_OT_room_enter(bpy.types.Operator):
     """Enter a collaborative room: yours, the ones shared with you (with your
     role there), one by its id, or one from a stratigraph:// link. Blender
-    joins it directly"""
+    joins it directly — the rooms step of the one window"""
 
     bl_idname = "em.room_enter"
     bl_label = "Enter a collaborative room"
 
-    def invoke(self, context, event):
+    def execute(self, context):
         if not need_node(context, "enter"):
             return {"FINISHED"}
-        from . import rooms_ui
-        if not len(context.window_manager.em_rooms_cache) or \
-                rooms_ui.STATO.get("base") != _base(context):
-            try:
-                bpy.ops.em.room_list_refresh(wait=True)
-            except RuntimeError as exc:      # the node's refusal, said in the window
-                rooms_ui.STATO["error"] = str(exc)
-        for item in context.window_manager.em_rooms_cache:
-            if item.title:
-                where.ROOM_TITLES[item.room_id] = item.title
-        return context.window_manager.invoke_popup(self, width=540)
+        return bpy.ops.em.where_change("INVOKE_DEFAULT", step=STEP_ROOMS)
 
-    def draw(self, context):
-        from . import rooms_ui
-        wm = context.window_manager
-        layout = self.layout
-        head = layout.row(align=True)
-        head.label(text=f"Rooms on {where.host_of(_base(context))}", icon="COMMUNITY")
-        head.operator("em.room_list_refresh", text="", icon="FILE_REFRESH")
-        head.operator("em.node_choose", text="", icon="WORLD").then = "enter"
-        if rooms_ui.STATO.get("error"):
-            layout.label(text=rooms_ui.STATO["error"][:90], icon="ERROR")
-        layout.prop(wm, "em_rooms_filter", text="", icon="VIEWZOOM")
-        layout.label(text="Your rooms", icon="USER")
-        layout.template_list("EM_UL_rooms", "mine", wm, "em_rooms_cache",
-                             wm, "em_rooms_index_mine", rows=4)
-        layout.label(text="Shared with you", icon="COMMUNITY")
-        layout.template_list("EM_UL_rooms", "shared", wm, "em_rooms_cache",
-                             wm, "em_rooms_index_shared", rows=4)
-        by = layout.row(align=True)
-        by.prop(context.scene, "em_room_id", text="By id")
-        by.operator("em.room_reconnect", text="Enter")
-        layout.operator("em.room_open_link", text="From a link…", icon="URL")
-
-    def execute(self, context):
-        return {"FINISHED"}
+    def invoke(self, context, event):
+        return self.execute(context)
 
 
 class EM_OT_room_reconnect(bpy.types.Operator):
@@ -281,10 +401,10 @@ class EM_OT_room_reconnect(bpy.types.Operator):
 
     def execute(self, context):
         if not _base(context):
-            bpy.ops.em.node_choose("INVOKE_DEFAULT", then="enter")
+            bpy.ops.em.where_change("INVOKE_DEFAULT", step=STEP_NODE, then="enter")
             return {"FINISHED"}
         if not str(getattr(context.scene, "em_room_id", "") or "").strip():
-            bpy.ops.em.room_enter("INVOKE_DEFAULT")
+            bpy.ops.em.where_change("INVOKE_DEFAULT", step=STEP_ROOMS)
             return {"FINISHED"}
         from . import operators as ops
         if ops.current_session(context).joined:
@@ -394,11 +514,11 @@ class EM_OT_sync_log(bpy.types.Operator):
         z = where.zones(where.read_state(context))
         if z["log"][1]:
             layout.label(text=z["log"][1], icon=z["log"][0])
-        icon, word, numbers = where.scene_status(scene_check.ULTIMA_VERIFICA.get("tally"))
-        if word:
-            box = layout.box()
-            box.label(text=f"The scene · {word}", icon=icon)
-            box.label(text=numbers[:110])
+        # the scene's word is the room's state, beside the icon that opened
+        # this: here only the numbers behind it (MICRO una verità)
+        _icon, _word, numbers = where.scene_status(scene_check.ULTIMA_VERIFICA.get("tally"))
+        if numbers:
+            layout.label(text=numbers[:110], icon="INFO")
         box = layout.box()
         box.label(text="Not applied", icon="CANCEL")
         for r in ops.RIFIUTI[:8] or []:
@@ -627,54 +747,9 @@ class EM_OT_room_study_access_set(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# ── F1 · The .blend in the room… ────────────────────────────────────────────
-
-class EM_OT_room_blend(bpy.types.Operator):
-    """The .blend in the room: your snapshots (yours only, Restore lands BESIDE
-    this file) and the starting package (for a computer with no cache)"""
-
-    bl_idname = "em.room_blend"
-    bl_label = "The .blend in the room"
-
-    def invoke(self, context, event):
-        # the lists are fresh when the window opens: no refresh button
-        for op in ("blend_backup_list", "scene_package_list"):
-            try:
-                getattr(bpy.ops.em, op)()
-            except RuntimeError:
-                pass
-        return context.window_manager.invoke_popup(self, width=520)
-
-    def draw(self, context):
-        from . import backups, scene_package
-        layout = self.layout
-        box = layout.box()
-        box.label(text="Snapshots of this .blend (yours only)", icon="FILE_BACKUP")
-        box.operator("em.blend_backup_archive", text="Archive this .blend", icon="EXPORT")
-        if backups.note():
-            box.label(text=backups.note()[:90], icon="ERROR")
-        for snap in backups.listing()[:8]:
-            line = box.row(align=True)
-            name = str(snap.get("label") or snap.get("filename") or snap.get("sha256", "")[:12])
-            line.label(text=f"{name[:30]} · {str(snap.get('created_at') or '')[:16]}")
-            line.operator("em.blend_backup_restore", text="Restore",
-                          icon="IMPORT").sha256 = str(snap.get("sha256") or "")
-        box = layout.box()
-        box.label(text="Starting package (for a computer without the cache)",
-                  icon="PACKAGE")
-        box.operator("em.scene_package_archive", icon="EXPORT")
-        for rec in scene_package._listing[:5]:
-            r = box.row(align=True)
-            r.label(text=f"{rec.get('filename') or '?'} · "
-                         f"{int(rec.get('size') or 0) // 1048576} MB")
-            r.operator("em.scene_package_download", text="Download",
-                       icon="IMPORT").sha256 = rec.get("sha256", "")
-        if scene_package._note:
-            box.label(text=scene_package._note[:90], icon="INFO")
-
-    def execute(self, context):
-        return {"FINISHED"}
-
+# F1 · «The .blend in the room…» (`em.room_blend`) is gone (MICRO una verità,
+# 13 Oct 2026): no menu opened it since MICRO tre pannelli, and what it showed
+# — the snapshots with Restore, the starting package — is Project storage's.
 
 class EM_MT_room_more(bpy.types.Menu):
     """The rest of what a room offers"""
@@ -696,7 +771,7 @@ _CLASSES = (EM_OT_where_change, EM_OT_node_choose, EM_OT_node_use, EM_OT_room_en
             EM_OT_room_reconnect, EM_OT_room_leave, EM_OT_sidecar_permissions,
             EM_OT_sync_log, EM_OT_room_settings, EM_OT_room_member_add,
             EM_OT_room_invite_new, EM_OT_room_invite_copy, EM_OT_room_study_access_set,
-            EM_OT_room_blend, EM_MT_room_more)
+            EM_MT_room_more)
 
 
 def register():
@@ -705,9 +780,21 @@ def register():
     wm = bpy.types.WindowManager
     from .room_access import LINK_ROLES, MEMBER_ROLES
     wm.em_node_address = bpy.props.StringProperty(
-        name="Address", default="", update=_on_address,
-        description="A node's address (https://host:port/path): it is asked what it "
-                    "is as soon as it is typed")
+        name="Address", default="", update=_on_address, options={"TEXTEDIT_UPDATE"},
+        description="Another node's address, as https://host:port/path "
+                    "(e.g. https://node.example.org): it is asked what it is while "
+                    "you type")
+    wm.em_where_step = bpy.props.EnumProperty(
+        name="Step", update=_on_step, default=STEP_PLACES,
+        items=((STEP_PLACES, "Where you work", "The three places"),
+               (STEP_NODE, "The node", "Choose the node"),
+               (STEP_ROOMS, "The rooms", "Enter a collaborative room")))
+    wm.em_where_then = bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
+    wm.em_node_details = bpy.props.BoolProperty(
+        name="Details", default=False, description="Every address a node answers on")
+    wm.em_room_link_text = bpy.props.StringProperty(
+        name="Link", default="",
+        description="A stratigraph://open?server=…&room=… link (it carries no token)")
     wm.em_rs_orcid = bpy.props.StringProperty(name="ORCID", default="",
                                               description="0000-0000-0000-0000")
     wm.em_rs_role = bpy.props.EnumProperty(
@@ -732,7 +819,8 @@ def unregister():
     wm = bpy.types.WindowManager
     for name in ("em_rs_embargo", "em_rs_visibility", "em_rs_link", "em_rs_uses",
                  "em_rs_days", "em_rs_link_role", "em_rs_role", "em_rs_orcid",
-                 "em_node_address"):
+                 "em_node_address", "em_where_step", "em_where_then",
+                 "em_node_details", "em_room_link_text"):
         if hasattr(wm, name):
             delattr(wm, name)
     for cls in reversed(_CLASSES):

@@ -273,6 +273,13 @@ def revise_and_cite(graph, res_id: str, spec: Dict[str, Any], *,
     → ``{resource_id, revision_of, created, moved, reused}``: ``resource_id``
     è la versione che ora porta quei byte ed è citata."""
     revisions = _rr()
+    if datablock_object(graph, res_id):
+        # MICRO una verità · 13 Oct 2026, 16:11:09: «Replace» sent the proxy US 2
+        # as a revision of «Blend datablock for ME_EST_bk_LOD2». A datablock is
+        # identified by its locator in the .blend; a glb is a distribution of
+        # it, never a revision
+        raise ValueError(f"{display_name(graph, res_id)} is a model as it lives in the "
+                         ".blend: a glb is not a version of it")
     want = bare_digest(spec.get("checksum"))
     spec = {**spec, "checksum": full_digest(want)}
     chain = chain_of(graph, res_id)
@@ -557,10 +564,76 @@ def citer_name(graph, source_id: str) -> str:
     return "" if looks_like_code(said) else said
 
 
+DATABLOCK_PREFIX = "Blend datablock for "
+
+
+def datablock_object(graph, res_id: str) -> str:
+    """Il nome dell'oggetto di una risorsa interna di un RM («Blend datablock
+    for ME_EST_bk_LOD2» → ``ME_EST_bk_LOD2``), della sua catena; "" se non lo
+    è. La risorsa interna è il modello COME VIVE NEL .blend (``packaging``
+    ``datablock``, `rm_manager.containers.ensure_rm_and_internal_resource`)."""
+    try:
+        chain = chain_of(graph, res_id)
+    except Exception:  # noqa: BLE001
+        chain = [res_id]
+    for member in chain:
+        node = graph.find_node_by_id(member)
+        name = str(getattr(node, "name", "") or "")
+        if name.startswith(DATABLOCK_PREFIX):
+            return name[len(DATABLOCK_PREFIX):]
+    return ""
+
+
+def withdrawable(graph, res_id: str) -> bool:
+    """«Withdraw from the room» ha senso per una risorsa DELLA STANZA: non per
+    il modello di un RM come vive nel .blend (il .blend lo riscrive alla
+    prossima esportazione: ritirarlo dalla stanza non lo toglie da nessuna
+    parte). MICRO una verità, 13 ott 2026: la ✕ su «Blend datablock for
+    ME_EST_bk_LOD2»."""
+    if graph is None or graph.find_node_by_id(res_id) is None:
+        return False
+    if not datablock_object(graph, res_id):
+        return True
+    # a datablock whose chain has bytes in the room's store (sent there, as
+    # 2f69bffb was by mistake) IS in the room: that can be withdrawn
+    for member in chain_of(graph, res_id):
+        node = graph.find_node_by_id(member)
+        data = getattr(node, "data", None) if node is not None else None
+        if isinstance(data, dict) and data.get("residency") == "resident" and data.get("checksum"):
+            return True
+    return False
+
+
+def rebind_target(graph, props: Dict[str, Any]) -> str:
+    """The version an object should be bound to when it is bound to the
+    WRONG chain: its carrier (``em_rm_node_id``: a unit's shape, an RM) cites
+    a chain, and its ``em_resource_id`` is a resource of the graph outside
+    it. → the version in use of the carrier's chain, "" when nothing is wrong.
+
+    Measured on 13 Oct 2026: the object «US 2» (carrier: the shape of US 2)
+    bound to 2f69bffb, a revision of «Blend datablock for ME_EST_bk_LOD2»
+    that «Replace» had made of it by mistake."""
+    rid = str(props.get("em_resource_id") or "")
+    carrier = str(props.get("em_rm_node_id") or "")
+    if not rid or not carrier or graph.find_node_by_id(rid) is None:
+        return ""
+    cited = [e.edge_target for e in graph.edges
+             if e.edge_source == carrier and e.edge_type == EDGE_LINKED]
+    if not cited:
+        return ""
+    if rid in {m for c in cited for m in chain_of(graph, c)}:
+        return ""
+    return in_use(graph, cited[0])
+
+
 def display_name(graph, res_id: str) -> str:
     """Il nome di una risorsa (della sua catena) per una persona: ciò che la
     cita, poi il suo nome se non è un codice, poi il nome del file. Mai un
-    digest né un UUID — quelli vanno nei «Details»."""
+    digest né un UUID — quelli vanno nei «Details». Il modello di un RM come
+    vive nel .blend: «ME_EST_bk_LOD2 — model in this .blend»."""
+    held = datablock_object(graph, res_id)
+    if held and not looks_like_code(held):
+        return f"{held} — model in this .blend"
     try:
         chain = chain_of(graph, res_id)
     except Exception:  # noqa: BLE001
@@ -672,13 +745,22 @@ def bound_to(graph, res_id: str, props: Dict[str, Any]) -> bool:
 
     Misurato il 13 ott 2026: la card di US 2 offriva «Replace with the
     scene's object (US 3)», e avrebbe mandato la mesh di US 3 come versione di
-    US 2."""
+    US 2.
+
+    MICRO una verità (stesso giorno, 17:09): con ``US 2.001`` attivo — legato
+    a 989e63da, una versione NON in uso — Replace avrebbe mandato la geometria
+    superata come nuova. Un oggetto legato a una versione della catena che non
+    è quella in uso (e non ne ha i byte, ``em_asset_sha256``) non è
+    «l'oggetto di questa risorsa»."""
     if not res_id or graph.find_node_by_id(res_id) is None:
         return False
     chain = set(chain_of(graph, res_id))
     rid = str(props.get("em_resource_id") or "")
     if rid and rid in chain:
-        return True
+        return object_status(graph, rid, str(props.get("em_asset_sha256") or "")) \
+            == STATUS_CURRENT
+    if rid and graph.find_node_by_id(rid) is not None:
+        return False                     # bound to ANOTHER resource of the graph
     carrier = str(props.get("em_rm_node_id") or "")
     if not carrier:
         return False

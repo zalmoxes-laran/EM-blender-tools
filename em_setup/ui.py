@@ -414,14 +414,6 @@ class EMTOOLS_UL_files(bpy.types.UIList):
                 op = row.operator("em_tools.populate_lists", text="", icon="SEQ_SEQUENCER", emboss=False)
                 op.graphml_index = index  # Passa l'indice corretto per aggiornare le liste
 
-                row = layout.row(align=True)
-                # Flag pubblicabile (come in rm_manager)
-                if hasattr(item, 'is_publishable'):
-                    row.prop(item, "is_publishable", text="", icon_value=icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish"))
-
-                else:
-                    # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
-                    row.label(text="", icon='QUESTION')
             else:
                 # NODETREE placeholder: solo se experimental, per simmetria col bottone attivo (riga 530)
                 if hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features:
@@ -431,13 +423,6 @@ class EMTOOLS_UL_files(bpy.types.UIList):
                 row = layout.row()
                 row.enabled = False  # Disabilita il layout (grigio)
                 row.label(text="", icon="SEQ_SEQUENCER")  # Usa un'icona per mostrare un pulsante disabilitato
-                row = layout.row()
-                row.enabled = False
-                if hasattr(item, 'is_publishable'):
-                    row.prop(item, "is_publishable", text="", icon_value=icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish"))
-                else:
-                    # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
-                    row.label(text="", icon='QUESTION')
 
 
 

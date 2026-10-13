@@ -207,14 +207,15 @@ def test_the_manual_fields_remain_as_the_declared_fallback():
     by id in «Enter a collaborative room…», under the lists and beside the
     link; the node's address in «Choose the node», which probes it."""
     source = (_REPO / "sync_manager" / "windows.py").read_text(encoding="utf-8")
-    enter = source[source.index("class EM_OT_room_enter"):
-                   source.index("class EM_OT_room_reconnect")]
+    # MICRO una verità · the rooms and the node are steps of ONE window
+    enter = source[source.index("def draw_rooms_step"):
+                   source.index("class EM_OT_where_change")]
     assert 'prop(context.scene, "em_room_id", text="By id")' in enter
     assert '"em.room_open_link"' in enter
     # R1 · …and the node's room LIST comes before the field to type into
     assert enter.index('"EM_UL_rooms"') < enter.index('"em_room_id"')
-    choose = source[source.index("class EM_OT_node_choose"):
-                    source.index("class EM_OT_node_use")]
+    choose = source[source.index("def draw_node_step"):
+                    source.index("def draw_rooms_step")]
     assert '"em_node_address"' in choose
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
     assert '"em_room_url"' not in panel and '"em_room_id"' not in panel
@@ -358,23 +359,19 @@ def test_the_link_is_ASKED_FOR_never_assembled_here():
     assert "/v1/rooms/" in code and "/open" in code, "it asks the handoff endpoint"
 
 
-def test_the_operator_is_EMIT_only_and_says_so():
-    """Receiving a link inside Blender is a job of its own — Blender is not a
-    URL-scheme handler. Half of it, offered as if it worked, would be the worse
-    half."""
-    source = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
-    block = source[source.index("class EM_OT_room_open_elsewhere"):
-                   source.index("class EM_OT_set_mode")]
-    assert "Emit-only" in block
-    assert "webbrowser.open(door[\"link\"])" in block
-    # …and it is offered only while joined (V1: the scene's session, the one
-    # the whole panel reads): off a room it would open nothing
-    assert "return bool(current_session(context).joined)" in block
+def test_one_open_in_emstudio_and_the_room_panel_uses_it():
+    """MICRO una verità (13 Oct 2026): `em.room_open_elsewhere` was a second
+    «Open in EMStudio». One operator is left, `em.open_in_emstudio`, and the
+    web door it falls back on is still ASKED of the node (`web_link` →
+    `handoff.open_targets`)."""
+    ops_src = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
+    assert "room_open_elsewhere" not in ops_src
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
     inside = panel[panel.index("def _in_room"):]
-    assert '"em.room_open_elsewhere"' in inside
-    assert panel.count('"em.room_open_elsewhere"') == 1
-    assert '"em.room_open_elsewhere"' in panel
+    assert panel.count('"em.open_in_emstudio"') == 1 and '"em.open_in_emstudio"' in inside
+    oe = (_REPO / "sync_manager" / "open_in_emstudio.py").read_text(encoding="utf-8")
+    web = oe[oe.index("def web_link"):]
+    assert "handoff.open_targets" in web and "stratigraph://" not in web
 
 
 import re  # noqa: E402 — used by the source checks above

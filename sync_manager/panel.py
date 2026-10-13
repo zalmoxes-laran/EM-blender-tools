@@ -182,8 +182,8 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         row = layout.row(align=True)
         sub = row.row(align=True)
         sub.enabled = not offline
-        sub.operator("em.room_open_elsewhere", text="Open in EMStudio", icon="WINDOW")
-        row.operator("em.where_change", text="Change…", icon="ARROW_LEFTRIGHT")
+        sub.operator("em.open_in_emstudio", text="Open in EMStudio", icon="WINDOW")
+        row.operator("em.where_change", text="Change…")
         row.menu("EM_MT_room_more", text="", icon="THREE_DOTS")
 
 

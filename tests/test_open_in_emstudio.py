@@ -32,6 +32,19 @@ def test_in_a_room_the_link_names_the_node():
     assert "on US12" in p["sentence"]
 
 
+def test_the_desktop_app_first_the_web_one_otherwise():
+    """MICRO una verità: the desktop EMStudio if this computer has it, the web
+    one the node offers otherwise; no web door → the scheme still (nothing
+    better to offer)."""
+    web = "https://em.localhost:8443/em/studio/?room=templu"
+    p = oe.plan(sidecar_clients=0, room=ROOM, desktop=True, web=web)
+    assert p["way"] == "room" and p["url"].startswith("stratigraph://open?")
+    assert p["sentence"] == "EMStudio opens the room templu"
+    p = oe.plan(sidecar_clients=0, room=ROOM, desktop=False, web=web)
+    assert p["way"] == "web" and p["url"] == web and "for the web" in p["sentence"]
+    assert oe.plan(sidecar_clients=0, room=ROOM, desktop=False, web="")["way"] == "room"
+
+
 def test_otherwise_grey_and_the_sentence_says_how_to_turn_it_on():
     p = oe.plan(sidecar_clients=0, room=NONE, unit_name="US12", node_id="n-12")
     assert p["way"] == "off" and p["url"] == ""

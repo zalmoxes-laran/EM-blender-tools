@@ -131,7 +131,6 @@ Q = [("act", "here"), ("shot", "1_on_this_computer.png", "side:VIEW3D_PT_em_sync
      ("shot", "3_in_a_room.png", "side:VIEW3D_PT_em_sync"),
      ("shot", "3_room_menu.png", "menu:EM_MT_room_more"),
      ("shot", "3_room_settings.png", "op:em.room_settings"),
-     ("shot", "3_the_blend_in_the_room.png", "op:em.room_blend"),
      ("shot", "3_files.png", "side:EM_PT_resources"),
      ("act", "leave"), ("wait", 1),
      ("shot", "4_enter_a_room.png", "op:em.room_enter"),

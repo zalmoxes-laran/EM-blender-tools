@@ -62,10 +62,11 @@ class EM_UL_rooms(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data,
                   active_propname, index):
         row = layout.row(align=True)
-        label = item.title or item.room_id
-        if item.title and item.title != item.room_id:
-            label = f"{item.title}  ·  {item.room_id}"
-        row.label(text=label, icon="COMMUNITY" if item.group == "mine" else "USER")
+        # MICRO una verità · the name whole; the id is said in grey under the
+        # list, for the selected room (`picked`): «Tavolo · prova multi…avolo-
+        # 2026-10-12» was the two fused and cut in the middle
+        row.label(text=item.title or item.room_id,
+                  icon="COMMUNITY" if item.group == "mine" else "USER")
         if item.group != "mine":
             # I1 · the role with its sign from the one list (★ ✎ ◎); a role
             # the list does not have keeps its word, with no sign
@@ -84,6 +85,17 @@ class EM_UL_rooms(bpy.types.UIList):
                 {"room_id": item.room_id, "title": item.title}, text))
             flags.append(self.bitflag_filter_item if keep else 0)
         return flags, []
+
+
+def picked(wm, group: str):
+    """The selected room of a group (its id goes in grey under the list), or
+    None when the selection is not a room of that group."""
+    index = getattr(wm, "em_rooms_index_mine" if group == "mine" else "em_rooms_index_shared", -1)
+    try:
+        item = wm.em_rooms_cache[index]
+    except (IndexError, TypeError):
+        return None
+    return item if item.group == group and item.title and item.title != item.room_id else None
 
 
 # ── the fetch ────────────────────────────────────────────────────────────────

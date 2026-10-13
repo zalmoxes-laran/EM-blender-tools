@@ -255,8 +255,12 @@ class EM_PT_project_storage(bpy.types.Panel):
     def draw_header(self, context):
         todo = project_todo(context)
         if todo:
+            from ..sync_manager import files_list
             row = self.layout.row()
-            row.alert = True
+            # red only for a difference measured; «No bucket» and «Bucket not
+            # checked» are grey (MICRO una verità, 13 Oct 2026)
+            row.alert = files_list.bucket_alert(todo)
+            row.active = row.alert
             row.label(text=todo)
 
     def draw(self, context):
@@ -280,7 +284,8 @@ def project_todo(context) -> str:
         from ..sync_manager import file_states, files_list
         bucket = file_states.ULTIMI.get("bucket") or {}
         return files_list.bucket_todo(bool(bucket), bucket,
-                                      bool(file_states.ULTIMI.get("results")))
+                                      bool(file_states.ULTIMI.get("results")),
+                                      configured=files_list.bucket_configured())
     except Exception:                              # noqa: BLE001
         return ""
 

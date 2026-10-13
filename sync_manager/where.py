@@ -13,7 +13,7 @@ without a Blender. One sentence per zone, the most recent useful one — the
 explanations that used to fill half the panel are the tooltips of the commands.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 
 PLACE_HERE = "here"
@@ -31,6 +31,20 @@ PLACES = (
     (PLACE_ROOM, "In a collaborative room", "COMMUNITY",
      "The study in a room of a StratiGraph node, with the people who take part"),
 )
+
+
+def place_rows(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Pure: the three places of the first step, ``[{value, label, now}]`` —
+    exactly ONE is ``now``, the place the panel says (13 Oct 2026: in a room
+    the window marked «With EMStudio» as chosen)."""
+    now = state.get("place") or PLACE_HERE
+    out = []
+    for value, label, _icon, _tip in PLACES:
+        if value == PLACE_ROOM and now == PLACE_ROOM:
+            title = state.get("room_title") or state.get("room_id") or ""
+            label = f"In the room {title}" if title else label
+        out.append({"value": value, "label": label, "now": value == now})
+    return out
 
 
 def host_of(base: Optional[str]) -> str:
@@ -110,6 +124,7 @@ def room_state(s: Dict[str, Any]) -> Dict[str, Any]:
     rest = f" — {waiting} waiting" if waiting else ""
     missing = max(0, int(tally.get("missing") or 0))
     changed = int(tally.get("changed") or 0)
+    here_only = int(s.get("here_only") or 0)
     if s.get("not_connected"):
         st.update(icon="UNLINKED", text=f"● Not connected{rest}", alert=True,
                   op="em.room_reconnect", op_text="Reconnect")
@@ -120,8 +135,11 @@ def room_state(s: Dict[str, Any]) -> Dict[str, Any]:
         st.update(icon="TIME", text=f"● Sending {waiting}…")
     elif refused:
         st.update(icon="ERROR", text=f"● {refused} not applied by the room", alert=True)
-    elif changed:
-        st.update(icon="ERROR", text=f"● {changed} changed here, not sent")
+    elif changed or here_only:
+        # MICRO una verità · «● Aligned» beside Files' «1 only here» was two
+        # truths: a revision made here and not sent is a change not sent
+        n = changed + here_only
+        st.update(icon="ERROR", text=f"● {n} change{'s' if n != 1 else ''} here, not sent")
     elif missing:
         st.update(icon="IMPORT", text=f"● {missing} to download")
         if s.get("offer_download"):
@@ -242,7 +260,9 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     msg: Dict[str, Any] = {"icon": "INFO", "text": "", "op": "", "op_text": "",
                            "op_props": {}, "alert": False}
     declared = s.get("declared") or PLACE_HERE
-    if s.get("signin_waiting"):
+    # MICRO una verità · a sign-in still «waiting» when the room is already
+    # entered is one that finished: not a message (13 Oct 2026, in a room)
+    if s.get("signin_waiting") and not (place == PLACE_ROOM and s.get("connected")):
         msg.update(icon="TIME", text="Waiting for the browser…",
                    op="em.sign_in_cancel", op_text="Cancel")
     elif s.get("expired"):
@@ -339,6 +359,11 @@ def read_state(context) -> Dict[str, Any]:  # pragma: no cover — bpy
     s["not_applied"] = len(ops.RIFIUTI)
     from . import scene_check
     s["tally"] = scene_check.ULTIMA_VERIFICA.get("tally") or {}
+    try:
+        from .files_list import row_counts
+        s["here_only"] = row_counts(context.window_manager.em_files).get("on_disk", 0)
+    except Exception:  # noqa: BLE001 — Files not built yet
+        s["here_only"] = 0
     s["offer_download"] = bool(int(scene_check.ULTIMA_VERIFICA.get("missing_left") or 0)
                                and not ops._preferenza("materialise_on_adopt", False))
     if mode == ops.MODE_SIDECAR:

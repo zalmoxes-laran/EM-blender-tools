@@ -144,8 +144,6 @@ def superseded_out(graph: Any, summary: Dict[str, Any]) -> Dict[str, Any]:
                 if getattr(e, "edge_type", "") == "was_revision_of"}
                | {e.edge_source for e in edges
                   if getattr(e, "edge_type", "") == "was_revision_of"})
-    if not members:
-        return summary
     try:
         from .. import resource_governance as governance
     except ImportError:              # loaded by path, outside the package (the suite)
@@ -161,6 +159,16 @@ def superseded_out(graph: Any, summary: Dict[str, Any]) -> Dict[str, Any]:
             for m in chain:
                 used[m] = pick
     old = {m for m, pick in used.items() if m != pick}
+    # MICRO una verità · a model as it lives in the .blend (an RM's datablock)
+    # is in the .blend already: its bytes in the store are not owed to the
+    # scene (13 Oct 2026: 2f69bffb, «US 2» sent as a revision of the LOD2
+    # datablock, would have come back as one more object)
+    for rid in {r.get("resource_id") for r in summary.get("resident") or []}:
+        try:
+            if rid and governance.datablock_object(graph, rid):
+                old.add(rid)
+        except Exception:  # noqa: BLE001 — a record read as before
+            pass
     out = dict(summary)
     out["resident"] = [r for r in summary.get("resident") or []
                        if r.get("resource_id") not in old]

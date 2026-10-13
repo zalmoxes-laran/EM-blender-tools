@@ -151,9 +151,13 @@ def test_replace_is_not_offered_for_another_resources_object():
     assert GOV.bound_to(g, us2, {"em_resource_id": "US2.model", "em_rm_node_id": "US2"})
     assert not GOV.bound_to(g, us2, {"em_rm_node_id": "US3"})
     assert not GOV.bound_to(g, us2, {})
-    # a later version of US 2: the object of an older one is still US 2's
+    # a later version of US 2 in use: the object of the older one is NOT the
+    # object of this resource any more (MICRO una verità: Replace would send
+    # superseded geometry as new); the object with the bytes in use is
     v2 = _revise(g, us2, _digest("2b"), "2026-10-13T09:30:00Z")
-    assert GOV.bound_to(g, v2, obj_us2) and not GOV.bound_to(g, v2, obj_us3)
+    assert not GOV.bound_to(g, v2, obj_us2) and not GOV.bound_to(g, v2, obj_us3)
+    assert GOV.bound_to(g, v2, {**obj_us2, "em_asset_sha256": _digest("2b")})
+    assert GOV.bound_to(g, v2, {"em_resource_id": v2, "em_rm_node_id": "US2"})
     src = (_REPO / "sync_manager" / "files_list.py").read_text()
     assert src.count("bound_object(context") >= 3       # poll, execute, card
 
@@ -246,7 +250,10 @@ def test_the_room_is_one_state():
     off = _room(offline=True, waiting=5)["state"]
     assert off["text"] == "● Offline — 5 waiting" and off["op"] == "em.room_reconnect"
     tally = {"here": 4, "missing": 0, "changed": 2, "external": 0, "only_here": 0}
-    assert _room(tally=tally)["state"]["text"] == "● 2 changed here, not sent"
+    assert _room(tally=tally)["state"]["text"] == "● 2 changes here, not sent"
+    # a revision made here and not sent is said, never «● Aligned»
+    assert _room(tally={**tally, "changed": 0}, here_only=1)["state"]["text"] == \
+        "● 1 change here, not sent"
     dl = _room(tally={**tally, "changed": 0, "missing": 3}, offer_download=True)["state"]
     assert dl["text"] == "● 3 to download" and dl["op"] == "em.scene_check"
     assert _room(tally={**tally, "changed": 0})["state"]["text"] == "● Aligned"

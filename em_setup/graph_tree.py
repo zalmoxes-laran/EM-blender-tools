@@ -316,15 +316,6 @@ def draw_graph_tree(layout, context, em_tools) -> None:
                 line.label(text="", icon="ORIENTATION_GLOBAL")
             load_op(line, getattr(row, "file_format", "GRAPHML") == "EMJSON", i,
                     emboss=False)
-            if hasattr(row, "is_publishable"):
-                try:
-                    from .. import icons_manager
-                    line.prop(row, "is_publishable", text="",
-                              icon_value=icons_manager.get_icon_value(
-                                  "em_publish" if row.is_publishable
-                                  else "em_no_publish"))
-                except Exception:  # noqa: BLE001
-                    line.prop(row, "is_publishable", text="")
             if i == active:
                 _draw_active_path(col, row, i, present, origin)
 
@@ -362,14 +353,6 @@ def _draw_room_branch(col, origin, indices, rows, active) -> None:
                            emboss=(i == active), depress=(i == active))
         op.index = i
         line.label(text="", icon=room_alignment(origin)[0])
-        if hasattr(row, "is_publishable"):
-            try:
-                from .. import icons_manager
-                line.prop(row, "is_publishable", text="",
-                          icon_value=icons_manager.get_icon_value(
-                              "em_publish" if row.is_publishable else "em_no_publish"))
-            except Exception:  # noqa: BLE001
-                line.prop(row, "is_publishable", text="")
     for ref in cited_of(origin):
         sub = col.row()
         sub.separator(factor=2.0)
@@ -418,6 +401,15 @@ def _loaded_count(em_tools) -> int:
                if getattr(r, "is_graph", False) or get_graph(r.name))
 
 
+def in_room() -> bool:
+    """This Blender works in a room now (its study is the room's)."""
+    try:
+        from ..sync_manager import room as room_cfg
+        return bool(room_cfg.room().get("room_id"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def draw_toolbar(layout, context, em_tools, stato) -> None:
     """P2 (6 Oct 2026) · the commands on the graphs as a compact bar of icons
     above the tree, like the toolbar of EMStudio's EMtree: + Add graph,
@@ -425,6 +417,11 @@ def draw_toolbar(layout, context, em_tools, stato) -> None:
     files, Multigraph). The names are the tooltips (the operators'
     descriptions; a button off says why with `poll_message_set`)."""
     bar = layout.row(align=True)
+    if in_room():
+        # MICRO una verità (13 Oct 2026) · in a room the study is the room's:
+        # + ↻ 💾 − speak of local files. Only ▾, with Save as… for a copy
+        bar.menu("EM_MT_graph_more", text="", icon="DOWNARROW_HLT")
+        return
     bar.operator("em_tools.add_file", text="", icon="ADD")
     sub = bar.row(align=True)
     sub.enabled = bool(stato.get("ha_path"))

@@ -337,6 +337,21 @@ def repair_versions(graph) -> Dict[str, Any]:  # pragma: no cover — bpy
         rid = str(obj.get(PROP_RESOURCE) or "")
         if not rid or graph.find_node_by_id(rid) is None:
             continue
+        # MICRO una verità · bound to another chain than its carrier cites
+        # (US 2 → «Blend datablock for ME_EST_bk_LOD2»): back to the version
+        # in use; its bytes are that version's when the mesh is the one its
+        # bytes were recorded from (nothing changed here since)
+        right = governance.rebind_target(graph, {
+            PROP_RESOURCE: rid, "em_rm_node_id": str(obj.get("em_rm_node_id") or "")})
+        if right:
+            obj[PROP_RESOURCE] = right
+            recorded = str(obj.get(PROP_FINGERPRINT) or "")
+            if recorded and mesh_fingerprint(obj) == recorded:
+                obj[PROP_DIGEST] = governance.full_digest(governance.digest_of(graph, right))
+            print(f"[sync] {obj.name} was bound to {rid[:8]} (not its carrier's): "
+                  f"bound to {right[:8]}, the version in use")
+            rebound += 1
+            continue
         used = governance.in_use(graph, rid)
         if used != rid and governance.object_status(
                 graph, rid, str(obj.get(PROP_DIGEST) or "")) == governance.STATUS_CURRENT:

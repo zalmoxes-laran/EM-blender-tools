@@ -206,6 +206,58 @@ def live_view(doc: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def tombstones(doc: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """What the room's document says is DELETED, by graph: ``{graph_id: {nodes:
+    {ids}, edges: {ids}, triples: {(source, edge_type, target)}}}`` — an edge
+    counts by its ends too, since one Blender may hold it under another id.
+    An edge the room deleted and then has again (same ends, live) is not."""
+    from s3dgraphy import crdt
+    out: Dict[str, Dict[str, Any]] = {}
+    if not isinstance(doc, dict):
+        return out
+    sections = dict(doc.get("graphs") or {}) if isinstance(doc.get("graphs"), dict) else {}
+    if isinstance(doc.get("graph"), dict):
+        sections[str(doc["graph"].get("graph_id") or "")] = doc["graph"]
+    for gid, sec in sections.items():
+        if not isinstance(sec, dict) or not isinstance(sec.get("nodes"), list):
+            continue
+        gid = str(sec.get("graph_id") or gid)
+        alive_nodes = {n.get("id") for n in crdt.live_nodes(sec)}
+        live = crdt.live_edges(sec)
+        alive_edges = {e.get("id") for e in live}
+        alive_triples = {(e.get("source"), e.get("edge_type"), e.get("target")) for e in live}
+        dead = [e for e in sec.get("edges") or [] if e.get("id") not in alive_edges]
+        out[gid] = {
+            "nodes": {n.get("id") for n in sec["nodes"] if n.get("id") not in alive_nodes},
+            "edges": {e.get("id") for e in dead},
+            "triples": {(e.get("source"), e.get("edge_type"), e.get("target")) for e in dead}
+            - alive_triples}
+    return out
+
+
+def drop_tombstoned(graph: Any, dead: Dict[str, Any]) -> List[str]:
+    """MICRO una verità (13 Oct 2026) · the room's deletions win over what
+    this Blender still holds. Adoption MERGES the room's document into the
+    graphs already loaded (additive, by design); a citation the room moved
+    away («Use», a revision) but that this Blender's graph still had stayed
+    alive beside the new one — and `resource_governance.in_use`, among two
+    citations, takes the newer version: the panel said «v2 in use» and the
+    scene got v2 while the room cited v1. → the ids removed here."""
+    gone: List[str] = []
+    if graph is None or not dead:
+        return gone
+    for e in list(getattr(graph, "edges", None) or []):
+        triple = (e.edge_source, e.edge_type, e.edge_target)
+        if e.edge_id in dead.get("edges", ()) or triple in dead.get("triples", ()):
+            graph.remove_edge(e.edge_id)
+            gone.append(e.edge_id)
+    for nid in dead.get("nodes", ()):
+        if nid and graph.find_node_by_id(nid) is not None:
+            graph.remove_node(nid)
+            gone.append(nid)
+    return gone
+
+
 def _op_key(op: Dict[str, Any]) -> tuple:
     """What identifies an operation across its trip (the room adds the author
     and the access mode, never changes these)."""
