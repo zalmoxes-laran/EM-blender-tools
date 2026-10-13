@@ -584,6 +584,80 @@ def datablock_object(graph, res_id: str) -> str:
     return ""
 
 
+def glb_on_datablock(graph) -> List[str]:
+    """MICRO RM e aggancio (13 Oct 2026) · the revisions of an RM's datablock
+    that carry glb bytes: never right (`revise_and_cite` refuses them since
+    a6d3a6d), and the room still has 2f69bffb — «US 2», a monkey of 1 970
+    vertices, sent at 16:11:09 by «Replace» as a revision of «Blend datablock
+    for ME_EST_bk_LOD2». The first of a chain is the datablock itself (its
+    ``blend://``): never one of these."""
+    out: List[str] = []
+    seen: set = set()
+    for node in list(graph.nodes):
+        if getattr(node, "node_type", "") != "resource" or node.node_id in seen:
+            continue
+        if not str(getattr(node, "name", "") or "").startswith(DATABLOCK_PREFIX):
+            continue
+        chain = chain_of(graph, node.node_id)
+        seen.update(chain)
+        for member in chain[1:]:
+            if digest_of(graph, member):
+                out.append(member)
+    return out
+
+
+def retire_revision(graph, res_id: str) -> Dict[str, Any]:
+    """One revision out of its chain, and its citations back on the version
+    before it — not the whole chain (`withdraw`): the RM goes back to its
+    datablock. The files only it held go with it. → a plan as `withdraw`
+    gives it (``members``, ``files``, ``citing``) and ``back_to``."""
+    chain = chain_of(graph, res_id)
+    if res_id not in chain or chain.index(res_id) == 0:
+        raise ValueError(f"{res_id!r} is not a revision of anything")
+    back = chain[chain.index(res_id) - 1]
+    cites = citing(graph, res_id)
+    if cites:
+        _rr().move_citations(graph, res_id, back, [c["edge_id"] for c in cites])
+    files = _owned_files(graph, [res_id])
+    for nid in [res_id] + files:
+        if graph.find_node_by_id(nid) is not None:
+            graph.remove_node(nid)
+    return {"members": [res_id], "files": files, "citing": cites, "back_to": back}
+
+
+def revision_refusal(graph, res_id: str, props: Dict[str, Any], *,
+                     unit_id: str = "") -> str:
+    """Why the object with these properties may NOT give `res_id` a new
+    revision, or "" when it may. A revision of a resource is born only from
+    the object bound to it: its carrier (``em_rm_node_id``: an RM, a unit's
+    shape; or `unit_id`, the unit whose proxy it is) cites the chain — or,
+    when nothing cites it, the object is bound to the chain itself. A proxy
+    never revises an RM's model, an RM never a proxy."""
+    if graph.find_node_by_id(res_id) is None:
+        return f"{res_id} is not in the graph"
+    if datablock_object(graph, res_id):
+        return (f"{display_name(graph, res_id)} is a model as it lives in the .blend: "
+                f"a glb is not a version of it")
+    chain = chain_of(graph, res_id)
+    carriers: set = set()
+    for member in chain:
+        for c in citing(graph, member):
+            carriers.add(c["source"])
+            if c.get("source_type") == "semantic_shape":
+                unit = _unit_of_shape(graph, c["source"])
+                if unit is not None:
+                    carriers.add(unit.node_id)
+    rid = str(props.get("em_resource_id") or "")
+    mine = {str(props.get("em_rm_node_id") or ""), str(unit_id or "")} - {""}
+    if mine & carriers:
+        return ""
+    if rid in chain and (not carriers or not mine):
+        return ""
+    whose = next((citer_name(graph, m) for m in mine if citer_name(graph, m)), "")
+    return (f"this object is not {display_name(graph, res_id)}'s"
+            + (f": it belongs to {whose}" if whose else ""))
+
+
 def withdrawable(graph, res_id: str) -> bool:
     """«Withdraw from the room» ha senso per una risorsa DELLA STANZA: non per
     il modello di un RM come vive nel .blend (il .blend lo riscrive alla

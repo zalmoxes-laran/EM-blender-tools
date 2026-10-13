@@ -1103,6 +1103,10 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     if file_states.ULTIMI.get("list_error"):
         layout.label(text=f"List: {file_states.ULTIMI['list_error']}", icon="ERROR")
     draw_marked(layout, context)
+    # MICRO RM e aggancio · the objects not in the graph, with the gesture
+    # that makes one the proxy of a unit
+    from .proxy_hook import draw_not_in_graph
+    draw_not_in_graph(layout, context)
     draw_moved(layout, context)
     # 2 · one search, its menu on the right
     q = layout.row(align=True)

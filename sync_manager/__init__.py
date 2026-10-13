@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from . import (asset_versions, backups, bring, entry, file_states, files_list, materialise, node_choice,
                open_in_emstudio, signin_ui,
-               operators, panel, rooms_ui, scene_check, scene_package, windows)
+               operators, panel, proxy_hook, rooms_ui, scene_check, scene_package, windows)
 
 
 def register():
@@ -51,6 +51,7 @@ def register():
     asset_versions.register()
     file_states.register()
     files_list.register()
+    proxy_hook.register()
     node_choice.register()
     open_in_emstudio.register()
     signin_ui.register()
@@ -68,6 +69,7 @@ def unregister():
     signin_ui.unregister()
     open_in_emstudio.unregister()
     node_choice.unregister()
+    proxy_hook.unregister()
     files_list.unregister()
     file_states.unregister()
     asset_versions.unregister()

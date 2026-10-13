@@ -1971,6 +1971,11 @@ def join_room(context, base_url: str, room_id: str, token: str,
     # is the one its edits go to (one room = one graph, D-A)
     _lega_grafo_alla_stanza(context, SESSION, room_doc if adopt else {},
                             base_url, room_id, token)
+    # MICRO RM e aggancio · what the room holds, so that the sync never sends
+    # an edge toward a node it does not have (adopted or not: the document is
+    # the room's)
+    if room_doc:
+        SESSION.holds = _rs.room_holds(room_doc, SESSION.writing_graph)
     plan = arrival.get("plan")
     # P1 · what the room had not confirmed goes now, after the adoption (so
     # the room's document does not cover it here) and before the scene check

@@ -258,6 +258,75 @@ def drop_tombstoned(graph: Any, dead: Dict[str, Any]) -> List[str]:
     return gone
 
 
+def room_holds(doc: Dict[str, Any], graph_id: Optional[str] = None
+               ) -> Optional[Dict[str, Any]]:
+    """MICRO RM e aggancio (13 Oct 2026) · what the room HAS, live: ``{nodes:
+    {ids}, edges: {id: (source, edge_type, target)}}`` for the section of
+    `graph_id` (the only study section when the id is not there — a room
+    seeded from this scene holds our graph under its own id). None when the
+    document says nothing.
+
+    The sync's delta is «what changed here»: a node made here BEFORE the
+    gesture (an RM of the list, its datablock) is in neither side of the
+    difference, and an edge toward it left alone. Measured on the room
+    `tavolo-2026-10-12`: ``ME_EST_bk_LOD2_model ─has_linked_resource→
+    2f69bffb`` and ``2f69bffb ─was_revision_of→ …_res_blend`` in the room,
+    their RM and datablock never sent. Knowing what the room holds is what
+    lets the sync send the node with its edge, or not send the edge."""
+    if not isinstance(doc, dict):
+        return None
+    sections = dict(doc.get("graphs") or {}) if isinstance(doc.get("graphs"), dict) else {}
+    if isinstance(doc.get("graph"), dict):
+        sections[str(doc["graph"].get("graph_id") or "")] = doc["graph"]
+    sections = {str((s or {}).get("graph_id") or gid): s for gid, s in sections.items()
+                if isinstance(s, dict) and isinstance(s.get("nodes"), list)}
+    sec = sections.get(str(graph_id or ""))
+    if sec is None:
+        try:
+            from s3dgraphy.container import is_dtc_corpus_member, is_shelf_member
+            studies = [s for s in sections.values()
+                       if not is_shelf_member(s) and not is_dtc_corpus_member(s)]
+        except ImportError:
+            studies = list(sections.values())
+        if len(studies) != 1:
+            return None
+        sec = studies[0]
+    live = live_view({"graph": sec})["graph"]
+    # the nodes of EVERY section count as held: an edge of the study toward
+    # the shelf or a DTC corpus is not an edge toward nothing
+    nodes = {n.get("id") for s in sections.values()
+             for n in live_view({"graph": s})["graph"]["nodes"] if n.get("id")}
+    return {"nodes": nodes,
+            "edges": {e.get("id"): (e.get("source"), e.get("edge_type"), e.get("target"))
+                      for e in live["edges"] if e.get("id")}}
+
+
+def note_op(holds: Optional[Dict[str, Any]], op: Dict[str, Any]) -> None:
+    """An operation that went to the room, or came from it: what the room
+    holds follows it."""
+    if not holds or not isinstance(op, dict):
+        return
+    kind = op.get("op")
+    if kind == "add_node":
+        nid = op.get("id") or (op.get("node") or {}).get("id")
+        if nid:
+            holds["nodes"].add(nid)
+    elif kind == "remove_node":
+        nid = op.get("id") or op.get("node_id")
+        holds["nodes"].discard(nid)
+        for eid, (s, _t, d) in list(holds["edges"].items()):
+            if nid in (s, d):
+                holds["edges"].pop(eid, None)
+    elif kind == "add_edge" and op.get("source") and op.get("target"):
+        eid = op.get("id") or f"{op['source']}__{op.get('edge_type')}__{op['target']}"
+        holds["edges"][eid] = (op["source"], op.get("edge_type"), op["target"])
+    elif kind == "remove_edge":
+        triple = (op.get("source"), op.get("edge_type"), op.get("target"))
+        for eid, t in list(holds["edges"].items()):
+            if eid == op.get("id") or t == triple:
+                holds["edges"].pop(eid, None)
+
+
 def _op_key(op: Dict[str, Any]) -> tuple:
     """What identifies an operation across its trip (the room adds the author
     and the access mode, never changes these)."""
@@ -318,6 +387,10 @@ class RoomSession:
         #: S1 · the studies the room CITES (its container_refs after the first,
         #: I-2): read only; the tree lists them, no operation leaves from them
         self.cited: List[str] = []
+        #: MICRO RM e aggancio · what the room holds (`room_holds`), from its
+        #: document at the entry, kept up with the operations both ways; None
+        #: when unknown (then the sync sends what it sent before)
+        self.holds: Optional[Dict[str, Any]] = None
 
     # ── joining ──────────────────────────────────────────────────────────────
 
@@ -437,6 +510,7 @@ class RoomSession:
         # P1 · it is the room's work until the room answers it, sent or not
         entry = {"op": body, "graph_id": graph, "sent": False}
         self.unconfirmed.append(entry)
+        note_op(self.holds, body)
         return self._send_entry(entry)
 
     def _send_entry(self, entry: Dict[str, Any]) -> bool:
@@ -539,6 +613,7 @@ class RoomSession:
             members = body.get("members")
             self.members = list(members) if isinstance(members, list) else []
         elif kind == "op":
+            note_op(self.holds, body)
             ts = body.get("ts")
             if ts and (self.last_applied is None or str(ts) > str(self.last_applied)):
                 self.last_applied = str(ts)

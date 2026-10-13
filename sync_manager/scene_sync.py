@@ -33,7 +33,7 @@ The decisions are pure (`classify_models`, `section_delta_ops`,
 # NOT `from __future__ import annotations`: see scene_check — the operator
 # properties are read in this module's globals.
 import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 PROP_FINGERPRINT = "em_mesh_fp"
 
@@ -148,6 +148,96 @@ def section_delta_ops(before: Dict[str, Any], after: Dict[str, Any]
     return ops
 
 
+#: what a node brought into the room carries with it, outward: what it cites
+#: and the files of what it cites (an RM → its datablock → the `blend://`)
+_FOLLOW = ("has_linked_resource", "has_file")
+
+
+def _bring(ids, section: Dict[str, Any], known: set, skip_edges: set
+           ) -> Dict[str, Any]:
+    """Nodes of `section` the room does not have, as `add_node`, with what
+    they cite (`_FOLLOW`) and every edge of theirs whose other end the room
+    has or receives now (their epoch, their document). `known` and
+    `skip_edges` grow with what is brought."""
+    nodes = {n.get("id"): n for n in section.get("nodes") or [] if n.get("id")}
+    todo = [i for i in ids if i in nodes and i not in known]
+    brought: List[str] = []
+    while todo:
+        nid = todo.pop(0)
+        if nid in known:
+            continue
+        known.add(nid)
+        brought.append(nid)
+        for e in section.get("edges") or []:
+            if (e.get("source") == nid and e.get("edge_type") in _FOLLOW
+                    and e.get("target") in nodes and e.get("target") not in known):
+                todo.append(e["target"])
+    ops = [{"op": "add_node", "id": nid, "node": nodes[nid]} for nid in brought]
+    fresh = set(brought)
+    for e in section.get("edges") or []:
+        eid = e.get("id")
+        ends = (e.get("source"), e.get("target"))
+        if not eid or eid in skip_edges or not (fresh & set(ends)):
+            continue
+        if all(x in known for x in ends):
+            skip_edges.add(eid)
+            ops.append({"op": "add_edge", "id": eid, "source": ends[0],
+                        "target": ends[1], "edge_type": e.get("edge_type")})
+    return {"ops": ops, "brought": brought}
+
+
+def close_over(ops: List[Dict[str, Any]], section: Dict[str, Any],
+               holds: Optional[Dict[str, Any]], bring: Iterable[str] = ()
+               ) -> Dict[str, Any]:
+    """MICRO RM e aggancio (13 Oct 2026) · an edge never leaves toward a node
+    the room does not have. `ops` is a delta (`section_delta_ops`), `section`
+    the graph as it is now, `holds` what the room has
+    (`room_session.room_holds`; None = unknown → the delta as it is).
+
+    * an end the room lacks and this graph has goes first, whole, with what it
+      cites and its own edges (`_bring`: an RM arrives with its epoch and its
+      datablock); an end nobody has drops the edge (``dropped``);
+    * the room as it is, repaired: an edge it HOLDS toward a node it lacks
+      gets the node, or goes (``removed``);
+    * `bring` (the RMs of the list) arrive the same way.
+
+    Measured: «Replace» at 16:11 sent ``ME_EST_bk_LOD2_model
+    ─has_linked_resource→ 2f69bffb`` and the RM, made here before the gesture,
+    was in neither side of the delta. → ``{ops, brought, dropped, removed}``."""
+    if holds is None:
+        return {"ops": list(ops), "brought": [], "dropped": [], "removed": []}
+    known = set(holds.get("nodes") or ())
+    for op in ops:
+        if op.get("op") == "add_node":
+            known.add(op.get("id"))
+    skip = set(holds.get("edges") or ()) | {op.get("id") for op in ops
+                                             if op.get("op") == "add_edge"}
+    section_ids = {n.get("id") for n in section.get("nodes") or []}
+    gone_here = {op.get("id") for op in ops if op.get("op") == "remove_edge"}
+    dangling = {eid: t for eid, t in (holds.get("edges") or {}).items()
+                if eid not in gone_here and (t[0] not in known or t[2] not in known)}
+    wanted = list(bring) + [end for op in ops if op.get("op") == "add_edge"
+                            for end in (op.get("source"), op.get("target"))]
+    wanted += [x for t in dangling.values() for x in (t[0], t[2])]
+    extra = _bring([w for w in wanted if w not in known and w in section_ids],
+                   section, known, skip)
+    kept, dropped = [], []
+    for op in ops:
+        if op.get("op") == "add_edge" and not (op.get("source") in known
+                                               and op.get("target") in known):
+            dropped.append(op)
+            continue
+        kept.append(op)
+    removed = [{"op": "remove_edge", "id": eid, "source": t[0], "edge_type": t[1],
+                "target": t[2]} for eid, t in dangling.items()
+               if t[0] not in known or t[2] not in known]
+    nodes_first = [o for o in extra["ops"] if o["op"] == "add_node"]
+    edges_after = [o for o in extra["ops"] if o["op"] != "add_node"]
+    return {"ops": nodes_first + kept + edges_after + removed,
+            "brought": extra["brought"], "dropped": dropped,
+            "removed": [r["id"] for r in removed]}
+
+
 # ── Blender ─────────────────────────────────────────────────────────────────
 
 def mesh_fingerprint(obj) -> str:  # pragma: no cover — bpy
@@ -242,14 +332,35 @@ def _section(graph) -> Dict[str, Any]:  # pragma: no cover — bpy
     return graph_to_emjson_dict(graph).get("graph") or {}
 
 
+def emit_delta(graph, before: Dict[str, Any], bring: Iterable[str] = ()
+               ) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """What changed since `before`, closed over what the room holds
+    (`close_over`: never an edge toward a node it lacks; the room's edges
+    toward nothing repaired; `bring` sent with their epoch and datablock),
+    sent as operations. → `close_over`'s report."""
+    from . import operators as ops
+    from .room_session import SESSION
+    after = _section(graph)
+    closed = close_over(section_delta_ops(before, after), after, SESSION.holds, bring)
+    if closed["brought"]:
+        print(f"[sync] sent with the edges that need them: {', '.join(closed['brought'][:8])}")
+    for op in closed["dropped"]:
+        print(f"[sync] not sent: {op.get('edge_type')} {op.get('source')} → "
+              f"{op.get('target')} (an end is in no graph)")
+    if closed["removed"]:
+        print(f"[sync] the room's edges toward a node it lacks, removed: "
+              f"{', '.join(closed['removed'][:6])}")
+    for op in closed["ops"]:
+        ops.emit_op(op)
+    return closed
+
+
 def to_the_room(graph, change) -> Any:  # pragma: no cover — bpy
     """Run `change(graph)` and send what it changed to the room, as operations
     (P1: a dropped connection keeps them). → what `change` returned."""
-    from . import operators as ops
     before = _section(graph)
     out = change(graph)
-    for op in section_delta_ops(before, _section(graph)):
-        ops.emit_op(op)
+    emit_delta(graph, before)
     return out
 
 
@@ -288,6 +399,14 @@ def revise_object(context, graph, obj, rid: str, *, kind: str = "",
             chain = None
         if chain is not None:
             rid = chain.node_id
+    # MICRO RM e aggancio · a revision is born only from the object bound to
+    # its resource: a proxy never revises an RM's model (16:11, «US 2» as a
+    # revision of the LOD2 datablock)
+    refusal = governance.revision_refusal(
+        graph, rid, {k: obj.get(k) for k in ("em_resource_id", "em_rm_node_id")},
+        unit_id=target if kind == "proxy" else "")
+    if refusal:
+        return {"ok": False, "error": f"{obj.name}: {refusal}"}
     data = commands._export_gltf(obj, context)
     info = room_cfg.put_asset(data, room_cfg.GLTF_MEDIA_TYPE)
     spec = {"path": f"{obj.name}.glb",
@@ -364,6 +483,69 @@ def repair_versions(graph) -> Dict[str, Any]:  # pragma: no cover — bpy
             "formats": formats, "rebound": rebound}
 
 
+def retire_glb_on_datablocks(context, graph, before: Dict[str, Any]
+                             ) -> List[str]:  # pragma: no cover — bpy
+    """The glb revisions of an RM's datablock (`governance.glb_on_datablock`)
+    leave the graph — and the room, with the delta — the RM's citation back on
+    its datablock. Each is kept in `WITHDRAWN`, so Files ▸ «Withdrawn» offers
+    «Undo». The objects that show those bytes are marked «withdrawn», never
+    removed by themselves. → the ids."""
+    import datetime as dt
+    from .. import resource_governance as governance
+    from .room_session import REMOVED_IN_ROOM, WITHDRAWN
+    out: List[str] = []
+    for rid in governance.glb_on_datablock(graph):
+        name = governance.display_name(graph, rid)
+        plan = governance.retire_revision(graph, rid)
+        record = governance.withdrawal_record(
+            before, plan, by="EMtools (sync)",
+            at=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        record["name"] = f"{name} · a glb sent as its version by mistake"
+        WITHDRAWN[record["id"]] = record
+        REMOVED_IN_ROOM.update(plan["members"] + plan["files"])
+        print(f"[sync] {rid[:8]} was a glb sent as a version of {name}: withdrawn, "
+              f"the RM back on {plan['back_to']} (Undo: Files ▸ «Withdrawn»)")
+        out.append(rid)
+    return out
+
+
+def seat_listed_rms(context, graph) -> List[str]:  # pragma: no cover — bpy
+    """The RMs of the list whose node is in this graph and NOT in the room:
+    their datablock resource and their epochs from the object, as the export
+    writes them. → their ids, for `close_over` to bring into the room. An RM
+    the room has is left as the room has it."""
+    import bpy  # type: ignore
+    from .room_session import SESSION
+    out: List[str] = []
+    if SESSION.holds is None:
+        return out
+    try:
+        from ..rm_manager.containers import ensure_rm_and_internal_resource
+        from ..rm_manager.epoch_edges import sync_epoch_edges
+    except Exception as exc:  # noqa: BLE001 — the sync goes on without them
+        print(f"[sync] the RMs of the list were not seated: {exc}")
+        return out
+    held = SESSION.holds.get("nodes") or set()
+    for item in getattr(context.scene, "rm_list", []) or []:
+        obj = bpy.data.objects.get(item.name)
+        rm_id = str(getattr(item, "node_id", "") or "")
+        if obj is None or not rm_id or graph.find_node_by_id(rm_id) is None \
+                or rm_id in held:
+            continue
+        try:
+            got, _res, _notes = ensure_rm_and_internal_resource(context.scene, graph, obj)
+        except Exception as exc:  # noqa: BLE001 — one RM is one line
+            print(f"[sync] {item.name}: its datablock not seated ({exc})")
+            got = rm_id
+        rm_id = got or rm_id
+        epochs = [ep.epoch for ep in getattr(obj, "EM_ep_belong_ob", ())
+                  if ep.epoch and ep.epoch != "no_epoch"]
+        if epochs and getattr(item, "is_publishable", True):
+            sync_epoch_edges(graph, rm_id, epochs)
+        out.append(rm_id)
+    return out
+
+
 def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover — bpy
     """A room an older EMtools filled: its ``<US>.model`` become the canonical
     proxy chain (`proxy_chain.migrate_unit_models`), the changes go to the
@@ -389,20 +571,26 @@ def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover 
     report["closed"] = list(report.get("closed") or []) + repaired["closed"]
     report["warnings"] = list(report["warnings"]) + repaired["warnings"]
     report["formats"] = repaired["formats"]
-    delta = section_delta_ops(before, _section(graph))
-    if not delta and not report["migrated"]:
-        report["ops"] = 0
-        return report
+    # MICRO RM e aggancio · a glb sent as a revision of an RM's datablock
+    # goes (Undo in Files ▸ «Withdrawn»), the RM back on its datablock; the
+    # RMs of the list are seated with their epoch
+    report["retired"] = retire_glb_on_datablocks(context, graph, before)
+    rms = seat_listed_rms(context, graph)
     from . import room_session
     for item in report["closed"]:
         room_session.REMOVED_IN_ROOM.update(item["removed"])
-    for op in delta:
-        ops.emit_op(op)
+    closed = emit_delta(graph, before, rms)
+    sent = len(closed["ops"])
+    report["brought"] = closed["brought"]
+    report["dangling_removed"] = closed["removed"]
+    if not sent and not report["migrated"]:
+        report["ops"] = 0
+        return report
     moved = {m["old"]: m["new"] for m in report["migrated"]}
     for obj in bpy.data.objects:
         if str(obj.get("em_resource_id") or "") in moved:
             obj["em_resource_id"] = moved[str(obj["em_resource_id"])]
-    report["ops"] = len(delta)
+    report["ops"] = sent
     try:
         from ..functions import em_log
     except Exception:  # noqa: BLE001
@@ -411,7 +599,10 @@ def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover 
            f"resource): {', '.join(m['unit_id'] for m in report['migrated']) or 'none'}"
            f" · old form closed: {', '.join(i for c in report['closed'] for i in c['removed']) or 'none'}"
            f" · checksums and store urls put in one form: {len(report['formats'])}"
-           f" · {len(delta)} change(s) to the room"
+           f" · glb revisions of a datablock withdrawn: {', '.join(r[:8] for r in report['retired']) or 'none'}"
+           f" · sent with their edges: {', '.join(report['brought'][:8]) or 'none'}"
+           f" · edges toward nothing removed: {len(report['dangling_removed'])}"
+           f" · {sent} change(s) to the room"
            + (f" · {'; '.join(report['warnings'])}" if report["warnings"] else ""),
            "WARNING")
     return report
@@ -421,7 +612,6 @@ def send(context, graph, models: List[Dict[str, Any]]) -> Dict[str, Any]:  # pra
     """Send the chosen models; the graph's changes go to the room as ops."""
     import bpy  # type: ignore
     from . import commands
-    from . import operators as ops
 
     before = _section(graph)
     sent, failed, size = [], [], 0
@@ -446,7 +636,5 @@ def send(context, graph, models: List[Dict[str, Any]]) -> Dict[str, Any]:  # pra
             size += int(result["info"].get("size") or 0)
         else:
             failed.append(str(result.get("error")))
-    delta = section_delta_ops(before, _section(graph))
-    for op in delta:
-        ops.emit_op(op)
-    return {"sent": sent, "failed": failed, "size": size, "ops": len(delta)}
+    closed = emit_delta(graph, before)
+    return {"sent": sent, "failed": failed, "size": size, "ops": len(closed["ops"])}

@@ -1290,8 +1290,10 @@ class EM_strat_activate_collections(Operator):
 
 class EM_listitem_OT_to3D(Operator):
     bl_idname = "listitem.toobj"
-    bl_label = "Link List Item to 3D Proxy"
-    bl_description = "Link the selected list item with the currently selected proxy object in the 3D View"
+    bl_label = "Use the selected object as this US's proxy"
+    bl_description = ("The selected object becomes the proxy of this list's unit: it takes "
+                      "the unit's name (Object ▸ EM ▸ «Make it the proxy of…» does the same "
+                      "from the object)")
     bl_options = {"REGISTER", "UNDO"}
 
     list_type: StringProperty() # type: ignore

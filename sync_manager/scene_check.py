@@ -345,6 +345,13 @@ def tally_of(report: Dict[str, Any], at: str = "") -> Dict[str, Any]:
             "at": at}
 
 
+def _made_proxy(name: str) -> bool:  # pragma: no cover — bpy
+    import bpy  # type: ignore
+    from .proxy_hook import PROP_PROXY_OF
+    obj = bpy.data.objects.get(name)
+    return bool(obj is not None and obj.get(PROP_PROXY_OF))
+
+
 def _operator_classes():  # pragma: no cover — bpy
     import bpy  # type: ignore
 
@@ -439,7 +446,10 @@ def _operator_classes():  # pragma: no cover — bpy
                     row.object, row.target = m["object"], m["target"]
                     row.kind, row.state = str(m.get("kind") or ""), m["state"]
                     row.size = int(m.get("size") or 0)
-                    row.send = state == "changed"
+                    # a proxy made by «Make it the proxy of…» goes: that was
+                    # the point of making it
+                    row.send = state == "changed" or (
+                        m.get("kind") == "proxy" and _made_proxy(m["object"]))
             return rows
 
         def _graph_or_say(self, context):
