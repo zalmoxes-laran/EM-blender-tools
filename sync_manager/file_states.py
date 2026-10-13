@@ -411,6 +411,12 @@ def _operator_classes():  # pragma: no cover — bpy
                 if obj is None or obj.type != "MESH":
                     raise RuntimeError(f"{name} is not a mesh of this .blend")
                 PREPARED.clear()
+                # the version is of THIS row's asset. Measured 13 Oct: the same
+                # object is RM and RMSF, `master_of` resolved the RMSF datablock
+                # first and the version came out «of another model». The asset
+                # the object shows (`em_asset_id`) is read first: say it.
+                from .asset_versions import PROP_ASSET
+                obj[PROP_ASSET] = self.resource_id
                 with context.temp_override(active_object=obj, object=obj,
                                            selected_objects=[obj]):
                     done = bpy.ops.em.asset_prepare_for_use("EXEC_DEFAULT", use={"web"})
