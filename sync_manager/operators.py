@@ -1864,6 +1864,13 @@ def _adopt_snapshot(doc: dict, context) -> str:
             _repopulate(context, graph)
             _count_for_active_row(context, graph)
             _redraw()
+            # MICRO tre pannelli · Files says itself at the entry: no «Check
+            # files» to press
+            try:
+                from . import file_states
+                file_states.check_soon(1.0)
+            except Exception as exc:  # noqa: BLE001 — ↻ is in Files
+                print(f"[sync] files not checked at the entry: {exc}")
         note = _adoption_note(graph if ok else None, listed, overwritten,
                               len(warnings))
         # …and, only if somebody asked for it, the geometry (DP-76). A failure

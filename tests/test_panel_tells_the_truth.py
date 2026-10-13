@@ -90,10 +90,13 @@ def test_reopened_in_its_room_says_not_connected_with_reconnect():
                      "room_id": "templu-mare-prova-claude",
                      "node": "https://em.localhost:8443/em", "user": "dev"})
     assert "not connected" in z["place"][1] and not z["healthy"]
-    assert z["message"]["op"] == "em.room_reconnect"
-    assert z["message"]["op_text"] == "Reconnect"
-    assert "aligned" not in z["log"][1]           # nothing claims an alignment
-    assert "no role said" not in z["who"][1]
+    # MICRO tre pannelli · the Reconnect is on the room's one state
+    assert z["state"]["op"] == "em.room_reconnect"
+    assert z["state"]["op_text"] == "Reconnect"
+    assert z["state"]["text"].startswith("● Not connected")
+    assert "Aligned" not in z["state"]["text"]     # nothing claims an alignment
+    assert z["who"][1] == "dev · em.localhost:8443"
+    assert z["message"]["text"] == ""              # said once, by the state
 
 
 def test_connected_room_reads_role_and_people_of_the_same_session():

@@ -683,10 +683,13 @@ class EM_MT_room_more(bpy.types.Menu):
     bl_label = "Room"
 
     def draw(self, context):
+        # MICRO tre pannelli · the archives of the .blend (list, Restore) are
+        # in Project storage; the Log is the icon beside the room's state
         layout = self.layout
+        layout.operator("em.blend_backup_archive", text="Archive this .blend", icon="EXPORT")
         layout.operator("em.room_settings", text="Room settings…", icon="PREFERENCES")
-        layout.operator("em.room_blend", text="The .blend in the room…", icon="FILE_BLEND")
-        layout.operator("em.sync_log", text="Log…", icon="TEXT")
+        layout.separator()
+        layout.operator("em.room_leave", text="Leave the room", icon="UNLINKED")
 
 
 _CLASSES = (EM_OT_where_change, EM_OT_node_choose, EM_OT_node_use, EM_OT_room_enter,

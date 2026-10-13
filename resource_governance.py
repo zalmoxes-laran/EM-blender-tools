@@ -599,6 +599,100 @@ def readable(text: Any, fallback: str = "Unnamed file") -> str:
     return fallback if not text or looks_like_code(text) else text
 
 
+#: che cosa è una risorsa, per il filtro dei Files (MICRO tre pannelli)
+KIND_PROXY, KIND_RM, KIND_DOCUMENT, KIND_OTHER = "proxy", "rm", "document", "other"
+
+
+def kind_of(graph, res_id: str) -> str:
+    """Che cosa è una risorsa, da ciò che la cita: il proxy di un'unità, il
+    modello di un RM, il file di un documento — altrimenti ``other``."""
+    try:
+        chain = chain_of(graph, res_id)
+    except Exception:  # noqa: BLE001
+        chain = [res_id]
+    for member in reversed(chain):
+        try:
+            cites = citing(graph, member)
+        except Exception:  # noqa: BLE001
+            cites = []
+        for c in cites:
+            src = graph.find_node_by_id(c["source"])
+            kind = str(getattr(src, "node_type", "") or "")
+            if kind == "semantic_shape" or (src is not None and _is_unit(src)):
+                return KIND_PROXY
+            if kind in _RM_TYPES:
+                return KIND_RM
+            if kind == "document":
+                return KIND_DOCUMENT
+    return KIND_OTHER
+
+
+# ── 8 · le versioni contano per i loro byte ─────────────────────────────────
+
+def distinct_versions(vs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Le versioni di `versions()` raccolte per byte (MICRO tre pannelli, 13
+    ott 2026: v1 e v2 di US 2 avevano gli stessi byte, due righe che erano
+    una). Ogni gruppo è la sua versione PIÙ VECCHIA, rinumerata ``n`` di
+    ``of``; ``same`` sono le altre con quei byte (nei Details); ``in_use`` se
+    una del gruppo è in uso, ``later`` se viene dopo il gruppo in uso. Una
+    versione senza digest è un gruppo a sé."""
+    groups: List[Dict[str, Any]] = []
+    by_digest: Dict[str, Dict[str, Any]] = {}
+    for v in vs:
+        key = bare_digest(v.get("digest"))
+        group = by_digest.get(key) if key else None
+        if group is None:
+            group = {**v, "same": []}
+            groups.append(group)
+            if key:
+                by_digest[key] = group
+        else:
+            group["same"].append(v)
+            group["in_use"] = bool(group.get("in_use") or v.get("in_use"))
+    used = next((i for i, g in enumerate(groups) if g.get("in_use")), len(groups) - 1)
+    for i, g in enumerate(groups):
+        g.update(n=i + 1, of=len(groups), later=i > used)
+    return groups
+
+
+def version_count(graph, res_id: str) -> tuple:
+    """``(n, of)``: la versione in uso e quante sono, contate per byte."""
+    groups = distinct_versions(versions(graph, res_id))
+    n = next((g["n"] for g in groups if g.get("in_use")), len(groups))
+    return n, len(groups)
+
+
+# ── 9 · «Replace» solo con l'oggetto di questa risorsa ──────────────────────
+
+def bound_to(graph, res_id: str, props: Dict[str, Any]) -> bool:
+    """L'oggetto con queste proprietà (``em_resource_id``, ``em_rm_node_id``)
+    è legato alla risorsa `res_id`? Sì se la sua risorsa è della catena, o se
+    il nodo che lo porta (un'unità, un RM) cita una versione della catena —
+    direttamente o con la forma della sua unità.
+
+    Misurato il 13 ott 2026: la card di US 2 offriva «Replace with the
+    scene's object (US 3)», e avrebbe mandato la mesh di US 3 come versione di
+    US 2."""
+    if not res_id or graph.find_node_by_id(res_id) is None:
+        return False
+    chain = set(chain_of(graph, res_id))
+    rid = str(props.get("em_resource_id") or "")
+    if rid and rid in chain:
+        return True
+    carrier = str(props.get("em_rm_node_id") or "")
+    if not carrier:
+        return False
+    for member in chain:
+        for c in citing(graph, member):
+            if c["source"] == carrier:
+                return True
+            unit = (_unit_of_shape(graph, c["source"])
+                    if c.get("source_type") == "semantic_shape" else None)
+            if unit is not None and unit.node_id == carrier:
+                return True
+    return False
+
+
 # ── 6 · formati uniformi ────────────────────────────────────────────────────
 
 _STORE_URL = re.compile(r"^(?P<base>[a-z][a-z0-9+.-]*://[^?#]*?)/v1/rooms/(?P<room>[^/?#]+)"

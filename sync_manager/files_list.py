@@ -1,4 +1,14 @@
-"""Storage · the files of the graph as a LIST you can select and filter.
+"""Files (was Storage) · the files of the graph as a LIST you can select and filter.
+
+MICRO tre pannelli (13 Oct 2026): each thing said once, each gesture where it
+serves. The head is one sentence that keeps itself up to date («8 files · 2
+only on the node», Download, ↻); one search with its menu (kind, where,
+Withdrawn); a row is a sign, a name, «v3/3» when its versions have different
+bytes, ✕; the card says the state, the versions, only the gestures possible
+now, and the Details — codes and where it comes from — closed. The bucket and
+the project folder are Project storage's (`resources_tab/ui.py`).
+
+What follows is how the list was born:
 
 The «Files» section used to be a column of rows drawn one by one: nothing to
 select, nothing to filter but the six state chips. A resource here has more
@@ -12,7 +22,7 @@ only Blender's wrapper of several meshes under one document and holds no file.
 So a row says WHAT it is (master / version / file of a set / link of a
 document), its LEVEL and USES, its state (the sign of the common list) and the
 RM that use it; the card under the list says where it is and lists its sibling
-versions. The list is rebuilt by «Check files», from the same results.
+versions. The list is rebuilt with every check of the files (by itself, or ↻).
 
 ``build_rows`` is plain Python over the graph (testable without Blender); the
 classes below are the Blender face of it.
@@ -21,22 +31,35 @@ classes below are the Blender face of it.
 
 from typing import Any, Dict, List, Optional
 import os
+import re
 
-KINDS = (("all", "All kinds", "Every row"),
-         ("master", "Masters", "The assets: the surveyed or authored source"),
-         ("version", "Versions", "LODs and other versions derived from a master"),
-         ("file", "Parts", "One file of a resource made of several files"),
-         ("link", "Linked files", "A file a document, a model or a proxy points to"))
+#: the filter menu beside the search (MICRO tre pannelli, 13 Oct 2026: three
+#: filters for five rows became one search and one menu) — what a resource is…
+KINDS = (("all", "Every kind", "Every resource"),
+         ("proxy", "Proxies", "The proxy of a unit"),
+         ("rm", "Models (RM)", "The model of a representation model"),
+         ("document", "Documents", "The file of a document"),
+         ("other", "Other files", "Everything else"))
+
+#: …and where its bytes are; «Withdrawn» shows what the room keeps to undo
+STATES = (("all", "Anywhere", "Every resource"),
+          ("here", "On this computer", "Its bytes are on this computer"),
+          ("on_node", "Only on the node", "On the node, not on this computer yet"),
+          ("missing", "Missing", "Neither here nor on the node"),
+          ("withdrawn", "Withdrawn", "Withdrawn from the room: Undo brings them back"))
+
+#: a state of the menu → the states of the one resolver it gathers
+STATE_OF_FILTER = {"here": ("on_disk", "both"), "on_node": ("on_node",),
+                   "missing": ("missing", "empty_copy"), "withdrawn": ("withdrawn",)}
 
 #: where the bytes are, said in one short sentence
 STATE_SENTENCE = {"on_disk": "On this computer, not on the node.",
                   "on_node": "On the node; not on this computer yet.",
-                  "both": "On this computer and on the node.",
+                  "both": "Here and on the node.",
                   "missing": "Not found: neither here nor on the node.",
-                  "reference_only": "Kept elsewhere: this study points at it."}
-
-#: what a row says of its kind, in plain words (the jargon stays in Details)
-TAGS = {"master": "master", "file": "", "link": ""}
+                  "empty_copy": "Not found: the copy here is empty.",
+                  "reference_only": "Kept elsewhere: this study points at it.",
+                  "withdrawn": "Withdrawn from the room."}
 
 
 def _gov():
@@ -47,37 +70,54 @@ def _gov():
     return governance
 
 
+def shown(state: str, kind: str, item_state: str, item_kind: str) -> bool:
+    """Does the menu let this row through? A withdrawn row only under
+    «Withdrawn», and «Withdrawn» shows only them."""
+    if (item_state == "withdrawn") != (state == "withdrawn"):
+        return False
+    if state not in ("", "all") and item_state not in STATE_OF_FILTER.get(state, (state,)):
+        return False
+    return kind in ("", "all") or item_kind == kind
+
+
+def summary_line(c: Dict[str, int], in_room: bool = False) -> str:
+    """The head of Files, one sentence that keeps itself up to date: «8 files
+    · 2 only on the node» — counted on the one resolver's results, as «Check
+    files» counted them. Nothing to say → the count alone."""
+    total = sum(int(n or 0) for n in c.values())
+    if not total:
+        return "No files in this study"
+    bits = [f"{total} file{'s' if total != 1 else ''}"]
+    if c.get("on_node"):
+        bits.append(f"{c['on_node']} only on the node")
+    lost = int(c.get("missing") or 0) + int(c.get("empty_copy") or 0)
+    if lost:
+        bits.append(f"{lost} missing")
+    if in_room and c.get("on_disk"):
+        bits.append(f"{c['on_disk']} only here")
+    return " · ".join(bits)
+
+
 def build_rows(graph, results: List[Dict[str, Any]],
                described: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """The rows of the list: ``s3dgraphy.api.storage_rows`` (the same grouping
     EMStudio draws), said for a person (MICRO lo storage parla come una
-    persona, 13 Oct 2026):
+    persona, 13 Oct 2026; MICRO tre pannelli, the same day):
 
     * **one row per resource**: its versions are not rows — the row is the
       version IN USE (the cited one), with ``versions`` «v3/4» when there are
-      more; the card lists them;
+      more, counted by their BYTES (two versions with the same bytes are one);
     * **names, never codes**: ``file`` is what the resource is for («US 2 —
       proxy», «Epoch 1 — RM», a document's title), never a digest or a UUID;
-    * the files of a resource made of ONE file are not rows of their own, nor
-      those of a version not in use."""
+    * the files of a resource are not rows («Unnamed part» twice, measured).
+    * ``what`` is what it is for the filter (proxy, rm, document, other)."""
     from s3dgraphy import api
     gov = _gov()
-    rows = api.storage_rows(graph, results)
+    rows = [x for x in api.storage_rows(graph, results) if x["kind"] != "file"]
     revs = _revisions(graph, [x["id"] for x in rows])
-    set_of = {e.edge_target: e.edge_source for e in graph.edges if e.edge_type == "has_file"}
-    parts: Dict[str, int] = {}
-    for owner in set_of.values():
-        parts[owner] = parts.get(owner, 0) + 1
     kept: List[Optional[Dict[str, Any]]] = []
     chains: Dict[str, int] = {}
     for x in rows:
-        if x["kind"] == "file":
-            owner = set_of.get(x["id"])
-            r = revs.get(owner) if owner else None
-            if owner and (parts.get(owner, 0) <= 1 or (r and owner != r["in_use"])):
-                continue
-            kept.append(x)
-            continue
         r = revs.get(x["id"])
         key = r["chain"][-1] if r else x["id"]
         if key in chains:
@@ -92,26 +132,52 @@ def build_rows(graph, results: List[Dict[str, Any]],
     for x in kept:
         if x is None:
             continue
-        if x["kind"] == "file":
-            x["file"] = gov.readable(x["file"], "Unnamed part")
-            x.update(head=x["id"], revs=1, versions="", later="")
-        else:
-            r = revs.get(x["id"])
-            chain = r["chain"] if r else [x["id"]]
-            if r and r["in_use"] in chain:
-                x["id"] = r["in_use"]
-            x["file"] = gov.readable(gov.display_name(graph, x["id"]))
-            x["head"] = chain[-1]
-            x["revs"] = len(chain)
-            x["versions"] = (f"v{chain.index(x['id']) + 1}/{len(chain)}"
-                             if len(chain) > 1 and x["id"] in chain else "")
-            x["later"] = "1" if x["id"] != chain[-1] else ""
+        r = revs.get(x["id"])
+        chain = r["chain"] if r else [x["id"]]
+        if r and r["in_use"] in chain:
+            x["id"] = r["in_use"]
+        x["file"] = gov.readable(gov.display_name(graph, x["id"]))
+        x["head"] = chain[-1]
+        groups = (gov.distinct_versions(gov.versions(graph, x["id"]))
+                  if len(chain) > 1 else [])
+        n = next((g["n"] for g in groups if g.get("in_use")), len(groups))
+        x["revs"] = max(1, len(groups))
+        x["versions"] = f"v{n}/{len(groups)}" if len(groups) > 1 else ""
+        x["later"] = "1" if any(g["later"] for g in groups) else ""
         x["doc"] = "" if gov.looks_like_code(x.get("doc")) else x.get("doc") or ""
         x["use"] = ",".join(x["use"])
         x["rm"] = ", ".join(x["rm"])
-        x["tag"] = TAGS.get(x["kind"], x["tag"])
+        x["tag"] = ""
+        x["what"] = _kind(graph, x["id"])
         x["search"] = " ".join([x["file"].lower(), x["search"]])
         out.append(x)
+    return out
+
+
+def _kind(graph, rid):
+    try:
+        return _gov().kind_of(graph, rid)
+    except Exception:  # noqa: BLE001 — a row is never lost to its kind
+        return "other"
+
+
+def withdrawn_rows(graph, records: List[Dict[str, Any]],
+                   names: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
+    """The resources withdrawn that the room keeps, as rows of the list (shown
+    under «Withdrawn», in grey, with Undo where the ✕ was): ``where`` says by
+    whom and when."""
+    out = []
+    for r in sorted(records or [], key=lambda r: r.get("at") or "", reverse=True):
+        if graph is not None and graph.find_node_by_id(r.get("id") or "") is not None:
+            continue                            # back in the graph: not withdrawn
+        name = r.get("name") or withdrawn_name(graph, r)
+        who = who_is(r.get("by") or "", names, graph)
+        out.append({"id": r.get("id") or "", "file": name, "state": "withdrawn",
+                    "kind": "withdrawn", "what": "", "asset": "", "doc": "", "use": "",
+                    "rm": "", "tag": "", "head": "", "revs": 1, "versions": "", "later": "",
+                    "where": " · ".join(b for b in (f"by {who}" if who else "",
+                                                    when(r.get("at") or "")) if b),
+                    "search": name.lower()})
     return out
 
 
@@ -120,11 +186,6 @@ def _revisions(graph, ids):
         return _gov().revision_info(graph, ids)
     except Exception:  # noqa: BLE001 — a list never fails on a revision it cannot read
         return {}
-
-
-def siblings(rows: List[Dict[str, Any]], row: Dict[str, Any]) -> List[int]:
-    """Indexes of the other rows of the same asset (its master, versions, files)."""
-    return [i for i, x in enumerate(rows) if x["asset"] == row["asset"] and x["id"] != row["id"]]
 
 
 def when(stamp: str, today: Optional[str] = None) -> str:
@@ -156,17 +217,52 @@ def version_line(v: Dict[str, Any], today: Optional[str] = None) -> str:
     return " · ".join(b for b in bits if b)
 
 
+_ORCID = re.compile(r"\b\d{4}-\d{4}-\d{4}-\d{3}[\dX]\b")
+
+
+def looks_like_orcid(text: Any) -> bool:
+    return bool(_ORCID.search(str(text or "")))
+
+
 def people(members: List[Dict[str, Any]]) -> Dict[str, str]:
-    """The people of the room: their id → the name they go by."""
+    """The people of the room: their id (the ORCID the room stamps, the
+    username) → the name they go by (``display``, the token's ``name``)."""
     out: Dict[str, str] = {}
     for m in members or []:
         if not isinstance(m, dict):
             continue
-        name = str(m.get("name") or m.get("display_name") or m.get("label") or "")
-        for key in ("user", "id", "sub", "author", "orcid"):
-            if m.get(key) and name:
+        name = str(m.get("display") or m.get("name") or m.get("display_name")
+                   or m.get("label") or "")
+        if not name or looks_like_orcid(name):
+            continue
+        for key in ("author", "user", "sub", "orcid", "id"):
+            if m.get(key):
                 out[str(m[key])] = name
     return out
+
+
+def who_is(by: str, names: Optional[Dict[str, str]] = None, graph=None) -> str:
+    """Who did a thing, by name: the people of the room and this Blender's
+    token, then the graph's authors (their ORCID → name and surname). An ORCID
+    with no name is «someone» — the code is for the Details."""
+    by = str(by or "")
+    if not by:
+        return ""
+    names = names or {}
+    if names.get(by):
+        return names[by]
+    if graph is not None:
+        for node in getattr(graph, "nodes", None) or []:
+            if getattr(node, "node_type", "") not in ("author", "author_ai"):
+                continue
+            data = getattr(node, "data", None) or {}
+            if isinstance(data, dict) and data.get("orcid") == by:
+                full = " ".join(p for p in (str(data.get("name") or ""),
+                                            str(data.get("surname") or ""))
+                                if p and p not in ("author", "nosurname"))
+                if full:
+                    return full
+    return "someone" if looks_like_orcid(by) or _gov().looks_like_code(by) else by
 
 
 def withdrawn_name(graph, record: Dict[str, Any]) -> str:
@@ -174,7 +270,7 @@ def withdrawn_name(graph, record: Dict[str, Any]) -> str:
     or by its own name — never its id."""
     gov = _gov()
     for src in record.get("cited_by") or []:
-        said = gov.citer_name(graph, src)
+        said = gov.citer_name(graph, src) if graph is not None else ""
         if said:
             return said
     for node in record.get("nodes") or []:
@@ -209,55 +305,69 @@ def _classes():  # pragma: no cover — bpy
         revs: bpy.props.StringProperty()  # type: ignore
         versions: bpy.props.StringProperty()  # type: ignore
         later: bpy.props.StringProperty()  # type: ignore
+        what: bpy.props.StringProperty()  # type: ignore
 
     class EM_UL_files(bpy.types.UIList):
         """One row per resource: where it is (here, on the node, both), its
-        name, which version is in use of how many, and ✕ to withdraw it."""
+        name, which version is in use of how many, and ✕ to withdraw it — or,
+        withdrawn, its name in grey and Undo."""
 
         def draw_item(self, context, layout, data, item, icon, active_data, active_prop, index):
+            row = layout.row(align=True)
+            if item.state == "withdrawn":
+                name = row.row(align=True)
+                name.active = False
+                name.label(text=item.file, icon="TRASH")
+                if _may_write(context):
+                    row.operator("em.files_undo_withdraw", text="Undo",
+                                 icon="LOOP_BACK").record_id = item.id
+                return
             from ..state_symbols import sign
             ic, _text, _meaning = sign("file." + item.state)
-            row = layout.row(align=True)
             row.alert = item.state in ("missing", "empty_copy")
-            if item.kind == "file":
-                row.label(text="", icon="BLANK1")          # a part hangs under its resource
             row.label(text=item.file, icon=ic)
-            from . import file_states
-            b = (file_states.ULTIMI.get("bucket") or {}).get(item.id)
-            if b:
-                row.label(text=BUCKET_SIGN.get(b["state"], ("?", ""))[0])
             sub = row.row(align=True)
             sub.alignment = "RIGHT"
             if item.versions:
                 sub.label(text=item.versions)              # «v3/4»: in use, of how many
-            elif item.tag:
-                sub.active = False
-                sub.label(text=item.tag)
-            if item.kind != "file" and _may_write(context):
+            if _may_write(context):
                 sub.operator("em.files_withdraw", text="", icon="X",
                              emboss=False).resource_id = item.id
 
         def draw_filter(self, context, layout):
-            layout.label(text="Filters are above the list.", icon="INFO")
+            layout.label(text="The search and its menu are above the list.", icon="INFO")
 
         def filter_items(self, context, data, propname):
-            from . import file_states
             wm = context.window_manager
             items = getattr(data, propname)
-            state = file_states.ULTIMI.get("filter") or ""
+            state = getattr(wm, "em_files_state", "all")
             kind = getattr(wm, "em_files_kind", "all")
-            kind = "" if kind == "all" else kind
-            use = getattr(wm, "em_files_use", "all")
-            use = "" if use == "all" else use
             words = (getattr(wm, "em_files_query", "") or "").lower().split()
             flags = [self.bitflag_filter_item] * len(items)
             for i, it in enumerate(items):
-                ok = ((not state or it.state == state) and (not kind or it.kind == kind)
-                      and (not use or use in it.use.split(","))
-                      and all(w in it.search for w in words))
-                if not ok:
+                if not (shown(state, kind, it.state, it.what)
+                        and all(w in it.search for w in words)):
                     flags[i] = 0
             return flags, []
+
+    class EM_MT_files_filter(bpy.types.Menu):
+        """What the list shows: the kind of resource, where its bytes are, and
+        what was withdrawn"""
+        bl_idname = "EM_MT_files_filter"
+        bl_label = "Show"
+
+        def draw(self, context):
+            wm = context.window_manager
+            col = self.layout.column()
+            col.label(text="Kind")
+            for key, text, _ in KINDS:
+                col.prop_enum(wm, "em_files_kind", key, text=text)
+            col.separator()
+            col.label(text="Where")
+            n = len([x for x in wm.em_files if x.state == "withdrawn"])
+            for key, text, _ in STATES:
+                col.prop_enum(wm, "em_files_state", key,
+                              text=f"{text} ({n})" if key == "withdrawn" else text)
 
     class EM_OT_files_select(bpy.types.Operator):
         """Select this row of the list"""
@@ -291,7 +401,7 @@ def _classes():  # pragma: no cover — bpy
             from .asset_upload import sha256_of_file
             ok, graph = is_graph_available(context)
             if not ok or graph is None or not file_states.ULTIMI.get("results"):
-                self.report({"ERROR"}, "«Check files» first: the search is for the ones it found missing")
+                self.report({"ERROR"}, "the files are not checked yet (↻ in Files): the search is for the missing ones")
                 return {"CANCELLED"}
             folders = [bpy.path.abspath(self.directory)] if self.directory else []
             folders += [d for d in (file_states.project_root(context),) if d]
@@ -368,7 +478,7 @@ def _classes():  # pragma: no cover — bpy
             from ..functions import is_graph_available
             ok, graph = is_graph_available(context)
             if not ok or graph is None or not file_states.ULTIMI.get("results"):
-                self.report({"ERROR"}, "«Check files» first")
+                self.report({"ERROR"}, "the files are not checked yet: ↻ in Files")
                 return {"CANCELLED"}
             if _needs_config(self):
                 return {"CANCELLED"}
@@ -566,16 +676,24 @@ def _classes():  # pragma: no cover — bpy
             return {"FINISHED"}
 
     class EM_OT_files_replace(bpy.types.Operator):
-        """Replace with the scene's object: the selected object is sent as a new
-        revision of this resource; the old revision stays as history"""
+        """Replace with the selected object: the object of this resource is sent
+        as a new version of it; the old version stays as history"""
         bl_idname = "em.files_replace"
-        bl_label = "Replace with the scene's object"
+        bl_label = "Replace with the selected object"
         resource_id: bpy.props.StringProperty()  # type: ignore
 
         @classmethod
         def poll(cls, context):
-            obj = context.active_object
-            return obj is not None and obj.type == "MESH"
+            # the card's resource is the selected row: only ITS object (13 Oct
+            # 2026: US 3's mesh was offered as a version of US 2)
+            try:
+                rid = context.window_manager.em_files[context.window_manager.em_files_index].id
+            except (IndexError, AttributeError):
+                return False
+            if not bound_object(context, rid):
+                cls.poll_message_set("Select the object of this resource in the scene")
+                return False
+            return True
 
         def invoke(self, context, event):
             return context.window_manager.invoke_confirm(self, event)
@@ -590,6 +708,10 @@ def _classes():  # pragma: no cover — bpy
                 self.report({"ERROR"}, "not in a room: there is nowhere to send the bytes to")
                 return {"CANCELLED"}
             obj = context.active_object
+            if not bound_object(context, self.resource_id):
+                self.report({"ERROR"}, f"{obj.name if obj else 'nothing selected'}: "
+                            "not the object of this resource")
+                return {"CANCELLED"}
             try:
                 out = to_the_room(graph, lambda g: revise_object(context, g, obj, self.resource_id))
             except Exception as exc:  # noqa: BLE001
@@ -660,7 +782,7 @@ def _classes():  # pragma: no cover — bpy
             WITHDRAWN[record["id"]] = record
             _refresh(context, graph)
             self.report({"INFO"}, f"{name} withdrawn ({len(plan['members'])} version(s), "
-                        f"{len(plan['citing'])} citation(s)) · Undo is under the list")
+                        f"{len(plan['citing'])} citation(s)) · Undo: the list's menu, «Withdrawn»")
             return {"FINISHED"}
 
     class EM_OT_files_undo_withdraw(bpy.types.Operator):
@@ -726,7 +848,7 @@ def _classes():  # pragma: no cover — bpy
             self.report({"INFO"}, f"{gone} object(s) removed from the scene")
             return {"FINISHED"}
 
-    return (EMFileRow, EM_UL_files, EM_OT_files_select, EM_OT_files_find_moved,
+    return (EMFileRow, EM_UL_files, EM_MT_files_filter, EM_OT_files_select, EM_OT_files_find_moved,
             EM_OT_files_relink_moved, EM_OT_files_bucket_check, EM_OT_files_bucket_promote,
             EM_OT_files_free_local, EM_OT_files_use_version, EM_OT_files_replace,
             EM_OT_files_withdraw, EM_OT_files_undo_withdraw, EM_OT_files_copy,
@@ -743,6 +865,23 @@ def _may_write(context) -> bool:  # pragma: no cover — bpy
         return False
 
 
+def bound_object(context, rid: str):  # pragma: no cover — bpy
+    """The active object when it is a mesh bound to the resource `rid` (its
+    chain, or the unit / RM that cites it), else None."""
+    obj = getattr(context, "active_object", None)
+    if obj is None or obj.type != "MESH" or not rid:
+        return None
+    from ..functions import is_graph_available
+    ok, graph = is_graph_available(context)
+    if not ok or graph is None:
+        return None
+    props = {k: obj.get(k) for k in ("em_resource_id", "em_rm_node_id")}
+    try:
+        return obj if _gov().bound_to(graph, rid, props) else None
+    except Exception:  # noqa: BLE001 — not sure is not bound
+        return None
+
+
 def _me(context) -> str:  # pragma: no cover — bpy
     try:
         from . import operators as ops
@@ -752,11 +891,25 @@ def _me(context) -> str:  # pragma: no cover — bpy
 
 
 def _people(context) -> Dict[str, str]:  # pragma: no cover — bpy
+    """The room's people, and this Blender's own name from its token (the
+    ORCID the room stamps on what it writes → «Editor Due»)."""
+    out: Dict[str, str] = {}
     try:
         from . import operators as ops
-        return people(list(getattr(ops.current_session(context), "members", []) or []))
+        session = ops.current_session(context)
+        out.update(people(list(getattr(session, "members", []) or [])))
+        from . import room as room_cfg
+        from .where import claims_of
+        claims = claims_of(room_cfg._session.get("token") or "")
+        name = str(claims.get("name") or claims.get("preferred_username") or "")
+        if name:
+            for key in (getattr(session, "author", ""), claims.get("orcid"),
+                        claims.get("sub"), claims.get("preferred_username")):
+                if key:
+                    out.setdefault(str(key), name)
     except Exception:  # noqa: BLE001
-        return {}
+        pass
+    return out
 
 
 def show_in_scene(context, graph, res_id: str) -> Dict[str, Any]:  # pragma: no cover — bpy
@@ -797,27 +950,6 @@ def show_in_scene(context, graph, res_id: str) -> Dict[str, Any]:  # pragma: no 
     if kept:
         said += f" · {', '.join(kept)} has changes not sent: kept, marked «superseded»"
     return {"kept": kept, "said": said}
-
-
-def draw_withdrawn(layout, context, graph) -> None:  # pragma: no cover — bpy
-    """What was withdrawn and the room still remembers: by whom, when, Undo."""
-    from .room_session import WITHDRAWN
-    records = [r for r in WITHDRAWN.values()
-               if graph is None or graph.find_node_by_id(r.get("id") or "") is None]
-    if not records:
-        return
-    box = layout.box()
-    box.label(text=f"Withdrawn · {len(records)}", icon="TRASH")
-    names = _people(context)
-    for r in sorted(records, key=lambda r: r.get("at") or "", reverse=True)[:6]:
-        row = box.row(align=True)
-        who = names.get(r.get("by") or "", r.get("by") or "")
-        name = r.get("name") or withdrawn_name(graph, r)
-        bits = [name, f"by {who}" if who else "", when(r.get("at") or "")]
-        row.label(text=" · ".join(b for b in bits if b), icon="BLANK1")
-        if _may_write(context):
-            row.operator("em.files_undo_withdraw", text="Undo",
-                         icon="LOOP_BACK").record_id = r["id"]
 
 
 def marked_objects(context) -> List[Dict[str, Any]]:  # pragma: no cover — bpy
@@ -878,13 +1010,22 @@ def draw_marked(layout, context) -> None:  # pragma: no cover — bpy
 
 
 def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — bpy
-    """Rebuild the list (keeping the selected row when it is still there)."""
+    """Rebuild the list (keeping the selected row when it is still there),
+    with the withdrawn resources the room keeps after the others."""
     wm = context.window_manager
     keep = ""
     try:
         keep = wm.em_files[wm.em_files_index].id
     except (IndexError, AttributeError):
         pass
+    try:
+        from ..functions import is_graph_available
+        from .room_session import WITHDRAWN
+        ok, graph = is_graph_available(context)
+        rows = list(rows) + withdrawn_rows(graph if ok else None, list(WITHDRAWN.values()),
+                                           _people(context))
+    except Exception as exc:  # noqa: BLE001 — the list stands without them
+        print(f"[storage] withdrawn not listed: {exc}")
     wm.em_files.clear()
     for x in rows:
         it = wm.em_files.add()
@@ -894,107 +1035,123 @@ def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — b
     wm.em_files_index = next((i for i, x in enumerate(rows) if x["id"] == keep), 0)
 
 
-def _use_items(_self, _context):  # pragma: no cover — bpy
+def _in_room() -> bool:  # pragma: no cover — bpy
     try:
-        from s3dgraphy.resources.versions import USES
+        from . import room as room_cfg
+        return bool(room_cfg.room().get("room_id"))
     except Exception:  # noqa: BLE001
-        USES = ()
-    return [("all", "All uses", "Every use")] + [(u, u.replace("_", " "), "") for u in USES]
-
-
-def _picked(self, context):  # pragma: no cover — bpy
-    """Selecting a row shows its «Where it comes from» card, as the button did."""
-    try:
-        self.em_provenance_resource = self.em_files[self.em_files_index].id
-    except (IndexError, AttributeError):
-        pass
+        return False
 
 
 def draw(layout, context, results) -> None:  # pragma: no cover — bpy
-    """The list, its filters, and the card of the selected row: its name, its
-    state in a sentence, its versions, the Details (closed), the gestures."""
-    import bpy  # type: ignore
+    """Files (MICRO tre pannelli, 13 Oct 2026): a sentence that keeps itself up
+    to date with Download and ↻, one search with its menu, the list, and the
+    card of the selected row — its name and state, its versions, the gestures
+    possible now, the Details (closed)."""
     from . import file_states
-    from . import room as room_cfg
-    from ..functions import is_graph_available
-    from ..state_symbols import sign
     wm = context.window_manager
+    from ..functions import is_graph_available
     ok, graph = is_graph_available(context)
     graph = graph if ok else None
+    # 1 · the head: what there is, and what to do about it
+    head = layout.row(align=True)
+    c = file_states.counts(results) if results else {}
+    head.label(text=summary_line(c, _in_room()) if results else "Files not checked yet",
+               icon="FILE_FOLDER")
+    if c.get("on_node") and _in_room():
+        head.operator("em.files_keep", text="Download", icon="IMPORT").resource_id = ""
+    head.operator("em.files_check", text="", icon="FILE_REFRESH")
+    if file_states.ULTIMI.get("list_error"):
+        layout.label(text=f"List: {file_states.ULTIMI['list_error']}", icon="ERROR")
     draw_marked(layout, context)
     draw_moved(layout, context)
-    draw_bucket(layout, context)
+    # 2 · one search, its menu on the right
     q = layout.row(align=True)
     q.prop(wm, "em_files_query", text="", icon="VIEWZOOM")
-    f = layout.row(align=True)
-    f.prop(wm, "em_files_kind", text="")
-    f.prop(wm, "em_files_use", text="")
-    layout.template_list("EM_UL_files", "", wm, "em_files", wm, "em_files_index", rows=8)
-    draw_withdrawn(layout, context, graph)
+    filtered = wm.em_files_state != "all" or wm.em_files_kind != "all"
+    q.menu("EM_MT_files_filter", text="", icon="FILTER" if filtered else "DOWNARROW_HLT")
+    layout.template_list("EM_UL_files", "", wm, "em_files", wm, "em_files_index", rows=6)
     try:
         it = wm.em_files[wm.em_files_index]
     except IndexError:
         return
+    if not shown(wm.em_files_state, wm.em_files_kind, it.state, it.what):
+        return
+    draw_card(layout, context, graph, it)
+
+
+def draw_card(layout, context, graph, it) -> None:  # pragma: no cover — bpy
+    """The card of one row: name and state → Versions → the gestures possible
+    now → Details (closed)."""
+    from . import file_states
+    from ..state_symbols import sign
+    wm = context.window_manager
     card = layout.box()
+    # 1 · the name, and its state in a sentence
+    if it.state == "withdrawn":
+        card.label(text=it.file, icon="TRASH")
+        card.label(text=" · ".join(b for b in ("Withdrawn from the room", it.where) if b) + ".")
+        if _may_write(context):
+            card.operator("em.files_undo_withdraw", text="Undo", icon="LOOP_BACK").record_id = it.id
+        return
     icon, text, meaning = sign("file." + it.state)
-    # 1 · the name
     card.label(text=it.file, icon=icon)
     col = card.column(align=True)
-    # 2 · the state, in a sentence (the shared vocabulary's longer meaning,
-    # with its digests and residencies, is for the tooltip of other panels)
     col.label(text=STATE_SENTENCE.get(it.state) or (f"{text}: {meaning}" if meaning else text))
-    if it.later:
-        col.label(text="A later version exists.", icon="INFO")
-    # 3 · the versions, oldest first, one line each
-    if graph is not None and it.kind != "file" and int(it.revs or 1) > 1:
-        from .. import resource_governance as governance
+    # 2 · the versions, counted by their bytes, oldest first
+    groups = (_gov().distinct_versions(_gov().versions(graph, it.id))
+              if graph is not None else [])
+    if len(groups) > 1:
+        names = _people(context)
         col.separator()
         col.label(text="Versions", icon="RECOVER_LAST")
-        for v in governance.versions(graph, it.id, people=_people(context)):
+        for v in groups:
             row = col.row(align=True)
-            row.label(text=version_line(v), icon="CHECKMARK" if v["in_use"] else "BLANK1")
+            row.label(text=version_line({**v, "by": who_is(v.get("by"), names, graph)}),
+                      icon="CHECKMARK" if v["in_use"] else "BLANK1")
             if not v["in_use"] and _may_write(context):
                 row.operator("em.files_use_version", text="Use").resource_id = v["id"]
-    # 4 · Details, closed
+    # 3 · the gestures possible now, and only those
     res = next((r for r in file_states.ULTIMI.get("results") or [] if r["id"] == it.id), None)
+    acts = card.row(align=True)
+    if it.state == "on_node" and _in_room():
+        acts.operator("em.files_keep", text="Download", icon="IMPORT").resource_id = it.id
+    if it.state in ("missing", "empty_copy"):
+        acts.operator("em.files_find_here", text="Find here…", icon="VIEWZOOM").resource_id = it.id
+    if it.state == "on_disk" and _in_room():
+        acts.operator("em.files_upload", text="Upload", icon="EXPORT").resource_id = it.id
+    if res and res.get("path"):
+        acts.operator("em.files_open_where", text="Open where it is",
+                      icon="FILEBROWSER").path = res["path"]
+    obj = bound_object(context, it.id) if _in_room() and _may_write(context) else None
+    if obj is not None:
+        card.operator("em.files_replace", text=f"Replace with the selected object ({obj.name})",
+                      icon="FILE_REFRESH").resource_id = it.id
+    # 4 · Details, closed
     b = (file_states.ULTIMI.get("bucket") or {}).get(it.id)
     det = card.row(align=True)
     det.prop(wm, "em_files_details", text="Details", emboss=False,
              icon="TRIA_DOWN" if wm.em_files_details else "TRIA_RIGHT")
     if wm.em_files_details:
-        _draw_details(card.column(align=True), graph, it, res, b)
-    # 5 · the gestures
-    acts = card.row(align=True)
-    if it.state in ("missing", "empty_copy"):
-        acts.operator("em.files_find_here", text="Find here…", icon="VIEWZOOM").resource_id = it.id
-    if it.state == "on_disk" and room_cfg.room().get("room_id"):
-        acts.operator("em.files_upload", text="Upload", icon="EXPORT").resource_id = it.id
-    if it.state in ("on_disk", "both") and not (b and b["state"] in ("aligned", "same_size")):
-        acts.operator("em.files_bucket_promote", text="To the bucket", icon="EXPORT").resource_id = it.id
-    if it.state == "on_node":
-        acts.operator("em.files_keep", text="Keep here", icon="IMPORT").resource_id = it.id
-    if res and res.get("path"):
-        acts.operator("em.files_open_where", text="Open where it is",
-                      icon="FILEBROWSER").path = res["path"]
-    if it.kind != "file" and room_cfg.room().get("room_id") and _may_write(context):
-        obj = context.active_object
-        card.operator("em.files_replace",
-                      text=f"Replace with the scene's object ({obj.name})" if obj is not None
-                      else "Replace with the scene's object (select one)",
-                      icon="FILE_REFRESH").resource_id = it.id
+        _draw_details(card.column(align=True), graph, it, res, b, groups, _people(context))
 
 
-def _details(graph, it, res, bucket) -> List[tuple]:  # pragma: no cover — bpy
+def _details(graph, it, res, bucket, groups=(), names=None) -> List[tuple]:  # pragma: no cover — bpy
     """``[(label, value)]`` of the Details: the codes, the addresses, the
-    jargon — everything a row and a title never show."""
+    jargon — everything a row and a title never show — and where it comes
+    from, in plain sentences."""
     data: Dict[str, Any] = {}
     node = graph.find_node_by_id(it.id) if graph is not None else None
     if node is not None and isinstance(getattr(node, "data", None), dict):
         data = node.data
-    what = {"master": "master (the asset)", "version": "a version of " + it.asset,
-            "file": "one file of a resource made of several", "link": "a linked file"}
-    out = [("What", what.get(it.kind, it.kind) + (f" · {it.level}" if it.level else "")
-            + (f" · tier {it.tier}" if it.tier else ""))]
+    out = []
+    try:
+        from .. import provenance_card
+        c = provenance_card.card(graph, it.id) if graph is not None else {}
+        for line in provenance_card.story(c, lambda by: who_is(by, names, graph), when):
+            out.append(("Where it comes from", line))
+    except Exception as exc:  # noqa: BLE001 — a card never breaks the Details
+        out.append(("Where it comes from", f"not read ({exc})"))
     if it.doc:
         out.append(("Document", it.doc))
     if it.rm:
@@ -1010,6 +1167,13 @@ def _details(graph, it, res, bucket) -> List[tuple]:  # pragma: no cover — bpy
         out.append(("Digest", str(data["checksum"])))
     if data.get("size_bytes"):
         out.append(("Size", f"{int(data['size_bytes']) / 1e6:.2f} MB"))
+    for g in groups:
+        for v in g.get("same") or []:
+            out.append((f"Same bytes as v{g['n']}",
+                        " · ".join(b for b in (when(v.get("at") or ""),
+                                               who_is(v.get("by"), names, graph), v["id"]) if b)))
+        if g.get("by") and looks_like_orcid(g["by"]):
+            out.append((f"v{g['n']} by", g["by"]))
     for p in (res or {}).get("positions") or []:
         mark = {True: "✓", False: "✗"}.get(p.get("ok"), "?")
         out.append((f"{mark} {p.get('kind')}", str(p.get("where") or "—")))
@@ -1023,10 +1187,10 @@ def _details(graph, it, res, bucket) -> List[tuple]:  # pragma: no cover — bpy
     return out
 
 
-def _draw_details(col, graph, it, res, bucket) -> None:  # pragma: no cover — bpy
+def _draw_details(col, graph, it, res, bucket, groups=(), names=None) -> None:  # pragma: no cover — bpy
     """Two lines per value: the label, then the value whole (never cut in the
     middle) with its Copy."""
-    for label, value in _details(graph, it, res, bucket):
+    for label, value in _details(graph, it, res, bucket, groups, names):
         head = col.row(align=True)
         head.active = False
         head.label(text=label)
@@ -1045,9 +1209,8 @@ def draw_moved(layout, context) -> None:  # pragma: no cover — bpy
     if not lost and not moved:
         return
     box = layout.box()
-    head = box.row(align=True)
-    head.label(text=f"Not here: {len(lost)}", icon="ERROR")
-    head.operator("em.files_find_moved", text="Find moved files…", icon="VIEWZOOM")
+    # the count is in the head of Files («N missing»): here only the gesture
+    box.operator("em.files_find_moved", text="Find moved files…", icon="VIEWZOOM")
     if not moved:
         return
     sure = sum(1 for x in moved if x["matches"][0]["how"] in ("exact", "exact_renamed"))
@@ -1081,9 +1244,29 @@ BUCKET_SIGN = {"aligned": ("✓", "same bytes on the disk and in the bucket (ver
                "unknown": ("?", "could not compare")}
 
 
+def bucket_todo(checked: bool, rows: Dict[str, Dict[str, Any]], has_files: bool = True) -> str:
+    """What the bucket asks of you, said on the head of Project storage even
+    when it is closed: «Bucket not checked», «Bucket: 2 differ», or nothing."""
+    if not has_files:
+        return ""
+    if not checked:
+        return "Bucket not checked"
+    tally: Dict[str, int] = {}
+    for r in (rows or {}).values():
+        tally[r.get("state", "")] = tally.get(r.get("state", ""), 0) + 1
+    if tally.get("differ"):
+        return f"Bucket: {tally['differ']} differ"
+    if tally.get("neither"):
+        return f"Bucket: {tally['neither']} lost"
+    if tally.get("disk_only"):
+        return f"Bucket: {tally['disk_only']} not uploaded"
+    return ""
+
+
 def draw_bucket(layout, context) -> None:  # pragma: no cover — bpy
-    """The bucket box: check it (quick, or byte for byte), how many stand in
-    each way, and the gesture that frees the disk copies the bucket proves."""
+    """The bucket: check it (quick, or byte for byte), how many stand in each
+    way, upload the file selected in Files, and free the disk copies the
+    bucket proves."""
     from . import file_states
     box = layout.box()
     head = box.row(align=True)
@@ -1092,20 +1275,29 @@ def draw_bucket(layout, context) -> None:  # pragma: no cover — bpy
     head.operator("em.files_bucket_check", text="Verify bytes", icon="CHECKMARK").deep = True
     rows = file_states.ULTIMI.get("bucket") or {}
     if not rows:
-        box.label(text="Not checked: it compares each file's disk copy with its bucket copy.", icon="INFO")
-        return
-    tally: Dict[str, int] = {}
-    for r in rows.values():
-        tally[r["state"]] = tally.get(r["state"], 0) + 1
-    grid = box.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
-    for k in ("aligned", "same_size", "differ", "disk_only", "bucket_only", "neither", "unknown"):
-        if tally.get(k):
-            g = grid.row()
-            g.alert = k in ("differ", "neither")
-            g.label(text=f"{BUCKET_SIGN[k][0]} {tally[k]} {k.replace('_', ' ')}")
-    if tally.get("aligned"):
-        box.operator("em.files_free_local", text=f"Free the disk copy of {tally['aligned']} verified files…",
-                     icon="TRASH")
+        box.label(text="Not checked: it compares each file's disk copy with its bucket copy.")
+    else:
+        tally: Dict[str, int] = {}
+        for r in rows.values():
+            tally[r["state"]] = tally.get(r["state"], 0) + 1
+        grid = box.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
+        for k in ("aligned", "same_size", "differ", "disk_only", "bucket_only", "neither", "unknown"):
+            if tally.get(k):
+                g = grid.row()
+                g.alert = k in ("differ", "neither")
+                g.label(text=f"{BUCKET_SIGN[k][0]} {tally[k]} {k.replace('_', ' ')}")
+    wm = context.window_manager
+    try:
+        it = wm.em_files[wm.em_files_index]
+    except (IndexError, AttributeError):
+        it = None
+    b = rows.get(it.id) if it is not None else None
+    if it is not None and it.state in ("on_disk", "both") and not (
+            b and b["state"] in ("aligned", "same_size")):
+        box.operator("em.files_bucket_promote", text=f"Upload {it.file} to the bucket",
+                     icon="EXPORT").resource_id = it.id
+    if any(r["state"] == "aligned" for r in rows.values()):
+        box.operator("em.files_free_local", text="Free local copies…", icon="TRASH")
 
 
 def register():  # pragma: no cover — bpy
@@ -1116,11 +1308,11 @@ def register():  # pragma: no cover — bpy
         bpy.utils.register_class(cls)
     wm = bpy.types.WindowManager
     wm.em_files = bpy.props.CollectionProperty(type=_CLASSES[0])
-    wm.em_files_index = bpy.props.IntProperty(update=_picked)
+    wm.em_files_index = bpy.props.IntProperty()
     wm.em_files_query = bpy.props.StringProperty(
-        name="Search", description="Words of the file, document, asset, level, use or model")
+        name="Search", description="Words of the name, the document, the model")
     wm.em_files_kind = bpy.props.EnumProperty(name="Kind", items=KINDS)
-    wm.em_files_use = bpy.props.EnumProperty(name="Use", items=_use_items)
+    wm.em_files_state = bpy.props.EnumProperty(name="Where", items=STATES)
     wm.em_files_details = bpy.props.BoolProperty(
         name="Details", default=False,
         description="The codes and addresses of this resource: id, digest, where its "
@@ -1130,7 +1322,7 @@ def register():  # pragma: no cover — bpy
 def unregister():  # pragma: no cover — bpy
     import bpy  # type: ignore
     wm = bpy.types.WindowManager
-    for name in ("em_files", "em_files_index", "em_files_query", "em_files_kind", "em_files_use",
+    for name in ("em_files", "em_files_index", "em_files_query", "em_files_kind", "em_files_state",
                  "em_files_details"):
         if hasattr(wm, name):
             delattr(wm, name)

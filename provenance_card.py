@@ -5,8 +5,9 @@ selezionato». The DTC as a panel in Files — an authoring form for processes,
 inputs and outputs — goes; the authoring is EMStudio's. What stays in EM Tools
 is a card that appears where a list has an asset selected, and says its chain:
 the step that made it (process, technique), who and when, with which tool, the
-inputs with the common signs of where their bytes are — and «Open in EMStudio»
-for the rest.
+inputs with the common signs of where their bytes are. (Since 13 Oct 2026
+«Open in EMStudio» is only in Where you work, and Files says the same in plain
+sentences in its Details: `story`.)
 
 Where a selection has an asset (measured on Templu Mare, MICRO-IL-PANNELLO-
 DICE-IL-VERO): the RM list (its object → the resource it was materialised
@@ -71,6 +72,7 @@ def card(graph: Any, resource_id: str,
             "technique": str(d.get("technique") or ""),
             "who": str(d.get("created_by") or d.get("modified_by") or ""),
             "when": _day(d.get("created_at") or d.get("modified_at")),
+            "at": str(d.get("created_at") or d.get("modified_at") or ""),
             "tool": _tool_name(d.get("tool")) or _tool_name(event.get("tool")),
             "inputs": inputs[:INPUTS_SHOWN],
             "more": max(0, len(inputs) - INPUTS_SHOWN),
@@ -131,6 +133,37 @@ def lines(c: Dict[str, Any], glyph=lambda state: "") -> List[str]:
         except ImportError:
             import version_stamp  # type: ignore
         out.append(version_stamp.said(c["stamp"]))
+    return out
+
+
+def story(c: Dict[str, Any], who=lambda by: by, when=_day) -> List[str]:
+    """Where it comes from, in plain sentences (MICRO tre pannelli, 13 Oct
+    2026: «no step of its chain is recorded…» was jargon): «Made in Blender by
+    Editor Due, 13 Oct 10:51», «From US 2 · dopo A», or «No record of how it
+    was made». `who` says a person by name, `when` a stamp."""
+    if not c.get("resource"):
+        return []
+    if not c.get("steps"):
+        return ["No record of how it was made"]
+    import re
+    code = re.compile(r"(?i)[0-9a-f]{12,}|[0-9a-f]{8}-[0-9a-f]{4}-")
+    out = []
+    for s in c["steps"]:
+        line = "Made" + (f" in {s['tool']}" if s.get("tool") else "")
+        if s.get("who"):
+            line += f" by {who(s['who'])}"
+        if s.get("at") or s.get("when"):
+            line += f", {when(s.get('at') or s['when'])}"
+        what = " · ".join(p for p in (s.get("process"), s.get("technique")) if p)
+        if what and not code.search(what):
+            line += f" ({what})"
+        out.append(line)
+        names = [i["name"] if not code.search(i["name"]) else "a file" for i in s["inputs"]]
+        if names:
+            out.append("From " + ", ".join(names)
+                       + (f" and {s['more']} more" if s.get("more") else ""))
+    if c.get("used_by"):
+        out.append(f"Used by {c['used_by']} later step{'s' if c['used_by'] != 1 else ''}")
     return out
 
 
@@ -222,9 +255,8 @@ def draw(layout, context, resource_id: str) -> None:  # pragma: no cover — bpy
                 "CHECKMARK" if line.startswith("stamp ✓") else
                 "ERROR" if line.startswith(("stamp ▲", "no stamp")) else "BLANK1")
         col.label(text=line[:90], icon=icon)
-    op = box.operator("em.open_in_emstudio", text="Open in EMStudio", icon="WINDOW")
-    op.node_id = c["resource"]
-    op.unit_name = c["name"]
+    # MICRO tre pannelli · «Open in EMStudio» is said once in the N-panel, in
+    # Where you work: the room opens there with this study
 
 
 def _classes():  # pragma: no cover — bpy

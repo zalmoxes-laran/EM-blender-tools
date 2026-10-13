@@ -43,17 +43,18 @@ from ..ui_helpers import draw_s3dgraphy_too_old
 
 
 class EM_PT_resources(bpy.types.Panel):
-    # P3 · named after EMStudio's window (the space is Contents, its
-    # window of the files is Storage)
-    bl_label = "Storage"
+    # MICRO tre pannelli (13 Oct 2026) · «Files»: the files of the study and
+    # what you do with them every day; the settings of the project (folder,
+    # bucket, the archives of the .blend) are Project storage's, below
+    bl_label = "Files"
     bl_idname = "EM_PT_resources"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM Scene"
     bl_parent_id = "EM_PT_scene_contents"  # P3: EMStudio's Contents
-    bl_order = 1
+    bl_order = 0
     bl_options = {"DEFAULT_CLOSED"}
-    bl_description = "The shared Resource layer of this graph: where each file is"
+    bl_description = "The files of this study: where each one is, its versions, its gestures"
 
     def draw(self, context):
         layout = self.layout
@@ -76,19 +77,7 @@ class EM_PT_resources(bpy.types.Panel):
             layout.label(text="No graph selected in the EM Data Tree.", icon='INFO')
             return
 
-        # `backend` e `graph_code` servivano alla sezione Shelf, che è diventata
-        # un pannello figlio: qui resta solo la cartella.
-        _ok2, _graph, folder, _graph_code = operators._active(context)
-
-        # F1 · the project folder in ONE row: where it is, and its menu (Set
-        # DosCo folder, Scan, New EM project, Reorder)
-        frow = layout.row(align=True)
-        frow.label(text=(folder if folder else "no DosCo folder set"),
-                   icon='FILE_FOLDER')
-        frow.menu("EM_MT_project_folder", text="Project folder…")
-        if p.status:
-            layout.label(text=p.status)
-
+        # MICRO tre pannelli · the project folder went to Project storage
         # R1/R2 · where each file is, with ONE resolver and the common signs
         try:
             from ..sync_manager import file_states
@@ -124,14 +113,9 @@ class EM_PT_resources(bpy.types.Panel):
         if sigilli:
             self._section(layout, p, "show_seals", f"Seals ({len(sigilli)})",
                           lambda box: self._draw_seals(box, p, sigilli))
-        # D1 (E.D., 5 Oct 2026) · the DTC is no longer a section here: «al
-        # massimo una card per dire da dove viene un asset selezionato». The
-        # card of the row chosen with its «Where it comes from» button (`provenance_card`); the authoring
-        # of processes is EMStudio's (`dtc_authoring.ui.draw_dtc_section` stays
-        # importable, drawn by no panel)
-        from .. import provenance_card
-        provenance_card.draw(layout, context,
-                             getattr(context.window_manager, "em_provenance_resource", ""))
+        # MICRO tre pannelli · «Where it comes from» is no longer a box of
+        # its own under the list: it speaks of the selected row, so it is in
+        # that row's Details, in plain sentences (`provenance_card.story`)
 
     # ── section helper ──────────────────────────────────────────────────────────
     def _section(self, layout, p, prop, title, body):
@@ -253,6 +237,89 @@ class EM_PT_resources(bpy.types.Panel):
             op = body.operator("em.seal_copy_json", icon='COPYDOWN')
             op.resource_id = r["id"]
 
+class EM_PT_project_storage(bpy.types.Panel):
+    """C · Project storage (MICRO tre pannelli, 13 Oct 2026): the settings of
+    the project, out of the everyday gestures — the DosCo folder, the bucket,
+    the archives of the .blend. Always there, closed; its head says whether
+    something is waiting («Bucket not checked»)."""
+    bl_label = "Project storage"
+    bl_idname = "EM_PT_project_storage"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "EM Scene"
+    bl_parent_id = "EM_PT_scene_contents"
+    bl_order = 1
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_description = "The project folder, the bucket and the archives of this .blend"
+
+    def draw_header(self, context):
+        todo = project_todo(context)
+        if todo:
+            row = self.layout.row()
+            row.alert = True
+            row.label(text=todo)
+
+    def draw(self, context):
+        layout = self.layout
+        p = getattr(context.scene, "em_resources", None)
+        _ok, _graph, folder, _code = operators._active(context)
+        # the DosCo folder, one row with its menu
+        frow = layout.row(align=True)
+        frow.label(text=(folder if folder else "no DosCo folder set"), icon='FILE_FOLDER')
+        frow.menu("EM_MT_project_folder", text="Project folder…")
+        if p is not None and p.status:
+            layout.label(text=p.status)
+        from ..sync_manager import files_list
+        files_list.draw_bucket(layout, context)
+        _draw_archives(layout, context)
+
+
+def project_todo(context) -> str:
+    """The line on the closed head: what the project storage asks of you."""
+    try:
+        from ..sync_manager import file_states, files_list
+        bucket = file_states.ULTIMI.get("bucket") or {}
+        return files_list.bucket_todo(bool(bucket), bucket,
+                                      bool(file_states.ULTIMI.get("results")))
+    except Exception:                              # noqa: BLE001
+        return ""
+
+
+def _draw_archives(layout, context):
+    """The archives of this .blend in the room: the list and Restore (archiving
+    one is in Where you work's ⋯ menu), and the starting package."""
+    from ..sync_manager import backups, room as room_cfg, scene_package
+    box = layout.box()
+    head = box.row(align=True)
+    head.label(text="Archives of this .blend", icon="FILE_BACKUP")
+    if not room_cfg.room().get("room_id"):
+        box.label(text="In a room: the snapshots you kept of this .blend.")
+        return
+    head.operator("em.blend_backup_list", text="", icon="FILE_REFRESH")
+    if backups.note():
+        box.label(text=backups.note()[:90], icon="ERROR")
+    snaps = backups.listing()
+    if not snaps and not backups.note():
+        box.label(text="None kept yet (Where you work ▸ ⋯ ▸ Archive this .blend).")
+    for snap in snaps[:8]:
+        line = box.row(align=True)
+        name = str(snap.get("label") or snap.get("filename") or "snapshot")
+        line.label(text=f"{name[:30]} · {str(snap.get('created_at') or '')[:16].replace('T', ' ')}")
+        line.operator("em.blend_backup_restore", text="Restore",
+                      icon="IMPORT").sha256 = str(snap.get("sha256") or "")
+    pkg = box.row(align=True)
+    pkg.label(text="Starting package (for a computer without the cache)", icon="PACKAGE")
+    pkg.operator("em.scene_package_archive", text="", icon="EXPORT")
+    for rec in scene_package._listing[:5]:
+        r = box.row(align=True)
+        r.label(text=f"{rec.get('filename') or 'package'} · "
+                     f"{int(rec.get('size') or 0) // 1048576} MB")
+        r.operator("em.scene_package_download", text="Download",
+                   icon="IMPORT").sha256 = rec.get("sha256", "")
+    if scene_package._note:
+        box.label(text=scene_package._note[:90], icon="INFO")
+
+
 class EM_MT_project_folder(bpy.types.Menu):
     """F1 · the project folder: where the DosCo is, the scan, a new EM project
     with the standard tree, and the reorder by the EM standard"""
@@ -307,7 +374,7 @@ def _wrap(text, width, hard=False):
     return lines
 
 
-classes = (EM_MT_project_folder, EM_PT_resources)
+classes = (EM_MT_project_folder, EM_PT_resources, EM_PT_project_storage)
 
 
 def register():

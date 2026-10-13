@@ -147,6 +147,13 @@ class EM_OT_blend_backup_list(bpy.types.Operator):
     bl_description = "Ask the room which snapshots you kept here"
 
     def execute(self, context):
+        # Project storage lists the snapshots and the starting packages
+        # together: one ↻ asks the room for both
+        try:
+            from . import scene_package
+            scene_package._refresh(None)
+        except Exception as exc:  # noqa: BLE001 — the snapshots still come
+            print(f"[backups] packages not listed: {exc}")
         return {"FINISHED"} if _refresh(self) else {"CANCELLED"}
 
 

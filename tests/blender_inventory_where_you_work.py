@@ -173,9 +173,11 @@ def run():
           found.get("EM Scene", []) and
           set(found.get("EM Scene", [])) == {"Contents", "Space", "Publication Deck"},
           str(found.get("EM Scene")))
-    check("Storage (once Files) is in Contents",
-          bpy.types.EM_PT_resources.bl_label == "Storage"
-          and bpy.types.EM_PT_resources.bl_parent_id == "EM_PT_scene_contents")
+    # MICRO tre pannelli (13 Oct 2026) · Files, then Project storage (closed)
+    check("Files (once Storage) is in Contents, Project storage after it",
+          bpy.types.EM_PT_resources.bl_label == "Files"
+          and bpy.types.EM_PT_resources.bl_parent_id == "EM_PT_scene_contents"
+          and bpy.types.EM_PT_project_storage.bl_parent_id == "EM_PT_scene_contents")
     check("no Export Manager, no Export statistics panel",
           not ({"Export Manager", "Export statistics"} & set(sum(found.values(), []))))
 
@@ -223,20 +225,27 @@ def run():
         RESULT["room"] = room_cfg.room().get("room_id")
         bpy.ops.em.scene_check(send="NONE")
         st = measure("4_room")
-        check("4: four commands and the menu",
-              len(st["commands"]) == 4 and st["menus"] == ["EM_MT_room_more"],
-              f"{st['commands']} {st['menus']}")
-        check("4: the place names the room", "present" in (st["zones"][0] or ""), st["zones"][0])
-        check("4: who you are", "dev ✓" in (st["zones"][1] or ""), st["zones"][1])
+        # MICRO tre pannelli · Room: the big Sync, then Open in EMStudio ·
+        # Change… · ⋯ — the panel has no separator in a room, so it is read whole
+        room_ops = [r.get("text") for r in st["drawn"] if r["k"] == "op"]
+        check("4: Sync, Open in EMStudio, Change… and the ⋯ menu",
+              {"Sync the scene…", "Open in EMStudio", "Change…"} <= set(room_ops)
+              and any(r["k"] == "menu" and r.get("id") == "EM_MT_room_more"
+                      for r in st["drawn"]), str(room_ops))
+        texts = [r.get("text") or "" for r in st["drawn"] if r["k"] == "label"]
+        check("4: the place names the room", any("present" in t for t in texts), str(texts[:2]))
+        check("4: who you are, once", sum(t.startswith("dev ·") for t in texts) == 1, str(texts))
         check("4: no Create inside a room",
               not any("Create a collaborative room" in c for c in st["commands"]))
         check("4: no INFO line outside the zones", not st["info"], str(st["info"][:2]))
         RESULT["menu_room"] = draw_with(bpy.types.EM_MT_room_more)
         files = draw_with(bpy.types.EM_PT_resources)
         RESULT["files"] = files
-        check("F1: Storage (Files) draws", not any(r["k"] == "EXC" for r in files), str(files[-1:]))
-        check("F1: the project folder is a menu",
-              any(r.get("id") == "EM_MT_project_folder" for r in files))
+        check("F1: Files draws", not any(r["k"] == "EXC" for r in files), str(files[-1:]))
+        project = draw_with(bpy.types.EM_PT_project_storage)
+        check("F1: the project folder is a menu, in Project storage",
+              any(r.get("id") == "EM_MT_project_folder" for r in project)
+              and not any(r.get("id") == "EM_MT_project_folder" for r in files))
         check("F1: no Promote to MinIO, no MinIO section",
               not any("MinIO" in str(r.get("text")) or "minio" in str(r.get("id")) for r in files))
         check("F1: no «EM Setup» left in its words",
@@ -245,10 +254,10 @@ def run():
         check("F1: no scene package in Asset versions",
               not any("package" in str(r.get("id")) or "package" in str(r.get("text")).lower()
                       for r in versions), str([r.get("text") for r in versions][:6]))
-        blend = draw_with(bpy.types.EM_OT_room_blend)
-        check("F1: The .blend in the room has the snapshots and the package",
-              any(r.get("id") == "em.blend_backup_archive" for r in blend)
-              and any(r.get("id") == "em.scene_package_archive" for r in blend), str(blend[:3]))
+        check("F1: Project storage has the archives of the .blend and the package",
+              any("Archives of this .blend" in str(r.get("text")) for r in project)
+              and any(r.get("id") == "em.scene_package_archive" for r in project),
+              str(project[:3]))
         ops.leave_room()
     else:
         print("[INV] no EM_DEV_TOKEN: the room state is skipped")

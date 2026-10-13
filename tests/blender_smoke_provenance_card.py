@@ -173,7 +173,9 @@ if PART == "rm":
     check("…when and with which tool", any(l.startswith("by ") or l.startswith("on ")
                                             for l in card), str(card))
     check("…the master as its input", any(l.startswith("from:") for l in card), str(card))
-    check("…and Open in EMStudio", card[-1:] == ["[Open in EMStudio]"], str(card[-1:]))
+    # MICRO tre pannelli (13 Oct 2026) · «Open in EMStudio» is drawn once in
+    # the N-panel, in Where you work: not under the card
+    check("…and no Open in EMStudio under it", "[Open in EMStudio]" not in card, str(card[-1:]))
     rm_idx = next((i for i, it in enumerate(scene.rm_list) if it.name == "ME_PODIO"), -1)
     check("ME_PODIO is in the RM list", rm_idx >= 0, str(len(scene.rm_list)))
     scene.rm_list_index = rm_idx

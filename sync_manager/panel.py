@@ -23,9 +23,11 @@ file); *the log*, the sync and the refusals counted, with **Log…**.
 on this computer, Work with EMStudio · Enter a collaborative room… · Create a
 collaborative room from this study…; with EMStudio, Stop working with EMStudio
 and «Accepts from EMStudio: … · may/may not model here» with Permissions…; in a
-room, the counts of the scene, Sync the scene…, Archive this .blend, Leave the
-room, Open in EMStudio, and the room's menu (Room settings…, The .blend in the
-room…, Log…). Everything that is a choice opens a window (`windows.py`).
+room (MICRO tre pannelli, 13 Oct 2026), each thing once: the room's name whole,
+«Editor Due · editor · em.localhost:8443», one state («● Aligned») with the Log
+beside it, Sync the scene… large, then Open in EMStudio · Change… · ⋯ (Archive
+this .blend, Room settings…, Leave the room). Everything that is a choice
+opens a window (`windows.py`).
 
 **The names.** The mode's values stay `standalone`/`sidecar`/`hub` — they are
 saved in every .blend and declared on the wire (`operators.MODE_*`); what a
@@ -68,12 +70,13 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         layout = self.layout
         state = where.read_state(context)
         z = where.zones(state)
-        self._zones(layout, z)
-        layout.separator()
         place = state["place"]
         if place == where.PLACE_ROOM:
-            self._in_room(layout, context, state)
-        elif place == where.PLACE_EMSTUDIO:
+            self._in_room(layout, context, state, z)
+            return
+        self._zones(layout, z)
+        layout.separator()
+        if place == where.PLACE_EMSTUDIO:
             self._with_emstudio(layout, context)
         else:
             self._here(layout, context)
@@ -135,44 +138,63 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         row.label(text=windows.permissions_line(context)[:80])
         row.operator("em.sidecar_permissions", text="Permissions…")
 
-    def _in_room(self, layout, context, state):
-        from . import scene_check
+    def _in_room(self, layout, context, state, z):
+        """A · Room (MICRO tre pannelli, 13 Oct 2026): each thing once — the
+        room's name whole, who you are with the node, ONE state with the Log
+        beside it, the big gesture, then a row of short commands."""
         # V1 · not in the room now (a dropped connection, a file reopened):
         # Sync reconnects by itself first, Open in EMStudio waits for the room
         offline = bool(state.get("offline") or state.get("not_connected"))
         col = layout.column(align=True)
-        # P1 · the scene in one word (aligned / N to download / N changed);
-        # the numbers in its tooltip and in Log…, where the long line of the
-        # counts went (it was cut in the middle at any sidebar width)
-        icon, word, _numbers = where.scene_status(scene_check.ULTIMA_VERIFICA.get("tally"))
-        # V3 · «Materialise geometry» is a preference now; with it off, the
-        # geometry the node holds and this scene does not is offered here
-        left = int(scene_check.ULTIMA_VERIFICA.get("missing_left") or 0)
-        offer = bool(left and not offline
-                     and not ops._preferenza("materialise_on_adopt", False))
-        if word or offer:
+        # 1 · the room's name, whole: it wraps instead of being cut
+        lines = where.wrap(z["place"][1], _chars(context))
+        for i, line in enumerate(lines):
             row = col.row(align=True)
-            if word:
-                # «The scene · …»: the log above says the edits, this the files
-                sub = row.row(align=True)
-                sub.alignment = 'LEFT'
-                op = sub.operator("em.sync_log", text=f"The scene · {word}", emboss=False)
-                op.scene = True
-            else:
-                row.label(text=f"✕ {left} on the node, not here", icon="IMPORT")
-            if offer:
-                op = row.operator("em.scene_check", text="Download now")
-                op.download = True
+            row.alert = not z["healthy"] and i == 0
+            row.label(text=line, icon=z["place"][0] if i == 0 else "BLANK1")
+        # 2 · who you are, once: name · role · node
+        col.label(text=z["who"][1], icon="USER")
+        # 3 · one state, the Log beside it
+        st = z["state"]
         row = col.row(align=True)
-        row.operator("em.scene_check", text="Sync the scene…", icon="FILE_REFRESH")
-        row = col.row(align=True)
-        row.operator("em.blend_backup_archive", text="Archive this .blend", icon="EXPORT")
-        row.operator("em.room_leave", text="Leave the room", icon="UNLINKED")
-        row = col.row(align=True)
+        row.alert = bool(st.get("alert"))
+        row.label(text=st["text"], icon=st["icon"])
+        if st.get("op"):
+            op = row.operator(st["op"], text=st["op_text"])
+            for key, value in (st.get("op_props") or {}).items():
+                setattr(op, key, value)
+        row.operator("em.sync_log", text="", icon="TEXT")
+        msg = z["message"]
+        if msg["text"]:
+            row = col.row(align=True)
+            row.alert = bool(msg.get("alert"))
+            for i, line in enumerate(where.wrap(msg["text"], _chars(context))):
+                (row if i == 0 else col).label(text=line, icon=msg["icon"] if i == 0 else "BLANK1")
+            if msg.get("op"):
+                op = row.operator(msg["op"], text=msg["op_text"])
+                for key, value in (msg.get("op_props") or {}).items():
+                    setattr(op, key, value)
+        # 4 · the main gesture, large
+        big = layout.row()
+        big.scale_y = 1.5
+        big.operator("em.scene_check", text="Sync the scene…", icon="FILE_REFRESH")
+        # 5 · the short commands
+        row = layout.row(align=True)
         sub = row.row(align=True)
         sub.enabled = not offline
         sub.operator("em.room_open_elsewhere", text="Open in EMStudio", icon="WINDOW")
-        row.menu("EM_MT_room_more", text="", icon="DOWNARROW_HLT")
+        row.operator("em.where_change", text="Change…", icon="ARROW_LEFTRIGHT")
+        row.menu("EM_MT_room_more", text="", icon="THREE_DOTS")
+
+
+def _chars(context) -> int:
+    """How many characters fit on a line of the sidebar (a label never wraps
+    by itself)."""
+    try:
+        scale = context.preferences.system.ui_scale or 1.0
+        return max(18, int((context.region.width / scale - 50) / 7.0))
+    except Exception:  # noqa: BLE001 — headless: no region
+        return 40
 
 
 def register():

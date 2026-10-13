@@ -185,6 +185,23 @@ class EM_OT_graph_activate(bpy.types.Operator):
 
     index: IntProperty(default=-1, options={"SKIP_SAVE"})  # type: ignore
 
+    @classmethod
+    def description(cls, context, properties):
+        """In a room, the row says only the study's name: the rest is here."""
+        try:
+            rows = _rows(context.scene.em_tools)
+            row = rows[properties.index]
+            origin = graph_origins.origin_of(row, abspath=_abspath)
+        except Exception:  # noqa: BLE001
+            return cls.bl_description
+        if not origin.is_room:
+            return cls.bl_description
+        writing = writing_in(origin, rows, context.scene.em_tools.active_file_index)
+        said = [f"{study_title(origin)} · the study in the room",
+                f"Writing in: {writing}" if writing else "Click to write in it",
+                f"The room: {room_alignment(origin)[1]}"]
+        return "\n".join(said)
+
     def execute(self, context):
         em_tools = context.scene.em_tools
         rows = _rows(em_tools)
@@ -260,13 +277,11 @@ def draw_graph_tree(layout, context, em_tools) -> None:
     active_key = (graph_origins.origin_of(rows[active], abspath=_abspath).key
                   if 0 <= active < len(rows) else None)
     for origin, indices in branches:
-        head = col.row(align=True)
         if origin.is_room:
-            # V2 · the study the room holds — where, with whom and as what
-            # is «Where you work»'s to say, not repeated here
-            head.label(text=f"{study_title(origin)} · the study in the room",
-                       icon="COMMUNITY")
-        elif origin.is_file:
+            _draw_room_branch(col, origin, indices, rows, active)
+            continue
+        head = col.row(align=True)
+        if origin.is_file:
             head.label(text=origin.label,
                        icon="FILE" if origin.is_emjson else "FILE_BLANK")
         else:
@@ -282,11 +297,6 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             sub = col.row()
             sub.separator(factor=2.0)
             sub.label(text=f"Writing in: {writing}", icon="GREASEPENCIL")
-        if origin.is_room:
-            for ref in cited_of(origin):
-                sub = col.row()
-                sub.separator(factor=2.0)
-                sub.label(text=f"↗ {ref} · cited, read only", icon="LIBRARY_DATA_DIRECT")
         for i in indices:
             row = rows[i]
             graph = get_graph(row.name)
@@ -317,6 +327,53 @@ def draw_graph_tree(layout, context, em_tools) -> None:
                     line.prop(row, "is_publishable", text="")
             if i == active:
                 _draw_active_path(col, row, i, present, origin)
+
+
+def room_alignment(origin) -> tuple:
+    """`(icon, sentence)` of a room's study: ✓ aligned, ⋯ sending, or not
+    connected — the same session «Where you work» reads."""
+    try:
+        from ..sync_manager import room_session as _rs
+        session = _rs.session_of_room(None, origin.room_id)
+    except Exception:  # noqa: BLE001
+        session = None
+    if session is None or not (session.joined or session.offline):
+        return ("UNLINKED", "not connected")
+    waiting = session.waiting()
+    if session.offline:
+        return ("UNLINKED", f"offline · {waiting} waiting" if waiting else "offline")
+    if waiting:
+        return ("TIME", f"sending {waiting}")
+    return ("CHECKMARK", "aligned")
+
+
+def _draw_room_branch(col, origin, indices, rows, active) -> None:
+    """MICRO tre pannelli (13 Oct 2026) · in a room the tree is ONE row: the
+    study of the room, the pencil when you write in it, the tick of the
+    alignment. «… · the study in the room» and «Writing in:» are its tooltip
+    (`EM_OT_graph_activate.description`); where, with whom and as what is
+    «Where you work»'s to say."""
+    for i in indices:
+        row = rows[i]
+        line = col.row(align=True)
+        label = study_title(origin) if len(indices) == 1 else graph_name(row, origin)[0]
+        op = line.operator("em.graph_activate", text=label,
+                           icon="GREASEPENCIL" if i == active else "RADIOBUT_OFF",
+                           emboss=(i == active), depress=(i == active))
+        op.index = i
+        line.label(text="", icon=room_alignment(origin)[0])
+        if hasattr(row, "is_publishable"):
+            try:
+                from .. import icons_manager
+                line.prop(row, "is_publishable", text="",
+                          icon_value=icons_manager.get_icon_value(
+                              "em_publish" if row.is_publishable else "em_no_publish"))
+            except Exception:  # noqa: BLE001
+                line.prop(row, "is_publishable", text="")
+    for ref in cited_of(origin):
+        sub = col.row()
+        sub.separator(factor=2.0)
+        sub.label(text=f"↗ {ref} · cited, read only", icon="LIBRARY_DATA_DIRECT")
 
 
 def load_op(layout, emjson: bool, index: int, text: str = "",

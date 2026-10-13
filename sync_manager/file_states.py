@@ -10,8 +10,9 @@ function, so the same files give the same state in the three.
 
 The gestures on a file are here too: «Find here…» relinks a missing one,
 «Upload to the room» sends one that is on the disk, «Open where it is» shows
-it in the file manager. The resolution is run by a gesture («Check files»),
-not at every redraw: it touches the disk and, in a room, the node.
+it in the file manager. The resolution runs by itself at the entry in a room,
+after every sync and when a .blend is opened (`check_soon`), and again with ↻
+— never at a redraw: it touches the disk and, in a room, the node.
 """
 
 import os
@@ -285,7 +286,7 @@ def _operator_classes():  # pragma: no cover — bpy
         """Say where each file of the graph is: on the disk, on the node, both,
         only a reference, missing, an empty copy (one resolver for every tool)"""
         bl_idname = "em.files_check"
-        bl_label = "Check files"
+        bl_label = "Check the files again"
 
         def execute(self, context):
             graph = _graph(context)
@@ -482,38 +483,48 @@ PREVIEW: Dict[str, Any] = {"plan": []}
 
 
 def draw(layout, context) -> None:  # pragma: no cover — bpy
-    """The «Files» section: one sign per resource, a filter per state, the
-    gestures on each file."""
-    from ..state_symbols import sign
-    # F1 · New EM project and Reorder are in «Project folder…» (resources_tab)
-    box = layout.box()
-    head = box.row(align=True)
-    results = ULTIMI.get("results") or []
-    # R2 · the count is SAID in the heading, not drawn as a lone number in a
-    # button (it read as a field to fill)
-    head.label(text=f"Files · {len(results)}" if results else "Files", icon="FILE_FOLDER")
-    head.operator("em.files_check", text="Check files", icon="FILE_REFRESH")
-    if not results:
-        box.label(text="Not checked yet: «Check files» says where each one is.", icon="INFO")
-        return
-    chips = filter_chips(counts(results))
-    frow = box.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
-    for state, icon, text in chips:
-        op = frow.operator("em.files_filter", text=text, icon=icon,
-                           depress=ULTIMI.get("filter") == state)
-        op.state = state
-    c = counts(results)
-    if c.get("on_node"):
-        box.operator("em.files_keep", text=f"Keep the {c['on_node']} on this computer",
-                     icon="IMPORT").resource_id = ""
-    chosen = ULTIMI.get("filter") or ""
-    if chosen:
-        box.label(text=sign("file." + chosen)[1] + " — " + sign("file." + chosen)[2],
-                  icon="FILTER")
+    """Files: the list says itself (MICRO tre pannelli, 13 Oct 2026) — no
+    «Check files» to press, no counters as buttons: the check runs by itself
+    (`check_soon`), ↻ runs it again."""
     from . import files_list
-    if ULTIMI.get("list_error"):
-        box.label(text=f"List: {ULTIMI['list_error']}", icon="ERROR")
-    files_list.draw(box, context, results)
+    files_list.draw(layout, context, ULTIMI.get("results") or [])
+
+
+def check_soon(delay: float = 0.5) -> None:  # pragma: no cover — bpy
+    """Check the files of the active graph in a moment, by itself: at the
+    entry in a room, when a .blend is opened (after every sync `check_scene`
+    does it). It touches the disk and, in a room, the node: never at a
+    redraw."""
+    import bpy  # type: ignore
+    if bpy.app.timers.is_registered(_check_now):
+        bpy.app.timers.unregister(_check_now)
+    bpy.app.timers.register(_check_now, first_interval=delay)
+
+
+def _check_now():  # pragma: no cover — bpy
+    import bpy  # type: ignore
+    try:
+        from ..functions import is_graph_available
+        context = bpy.context
+        ok, graph = is_graph_available(context)
+        if ok and graph is not None:
+            resolve_active(context, graph)
+            # …and Project storage's archives, when there is a room to ask
+            from . import backups, scene_package
+            backups._refresh(None)
+            scene_package._refresh(None)
+            for window in getattr(context.window_manager, "windows", []):
+                for area in window.screen.areas:
+                    if area.type == "VIEW_3D":
+                        area.tag_redraw()
+    except Exception as exc:  # noqa: BLE001 — the ↻ is there
+        print(f"[files] not checked by itself: {exc}")
+    return None
+
+
+def _on_load(_dummy=None):  # pragma: no cover — bpy
+    ULTIMI.update({"graph_id": "", "results": [], "bucket": {}, "moved": []})
+    check_soon(1.0)
 
 
 def filter_chips(c: Dict[str, int]) -> List[tuple]:
@@ -538,10 +549,18 @@ def register():  # pragma: no cover — bpy
     _CLASSES = _operator_classes()
     for cls in _CLASSES:
         bpy.utils.register_class(cls)
+    _on_load_persistent = bpy.app.handlers.persistent(_on_load)
+    if _on_load_persistent not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_on_load_persistent)
 
 
 def unregister():  # pragma: no cover — bpy
     import bpy  # type: ignore
+    for h in list(bpy.app.handlers.load_post):
+        if getattr(h, "__name__", "") == "_on_load" and getattr(h, "__module__", "") == __name__:
+            bpy.app.handlers.load_post.remove(h)
+    if bpy.app.timers.is_registered(_check_now):
+        bpy.app.timers.unregister(_check_now)
     for cls in reversed(_CLASSES):
         try:
             bpy.utils.unregister_class(cls)

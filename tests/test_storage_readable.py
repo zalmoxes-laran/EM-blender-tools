@@ -288,12 +288,13 @@ def test_one_row_per_resource_with_its_version_and_no_codes():
     for r in rows:
         assert not _HEX_OR_UUID.search(r["file"]), r["file"]
     us2 = [r for r in rows if r["file"] == "US 2 · dopo A — proxy"]
-    assert len(us2) == 1 and us2[0]["versions"] == "v4/4" and us2[0]["id"] == ids[3]
+    # MICRO tre pannelli · four versions, two bytes (f4e4, e522): two versions
+    assert len(us2) == 1 and us2[0]["versions"] == "v2/2" and us2[0]["id"] == ids[3]
     assert [r["file"] for r in rows if r["file"] == "US 1 — proxy"] == ["US 1 — proxy"]
     assert not any(r["kind"] == "file" for r in rows)       # one file each: not rows
     GOV.use_version(g, ids[0])
     us2 = [r for r in FL.build_rows(g, _results(g)) if r["file"] == "US 2 · dopo A — proxy"]
-    assert us2[0]["versions"] == "v1/4" and us2[0]["later"] == "1"
+    assert us2[0]["versions"] == "v1/2" and us2[0]["later"] == "1"
 
 
 def test_a_version_is_one_short_line():

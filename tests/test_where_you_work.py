@@ -103,16 +103,20 @@ def test_in_a_room_the_title_the_node_who_and_the_log():
          "role": "owner", "sent": 12, "answered": 12}
     z = where.zones(s)
     assert z["place"][1] == "▣ Templu Mare · 1 present"
-    assert z["place_detail"][1] == "em.localhost:8443/em"     # its own line
-    assert z["who"][1] == "dev ✓ · ★ owner"
-    assert z["log"][1] == "✓ aligned · 12 sent, 12 answered"
+    # MICRO tre pannelli · who you are ONCE, with the node without its scheme
+    assert z["who"][1] == "dev · owner · em.localhost:8443"
+    assert z["place_detail"][1] == ""
+    # …and ONE state of the room (the log and the scene were two alignments)
+    assert z["state"]["text"] == "● Aligned" and z["log"][1] == ""
+    assert "12 sent, 12 answered" in z["state"]["numbers"]
     waiting = where.zones({**s, "waiting": 3})
-    assert waiting["log"][1] == "⋯ 3 edits waiting to be sent"
+    assert waiting["state"]["text"] == "● Sending 3…"
     viewer = where.zones({**s, "role": "viewer", "can_write": False})
     assert viewer["message"]["text"] == "⊘ your role does not write"
-    off = where.zones({**s, "offline": True, "waiting": 2})
+    off = where.zones({**s, "offline": True, "waiting": 5})
     assert off["place"][1].endswith("· offline") and not off["healthy"]
-    assert off["message"]["op"] == "em.room_reconnect"
+    assert off["state"]["text"] == "● Offline — 5 waiting"
+    assert off["state"]["op"] == "em.room_reconnect" and off["message"]["text"] == ""
 
 
 def test_the_waiting_browser_and_the_expired_access_come_first():

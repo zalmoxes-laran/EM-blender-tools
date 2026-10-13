@@ -47,6 +47,89 @@ def host_of(base: Optional[str]) -> str:
     return f"{host}{port}{path}"
 
 
+def host_port(base: Optional[str]) -> str:
+    """`https://em.localhost:8443/em` → `em.localhost:8443`: the node as a
+    person says it, on the line of who you are (MICRO tre pannelli)."""
+    raw = str(base or "").strip().rstrip("/")
+    if not raw:
+        return ""
+    parts = urlsplit(raw if "://" in raw else "http://" + raw)
+    return f"{parts.hostname or raw}{f':{parts.port}' if parts.port else ''}"
+
+
+def claims_of(token: Optional[str]) -> Dict[str, Any]:
+    """The claims of an access token, read and not verified (the node
+    verifies): where the name a person goes by is (`name`, «Editor Due»)."""
+    import base64
+    import json
+    try:
+        part = str(token or "").split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+    except Exception:  # noqa: BLE001 — an opaque token: no name to say
+        return {}
+    return claims if isinstance(claims, dict) else {}
+
+
+def name_in(token: Optional[str]) -> str:
+    """The name to say for this Blender's person: «Editor Due», else the
+    username they signed in with."""
+    c = claims_of(token)
+    return str(c.get("name") or c.get("preferred_username") or "")
+
+
+def wrap(text: str, width: int) -> list:
+    """Words over lines of at most `width` characters: a room's name goes on
+    a new line instead of being cut in the middle («Tavolo · prova m…»)."""
+    lines, line = [], ""
+    for word in str(text or "").split():
+        if line and len(line) + 1 + len(word) > max(8, width):
+            lines.append(line)
+            line = word
+        else:
+            line = f"{line} {word}".strip()
+    if line:
+        lines.append(line)
+    return lines or [""]
+
+
+def room_state(s: Dict[str, Any]) -> Dict[str, Any]:
+    """The room in ONE state (MICRO tre pannelli, 13 Oct 2026: «aligned · 4
+    sent, 4 answered» and «The scene · aligned» were two alignments):
+    «● Aligned», «● Sending 3…», «● Offline — 5 waiting», «● 2 changed here»,
+    «● 3 to download». `{icon, text, alert, op, op_text, op_props, numbers}`:
+    the gesture that fixes it, when there is one; the numbers for the Log."""
+    waiting = int(s.get("waiting") or 0)
+    refused = int(s.get("refused") or 0)
+    tally = s.get("tally") or {}
+    _icon, _word, numbers = scene_status(tally)
+    st: Dict[str, Any] = {"icon": "CHECKMARK", "text": "● Aligned", "alert": False,
+                          "op": "", "op_text": "", "op_props": {},
+                          "numbers": " · ".join(b for b in (
+                              f"{int(s.get('sent') or 0)} sent, "
+                              f"{int(s.get('answered') or 0)} answered", numbers) if b)}
+    rest = f" — {waiting} waiting" if waiting else ""
+    missing = max(0, int(tally.get("missing") or 0))
+    changed = int(tally.get("changed") or 0)
+    if s.get("not_connected"):
+        st.update(icon="UNLINKED", text=f"● Not connected{rest}", alert=True,
+                  op="em.room_reconnect", op_text="Reconnect")
+    elif s.get("offline"):
+        st.update(icon="UNLINKED", text=f"● Offline{rest}", alert=True,
+                  op="em.room_reconnect", op_text="Reconnect")
+    elif waiting:
+        st.update(icon="TIME", text=f"● Sending {waiting}…")
+    elif refused:
+        st.update(icon="ERROR", text=f"● {refused} not applied by the room", alert=True)
+    elif changed:
+        st.update(icon="ERROR", text=f"● {changed} changed here, not sent")
+    elif missing:
+        st.update(icon="IMPORT", text=f"● {missing} to download")
+        if s.get("offer_download"):
+            st.update(op="em.scene_check", op_text="Download now",
+                      op_props={"download": True})
+    return st
+
+
 def _glyph(state: str, fallback: str) -> str:
     try:
         from ..state_symbols import glyph
@@ -56,6 +139,11 @@ def _glyph(state: str, fallback: str) -> str:
         return glyph(state) or fallback
     except Exception:  # noqa: BLE001 — no s3dgraphy list at hand
         return fallback
+
+
+def _looks_like_orcid(text: str) -> bool:
+    import re
+    return bool(re.search(r"\b\d{4}-\d{4}-\d{4}-\d{3}[\dX]\b", str(text or "")))
 
 
 def quiet(message: str) -> bool:
@@ -90,9 +178,9 @@ def scene_status(tally: Optional[Dict[str, int]]) -> tuple:
 
 def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     """`{place, who, message, log}`: each `(icon, text)`; the message also
-    `{op, op_text, op_props}` when a gesture fixes it."""
+    `{op, op_text, op_props}` when a gesture fixes it; in a room, `state`
+    (`room_state`) in place of the log."""
     place = s.get("place") or PLACE_HERE
-    host = host_of(s.get("node"))
     out: Dict[str, Any] = {}
 
     # ── WHERE YOU WORK ──────────────────────────────────────────────────────
@@ -100,9 +188,10 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     if place == PLACE_ROOM:
         title = s.get("room_title") or s.get("room_id") or "the room"
         # 13 Oct 2026 · «Tavolo · prova mul…cal:8000 · 2 present»: one line
-        # cut in the middle of the room's name. The name whole, with its
-        # state; the node's host and port on a line of their own
-        out["place_detail"] = ("BLANK1", host) if host else ("", "")
+        # cut in the middle of the room's name. The name whole (the panel
+        # wraps it), with its people; the node is said once, on the line of
+        # who you are
+        out["place_detail"] = ("", "")
         if s.get("not_connected"):
             # V1 · a file reopened in its room: the room is where it works,
             # and this Blender is not in it yet — said, with Reconnect below
@@ -132,17 +221,15 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     out["healthy"] = not problem
 
     # ── WHO YOU ARE ─────────────────────────────────────────────────────────
-    if place == PLACE_ROOM and s.get("not_connected"):
-        who = s.get("user")
-        out["who"] = ("USER", (f"{who} ✓ · " if who else "")
-                      + "the role is said by the room at the entry")
-    elif place == PLACE_ROOM:
-        role = s.get("role") or ""
-        rs = f"role.{role}" if role in ("owner", "editor", "viewer") else ""
-        role_txt = f"{_glyph(rs, '')} {role}".strip() if role else "no role said"
-        who = s.get("author")
-        out["who"] = ("USER", f"{who} ✓ · {role_txt}" if who
-                      else f"no identity in the access — edits dated, not signed · {role_txt}")
+    if place == PLACE_ROOM:
+        # MICRO tre pannelli · once: «Editor Due · editor · em.localhost:8443»
+        # (the name from the token, the role, the node without its scheme)
+        who = s.get("author") or s.get("user") or ""
+        if who and _looks_like_orcid(who):
+            who = ""                       # a code is not a name: Details only
+        role = "" if s.get("not_connected") else (s.get("role") or "")
+        bits = [who or "not signed", role, host_port(s.get("node"))]
+        out["who"] = ("USER", " · ".join(b for b in bits if b))
     elif s.get("signed_in_to"):
         who = f"{s['user']} ✓ on " if s.get("user") else "signed in to "
         out["who"] = ("USER", f"{who}{host_of(s['signed_in_to'])} — none needed here")
@@ -161,17 +248,10 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     elif s.get("expired"):
         msg.update(icon="LOCKED", text=f"The access to {host_of(s['expired'])} has expired",
                    op="em.sign_in_again", op_text="Sign in again", alert=True)
-    elif place == PLACE_ROOM and s.get("not_connected"):
-        msg.update(icon="UNLINKED",
-                   text=f"Not connected to {s.get('room_title') or s.get('room_id')}: "
-                        f"edits wait here",
-                   op="em.room_reconnect", op_text="Reconnect")
+    elif place == PLACE_ROOM and (s.get("not_connected") or s.get("offline")):
+        pass                               # said by the room's state, with Reconnect
     elif place == PLACE_ROOM and s.get("can_write") is False:
         msg.update(icon="LOCKED", text=f"{_glyph('room.read_only', '⊘')} your role does not write")
-    elif place == PLACE_ROOM and s.get("offline"):
-        msg.update(icon="UNLINKED",
-                   text=f"The connection to {s.get('room_title') or s.get('room_id')} dropped",
-                   op="em.room_reconnect", op_text="Reconnect")
     elif s.get("transition_failed"):
         msg.update(icon="CANCEL", text=str(s["transition_failed"]), alert=True)
     elif declared == PLACE_EMSTUDIO and place == PLACE_HERE:
@@ -185,27 +265,18 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
                                      "from there will not be found here")
     elif s.get("transition") and not quiet(str(s["transition"])):
         msg.update(text=str(s["transition"]))
-    elif s.get("signin_line"):
+    elif s.get("signin_line") and place != PLACE_ROOM:
+        # in a room who you are is said once, on its line
         msg.update(text=str(s["signin_line"]))
     out["message"] = msg
 
     # ── LOG ─────────────────────────────────────────────────────────────────
     waiting = int(s.get("waiting") or 0)
-    refused = int(s.get("refused") or 0)
     not_applied = int(s.get("not_applied") or 0)
-    if place == PLACE_ROOM and s.get("not_connected") and not waiting:
-        log = ("UNLINKED", "not connected · nothing sent since the file was opened")
-    elif place == PLACE_ROOM:
-        if waiting:
-            log = ("TIME", f"{_glyph('sync.pending', '⋯')} {waiting} edit"
-                           f"{'s' if waiting != 1 else ''} waiting to be sent")
-        elif refused:
-            log = ("ERROR", f"{_glyph('sync.conflict', '≠')} {refused} edit"
-                            f"{'s' if refused != 1 else ''} not applied by the room")
-        else:
-            sent, answered = int(s.get("sent") or 0), int(s.get("answered") or 0)
-            log = ("CHECKMARK", f"{_glyph('sync.aligned', '✓')} aligned · {sent} sent, "
-                                f"{answered} answered")
+    if place == PLACE_ROOM:
+        # MICRO tre pannelli · in a room the log is the ONE state of the room
+        out["state"] = room_state(s)
+        log = ("TEXT", "")
     else:
         # P1 · «no refused edit» said nothing: an empty log is not drawn
         log = (("ERROR", f"✕ {not_applied} edit{'s' if not_applied != 1 else ''} not applied")
@@ -256,7 +327,9 @@ def read_state(context) -> Dict[str, Any]:  # pragma: no cover — bpy
         named = _who(token) if token else ""
     except Exception:  # noqa: BLE001
         named = ""
-    s["author"] = named or status.get("author")
+    # the name the person goes by («Editor Due», the token's `name`), else
+    # the username; the ORCID the room stamps is never said here
+    s["author"] = name_in(token) or named or status.get("author")
     s["user"] = named
     s["can_write"] = status.get("can_write")
     s["offline"] = bool(status.get("offline")) or (mode != ops.MODE_HUB and seated_offline)
@@ -264,6 +337,10 @@ def read_state(context) -> Dict[str, Any]:  # pragma: no cover — bpy
     s["refused"] = status.get("refused")
     s["waiting"] = _rs.waiting_total()
     s["not_applied"] = len(ops.RIFIUTI)
+    from . import scene_check
+    s["tally"] = scene_check.ULTIMA_VERIFICA.get("tally") or {}
+    s["offer_download"] = bool(int(scene_check.ULTIMA_VERIFICA.get("missing_left") or 0)
+                               and not ops._preferenza("materialise_on_adopt", False))
     if mode == ops.MODE_SIDECAR:
         s["clients"] = ops.client_count()
         al = ops.disallineamento(context)

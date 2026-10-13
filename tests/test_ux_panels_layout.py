@@ -189,14 +189,18 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     MICRO-DOVE-LAVORI (T1, D1): «Export Manager» ed «Export statistics»
     diventano dialoghi di EM ▸ Export, «EM Server» (mai importato) va in
     `_dead_code/`: 28.
+    MICRO tre pannelli (13 ott 2026): «Project storage»
+    (`EM_PT_project_storage`), le impostazioni del progetto tolte dai gesti
+    quotidiani di Files: 32.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 31, sorted(PANNELLI)
+    assert len(PANNELLI) == 32, sorted(PANNELLI)
     # P3 · the two heads of EM Scene (EMStudio's Contents and Space) and P2 ·
     # Graph info as a sub-panel: 28 + 3 = 31
     assert PANNELLI["EM_PT_scene_contents"]["label"] == "Contents"
     assert PANNELLI["EM_PT_scene_space"]["label"] == "Space"
-    for child in ("EM_PT_resources", "EM_PT_shelf", "VIEW3D_PT_3DDocumentManager"):
+    for child in ("EM_PT_resources", "EM_PT_project_storage", "EM_PT_shelf",
+                  "VIEW3D_PT_3DDocumentManager"):
         assert PANNELLI[child]["parent"] == "EM_PT_scene_contents", child
     for child in ("VIEW3D_PT_RM_Manager", "VIEW3D_PT_RMDoc_Manager",
                   "VIEW3D_PT_Anastylosis_Manager", "EM_PT_proxy_surface_tools",
@@ -273,8 +277,8 @@ def test_E_IL_DOCUMENT_MANAGER_E_PRIMO_in_EM_Scene():
     def kids(parent):
         k = {n: int(p["order"]) for n, p in PANNELLI.items() if p["parent"] == parent}
         return sorted(k, key=k.get)
-    assert kids("EM_PT_scene_contents") == ["EM_PT_resources", "EM_PT_shelf",
-                                            "VIEW3D_PT_3DDocumentManager"]
+    assert kids("EM_PT_scene_contents") == ["EM_PT_resources", "EM_PT_project_storage",
+                                            "EM_PT_shelf", "VIEW3D_PT_3DDocumentManager"]
     assert kids("EM_PT_scene_space")[:1] == ["VIEW3D_PT_RM_Manager"]
 
 
@@ -284,9 +288,10 @@ def test_IL_PANNELLO_NON_SI_CHIAMA_PIU_COME_LA_SUA_TAB():
     """U6 · «Files», come nella barra di EMStudio; T1 · nel 3D (EM Scene),
     dopo Asset versions."""
     p = PANNELLI["EM_PT_resources"]
-    # P3 · named after EMStudio's window: the space is Contents, the window
-    # of the files is Storage
-    assert p["label"] == "Storage", p["label"]
+    # MICRO tre pannelli (13 Oct 2026) · «Files», the everyday gestures; the
+    # project's settings are «Project storage», closed, below it
+    assert p["label"] == "Files", p["label"]
+    assert PANNELLI["EM_PT_project_storage"]["label"] == "Project storage"
     assert p["categoria"] == "EM Scene"
     assert p["label"] != p["categoria"]
 
@@ -507,9 +512,12 @@ def test_B6_IL_DTC_E_USCITO_dal_data_tree_e_resta_in_resources():
         "il DTC è ancora disegnato dal Data Tree"
     res = (_REPO / "resources_tab" / "ui.py").read_text()
     #: D1 (E.D., 5 Oct 2026) · and out of Files too: a card per selected asset
-    #: (`provenance_card`) in RM, Asset versions, Files and Document Manager
+    #: (`provenance_card`) in RM, Asset versions and Document Manager; in Files
+    #: (MICRO tre pannelli) it is in the Details of the selected row, in plain
+    #: sentences — not a box of its own
     assert "draw_dtc_section" not in _codice(res), "the DTC section is back in Files"
-    assert "provenance_card.draw" in res
+    assert "provenance_card.draw" not in _codice(res)
+    assert "provenance_card.story" in (_REPO / "sync_manager" / "files_list.py").read_text()
     for rel in ("rm_manager/ui.py", "sync_manager/asset_versions.py",
                 "document_manager/ui.py"):
         assert "provenance_card.draw" in (_REPO / rel).read_text(), rel

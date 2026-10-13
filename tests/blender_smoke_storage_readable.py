@@ -37,7 +37,7 @@ def check(label, condition, detail=""):
 
 
 # ── the working copy, as an add-on package ──────────────────────────────────
-PKG_DIR = "/tmp/storage-leggibile/pkg"
+PKG_DIR = "/tmp/tre-pannelli/pkg-readable"
 os.makedirs(PKG_DIR, exist_ok=True)
 link = os.path.join(PKG_DIR, "emtools_wc")
 if not os.path.islink(link):
@@ -125,6 +125,9 @@ class Rec:
     def template_list(self, *a, **k):
         pass
 
+    def menu(self, *a, **k):
+        pass
+
     def operator(self, idname, text="", **k):
         cat, op = idname.split(".")
         try:
@@ -154,7 +157,8 @@ names = [r["file"] for r in rows]
 print(f"[SMOKE]   rows: {[(r['file'], r['versions']) for r in rows]}")
 check("one row each for US1, US2, US5", sorted(names) == sorted(
     ["US 1 — proxy", "US 2 · dopo A — proxy", "US 5 — proxy"]), str(names))
-check("US2 says v4/4", next(r["versions"] for r in rows if r["file"].startswith("US 2")) == "v4/4")
+# MICRO tre pannelli · four versions, two bytes (f4e4, e522): two versions
+check("US2 says v2/2", next(r["versions"] for r in rows if r["file"].startswith("US 2")) == "v2/2")
 check("no row label holds a digest or a UUID", not any(CODE.search(n) for n in names))
 
 # (2) the rows and the card draw
@@ -170,11 +174,11 @@ print(f"[SMOKE]   card: {Rec.labels}")
 check("the card draws without errors", not Rec.errors, "; ".join(Rec.errors))
 check("the card names, never codes", not any(CODE.search(t) for t in Rec.labels),
       str([t for t in Rec.labels if CODE.search(t)]))
-check("four versions, one line each, v4 in use",
+check("two versions by their bytes, one line each, v2 in use",
       [t for t in Rec.labels if t.startswith("v")][-1].endswith("in use")
-      and len([t for t in Rec.labels if re.match(r"^v\d( |$)", t)]) == 4)
-check("a «Use» beside each version not in use",
-      sum(1 for o in Rec.operators if o == ("em.files_use_version", "Use")) == 3)
+      and len([t for t in Rec.labels if re.match(r"^v\d( |$)", t)]) == 2)
+check("a «Use» beside the version not in use",
+      sum(1 for o in Rec.operators if o == ("em.files_use_version", "Use")) == 1)
 check("the big red «Withdraw» is gone from the card",
       not any(o[0] == "em.files_withdraw" for o in Rec.operators))
 check("Details is closed", not any(t in ("Digest", "Id") for t in Rec.labels))
@@ -192,7 +196,7 @@ check("«Use» runs", out == {"FINISHED"}, str(out))
 check("no version is born", len(GRAPH.nodes) == before)
 check("v1 is in use", gov.in_use(GRAPH, IDS[3]) == IDS[0])
 rows = rows_now()
-check("the row says v1/4", next(r["versions"] for r in rows if r["file"].startswith("US 2")) == "v1/4")
+check("the row says v1/2", next(r["versions"] for r in rows if r["file"].startswith("US 2")) == "v1/2")
 
 # (4) «Where you work»
 z = where.zones({"place": "room", "room_title": "Tavolo · prova multiutente",
@@ -200,7 +204,9 @@ z = where.zones({"place": "room", "room_title": "Tavolo · prova multiutente",
                  "role": "editor", "author": "editor2"})
 check("the room's name whole", z["place"][1] == "▣ Tavolo · prova multiutente · 2 present",
       z["place"][1])
-check("the host on its own line", z["place_detail"][1] == "macbook-pro-di-emanuel.local:8000")
+# MICRO tre pannelli · the node is said once, on the line of who you are
+check("the host on the line of who you are",
+      z["who"][1] == "editor2 · editor · macbook-pro-di-emanuel.local:8000", z["who"][1])
 
 addon.unregister()
 print(f"[SMOKE] {'ALL PASS' if not FAILURES else 'FAILED: ' + ', '.join(FAILURES)}")
