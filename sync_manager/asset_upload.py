@@ -336,7 +336,18 @@ def upload_asset(node: str, room: str, path: str, sha256: Optional[str],
     hexd = _hex(sha256) if sha256 else sha256_of_file(path)
     size = os.path.getsize(path)
     media_type = media_type or "application/octet-stream"
-    if has_asset(node, room, hexd, token):
+    try:
+        present = has_asset(node, room, hexd, token)
+    except RoomError as exc:
+        # 403 on the probe: the node holds these bytes at home in a room this
+        # caller is not part of, so it will not say. Sending them is the proof
+        # of possession the node asks for (`_record_home`: whoever sends the
+        # same bytes may read them back) — measured 13 Oct 2026, the RM
+        # ME_EST_bk_LOD0 refused with «would not say … (403)» and never sent.
+        if getattr(exc, "status", None) != 403:
+            raise
+        present = False
+    if present:
         if progress_cb:
             progress_cb(size, size)
         return {"ref": f"sha256:{hexd}", "sha256": hexd, "size": size,
