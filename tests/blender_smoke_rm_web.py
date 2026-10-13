@@ -242,6 +242,35 @@ rec = [x for x in api.geometry_summary(GRAPH)["resident"] if x["resource_id"] ==
 check("geometry_summary gives it resident under the RM",
       len(rec) == 1 and rec[0]["node_id"] == RM, str(rec))
 
+# MICRO-CACHE-E-RIGA · what was sent is kept here, and the model is ONE row
+av = importlib.import_module("emtools_wc.sync_manager.asset_versions")
+cache = os.path.join(av.cache_folder(), av.CACHE_DIR)
+kept = [r for r in api.resolve_files(GRAPH, cache_dirs=[cache, os.path.join(cache, "files")],
+                                     on_node=lambda hexd: True)
+        if r["id"] in (BLEND, vid)]
+by = {r["id"]: r for r in kept}
+check("the web version just sent is «Here and on the node»",
+      by.get(vid, {}).get("state") == "both", str(by.get(vid)))
+rows = fl.build_rows(GRAPH, [by.get(BLEND) or RESULTS[0]] + ([by[vid]] if vid in by else []))
+mine = [x for x in rows if x.get("asset_id") == BLEND]
+check("…and the model and its web version are ONE row", len(mine) == 1,
+      str([x["file"] for x in mine]))
+fl.fill(bpy.context, rows)
+it = card_of(BLEND)
+check("…named after the model, «v1/1 · web», with the version's sign",
+      it.file == "ME_EST_bk_LOD0" and it.versions == "v1/1 · web" and it.state == "both",
+      f"{it.file} {it.versions} {it.state}")
+fs.ULTIMI["assets"] = {x["id"]: x["members"] for x in rows if x.get("members")}
+it = card_of(BLEND)
+check("…its card lists the master and the version",
+      "in the .blend" in Rec.labels and "lod0 · web · resident · in use" in Rec.labels,
+      str(Rec.labels))
+check("…and still offers «Send a web version», drawing without errors",
+      ("em.files_send_web_version", "Send a web version") in Rec.operators and not Rec.errors,
+      f"{Rec.operators} {Rec.errors}")
+check("…and no Download for it", not any(i == "em.files_keep" for i, _t in Rec.operators))
+fl.fill(bpy.context, fl.build_rows(GRAPH, RESULTS))
+
 # Upload of a file of the disk records it
 n_ops = len(OPS)
 r = bpy.ops.em.files_upload("EXEC_DEFAULT", resource_id="D.32")

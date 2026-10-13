@@ -172,6 +172,74 @@ def build_rows(graph, results: List[Dict[str, Any]],
         x["withdraw"] = "1" if gov.withdrawable(graph, x["id"]) else ""
         x["search"] = " ".join([x["file"].lower(), x["search"]])
         out.append(x)
+    return one_row_per_asset(graph, out)
+
+
+#: what a scene in a room loads of a model (the room's viewer, EMStudio's
+#: Space): the version whose state the asset's row shows
+SCENE_USES = ("web", "realtime")
+
+
+def one_row_per_asset(graph, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """MICRO-CACHE-E-RIGA (13 Oct 2026) · an asset and its versions are ONE
+    row. Measured: «ME_EST_bk_LOD0 — model in this .blend» and under it
+    «ME_EST_bk_LOD0 lod0», the web version made from it — «stranamente tra i
+    file adesso sono due», for E.D. one model.
+
+    The master's row stays (its gestures are the model's: «Send a web
+    version», Upload) with the model's name; its sign is the state of the
+    version the scene uses (``SCENE_USES``, the master when none serves),
+    whose id is ``use_id``; ``versions`` says «v1/1 · web» (or the level);
+    ``members`` are the lines of the card — the master («in the .blend»),
+    then each version («lod0 · web · resident»). A revision chain (a proxy's
+    «v2/3») is not this: it is folded before, by `build_rows`."""
+    from s3dgraphy import api
+    masters = {x["asset_id"]: x for x in rows
+               if x.get("kind") == "master" and x.get("asset_id")}
+    folded: Dict[str, List[Dict[str, Any]]] = {a: [] for a in masters}
+    out = []
+    for x in rows:
+        if x.get("kind") == "version" and x.get("asset_id") in masters:
+            folded[x["asset_id"]].append(x)
+        else:
+            out.append(x)
+    for asset, master in masters.items():
+        if not folded[asset]:
+            continue
+        by_id = {v["id"]: v for v in folded[asset]}
+        by_id[master["id"]] = master
+        try:
+            entries = api.versions_of(graph, asset)
+            choice = api.version_for(graph, master["id"], SCENE_USES) or {}
+        except Exception:  # noqa: BLE001 — a row is never lost to its versions
+            entries, choice = [], {}
+        versions = [e for e in entries if not e.get("master")]
+        used = (choice.get("entry") or {}).get("id") or master["id"]
+        used_row = by_id.get(used, master)
+        n = next((i for i, e in enumerate(versions, 1) if e["id"] == used), 0)
+        if n:
+            said = choice.get("use") or next((e.get("lod_level") or e.get("level") or ""
+                                              for e in versions if e["id"] == used), "")
+            master["versions"] = " · ".join(b for b in (f"v{n}/{len(versions)}", said) if b)
+        else:
+            master["versions"] = f"{len(versions)} version{'s' if len(versions) != 1 else ''}"
+        held = _web().object_of(graph, master["id"]) if _web().is_datablock(graph, master["id"]) else ""
+        master["file"] = held or master["file"]
+        master["state"] = used_row.get("state") or master.get("state") or ""
+        master["use_id"] = used_row["id"]
+        members = [{"id": master["id"], "master": True, "in_use": used == master["id"],
+                    "state": by_id[master["id"]].get("state") or "",
+                    "text": "in the .blend" if held else "master"}]
+        for e in versions:
+            row = by_id.get(e["id"]) or {}
+            members.append({"id": e["id"], "master": False, "in_use": e["id"] == used,
+                            "state": row.get("state") or "",
+                            "text": " · ".join(b for b in (
+                                e.get("lod_level") or e.get("level") or "version",
+                                ", ".join(e.get("use") or []), e.get("residency") or "") if b)})
+        master["members"] = members
+        master["search"] = " ".join([master["file"].lower(), master["search"]]
+                                    + [v.get("search", "") for v in folded[asset]])
     return out
 
 
@@ -328,6 +396,7 @@ def _classes():  # pragma: no cover — bpy
         later: bpy.props.StringProperty()  # type: ignore
         what: bpy.props.StringProperty()  # type: ignore
         withdraw: bpy.props.StringProperty()  # type: ignore
+        use_id: bpy.props.StringProperty()  # type: ignore
 
     class EM_UL_files(bpy.types.UIList):
         """One row per resource: where it is (here, on the node, both), its
@@ -1162,11 +1231,21 @@ def draw_card(layout, context, graph, it) -> None:  # pragma: no cover — bpy
                       icon="CHECKMARK" if v["in_use"] else "BLANK1")
             if not v["in_use"] and _may_write(context):
                 row.operator("em.files_use_version", text="Use").resource_id = v["id"]
+    # MICRO-CACHE-E-RIGA · an asset's row: the master and its versions
+    members = (file_states.ULTIMI.get("assets") or {}).get(it.id) or []
+    if members:
+        col.separator()
+        col.label(text="Versions", icon="RECOVER_LAST")
+        for m in members:
+            col.label(text=" · ".join(b for b in (m["text"], "in use" if m["in_use"] else "") if b),
+                      icon=sign("file." + m["state"])[0] if m["state"] else "BLANK1")
     # 3 · the gestures possible now, and only those
     res = next((r for r in file_states.ULTIMI.get("results") or [] if r["id"] == it.id), None)
     acts = card.row(align=True)
     if it.state == "on_node" and _in_room():
-        acts.operator("em.files_keep", text="Download", icon="IMPORT").resource_id = it.id
+        # an asset's row shows the state of the version in use: that one comes
+        acts.operator("em.files_keep", text="Download",
+                      icon="IMPORT").resource_id = it.use_id or it.id
     if it.state in ("missing", "empty_copy"):
         acts.operator("em.files_find_here", text="Find here…", icon="VIEWZOOM").resource_id = it.id
     # MICRO-RM-WEB · a model as it lives in the .blend is never uploaded as
