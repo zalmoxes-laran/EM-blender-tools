@@ -169,6 +169,115 @@ def proxy_resource_for_export(graph, unit_ids: Iterable[str], url: str
     return None, None, False
 
 
+#: il suffisso della risorsa che `promote_model` coniava per il proxy di
+#: un'unità fino alla 1.6.0-dev.14 (``US ─has_linked_resource→ '<US>.model'``):
+#: una convenzione solo di EMtools, che EMStudio non legge
+LEGACY_MODEL_SUFFIX = ".model"
+
+
+def _first_revision_id(graph, resource_id: str) -> str:
+    """La risorsa da cui una catena di revisioni è partita (``new
+    ─was_revision_of→ old``): un ``<US>.model`` rimandato da «Sync the scene…»
+    è una revisione con un id derivato, e la citazione dell'unità è passata a
+    lei."""
+    cur, seen = resource_id, set()
+    while cur not in seen:
+        seen.add(cur)
+        older = next((e.edge_target for e in graph.edges
+                      if e.edge_type == "was_revision_of" and e.edge_source == cur),
+                     None)
+        if older is None:
+            return cur
+        cur = older
+    return cur
+
+
+def legacy_unit_models(graph, unit_ids: Optional[Iterable[str]] = None
+                       ) -> List[Tuple[str, Any, Any]]:
+    """``(unit_id, unit, resource)`` per ogni ``US ─has_linked_resource→
+    '<US>.model'`` (o una sua revisione) che il grafo ha ancora."""
+    from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+    wanted = set(unit_ids) if unit_ids is not None else None
+    out = []
+    for edge in list(graph.edges):
+        if edge.edge_type != _HAS_LINKED_RESOURCE:
+            continue
+        if wanted is not None and edge.edge_source not in wanted:
+            continue
+        unit = graph.find_node_by_id(edge.edge_source)
+        resource = graph.find_node_by_id(edge.edge_target)
+        if not isinstance(unit, StratigraphicNode) or \
+                getattr(resource, "node_type", None) != "resource":
+            continue
+        if _first_revision_id(graph, resource.node_id) == \
+                f"{unit.node_id}{LEGACY_MODEL_SUFFIX}":
+            out.append((unit.node_id, unit, resource))
+    return out
+
+
+#: i fatti sui byte che passano dalla ``<US>.model`` alla risorsa della catena
+_BYTE_FIELDS = ("url", "checksum", "media_type", "residency", "tier",
+                "size_bytes", "addresses")
+
+
+def migrate_unit_models(graph, unit_ids: Optional[Iterable[str]] = None
+                        ) -> Dict[str, Any]:
+    """``US ─has_linked_resource→ '<US>.model'`` → la forma canonica.
+
+    Il glb pubblicato da un EMtools di prima diventa la risorsa
+    ``proxy_model`` della catena (``US ─has_property→ geometry
+    ─has_semantic_shape→ SemanticShape ─has_linked_resource→ risorsa``, id da
+    `proxy_resource_id`): i fatti sui byte (url, checksum, residenza…) passano
+    a lei, la genesi (``dtc_had_output``) la nomina, e l'unità smette di
+    citare la ``<US>.model``. Quella resta nel grafo com'era — la
+    pubblicazione di allora è un fatto — ma non è più il proxy di nessuno.
+
+    Una catena che ha già byte DIVERSI non viene sovrascritta: lo si dice e
+    la ``<US>.model`` resta citata. Idempotente: un secondo passaggio non
+    trova niente da fare.
+
+    Returns ``{migrated: [{unit_id, old, new}], warnings}``.
+    """
+    import uuid
+
+    report: Dict[str, Any] = {"migrated": [], "warnings": []}
+    for unit_id, unit, old in legacy_unit_models(graph, unit_ids):
+        chain = ensure_unit_proxy(graph, unit_id, getattr(unit, "name", None) or unit_id)
+        new = graph.find_node_by_id(chain.get("resource_id") or "")
+        if new is None:
+            report["warnings"].append(
+                f"{unit_id}: no proxy chain could be made; '{old.node_id}' left as it is")
+            continue
+        old_data = old.data if isinstance(getattr(old, "data", None), dict) else {}
+        new_data = new.data if isinstance(getattr(new, "data", None), dict) else {}
+        if new_data.get("checksum") and old_data.get("checksum") and \
+                new_data["checksum"] != old_data["checksum"]:
+            report["warnings"].append(
+                f"{unit_id}: the proxy chain already holds other bytes; "
+                f"'{old.node_id}' left as it is")
+            continue
+        if not new_data.get("checksum"):
+            for key in _BYTE_FIELDS:
+                if key in old_data:
+                    new_data[key] = old_data[key]
+            new.data = new_data
+            if hasattr(new, "url") and new_data.get("url"):
+                new.url = new_data["url"]
+        for edge in list(graph.edges):
+            if edge.edge_type == "dtc_had_output" and edge.edge_target == old.node_id:
+                eid = str(uuid.uuid5(uuid.NAMESPACE_URL,
+                                     f"em-proxy-chain|{edge.edge_source}|dtc_had_output|{new.node_id}"))
+                if graph.find_edge_by_id(eid) is None:
+                    graph.add_edge(eid, edge.edge_source, new.node_id, "dtc_had_output")
+        for edge in list(graph.edges):
+            if edge.edge_type == _HAS_LINKED_RESOURCE and \
+                    edge.edge_source == unit_id and edge.edge_target == old.node_id:
+                graph.remove_edge(edge.edge_id)
+        report["migrated"].append({"unit_id": unit_id, "old": old.node_id,
+                                   "new": new.node_id})
+    return report
+
+
 def units_named(graph, name: str) -> List[str]:
     """Gli id delle unità stratigrafiche con quel nome (l'export ragiona per
     nome, il grafo per id)."""

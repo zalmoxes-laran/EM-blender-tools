@@ -283,6 +283,43 @@ def _revision(graph, rid: str, spec: Dict[str, Any]) -> Optional[str]:  # pragma
     return new_id
 
 
+def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """A room an older EMtools filled: its ``<US>.model`` become the canonical
+    proxy chain (`proxy_chain.migrate_unit_models`), the changes go to the
+    room as operations, and the objects bound to the old resource are bound
+    to the new one. Once: a second sync finds nothing to migrate.
+
+    Only for who may write — a viewer reads the old form (it is still read,
+    `residence.is_proxy_resource`) and leaves it to an editor."""
+    import bpy  # type: ignore
+    from ..proxy_chain import legacy_unit_models, migrate_old_proxies, migrate_unit_models
+    from . import operators as ops
+
+    if not legacy_unit_models(graph) or not ops.current_session(context).can_write:
+        return {"migrated": [], "warnings": [], "ops": 0}
+    before = _section(graph)
+    migrate_old_proxies(graph)
+    report = migrate_unit_models(graph)
+    delta = section_delta_ops(before, _section(graph))
+    for op in delta:
+        ops.emit_op(op)
+    moved = {m["old"]: m["new"] for m in report["migrated"]}
+    for obj in bpy.data.objects:
+        if str(obj.get("em_resource_id") or "") in moved:
+            obj["em_resource_id"] = moved[str(obj["em_resource_id"])]
+    report["ops"] = len(delta)
+    try:
+        from ..functions import em_log
+    except Exception:  # noqa: BLE001
+        em_log = print
+    em_log(f"[sync] proxies migrated to the canonical form (property → shape → "
+           f"resource): {', '.join(m['unit_id'] for m in report['migrated']) or 'none'}"
+           f" · {len(delta)} change(s) to the room"
+           + (f" · {'; '.join(report['warnings'])}" if report["warnings"] else ""),
+           "WARNING")
+    return report
+
+
 def send(context, graph, models: List[Dict[str, Any]]) -> Dict[str, Any]:  # pragma: no cover — bpy
     """Send the chosen models; the graph's changes go to the room as ops."""
     import bpy  # type: ignore

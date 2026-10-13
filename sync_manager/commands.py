@@ -336,6 +336,20 @@ def _export_gltf(obj, context) -> bytes:
             pass
 
 
+def _is_unit(node: Any) -> bool:
+    from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+    return isinstance(node, StratigraphicNode)
+
+
+def _chain_edge_ids(graph, unit_id: str, chain: Dict[str, Any]) -> List[str]:
+    """The edges of a proxy chain: unit → property → shape → resource."""
+    links = {(unit_id, chain.get("property_id")),
+             (chain.get("property_id"), chain.get("shape_id")),
+             (chain.get("shape_id"), chain.get("resource_id"))}
+    return [e.edge_id for e in graph.edges
+            if (e.edge_source, e.edge_target) in links]
+
+
 def promote_model(target: str, params: Dict[str, Any], context,
                   graph) -> Dict[str, Any]:
     """Publish a node's mesh into the room's store, and reference it (DP-76).
@@ -349,8 +363,18 @@ def promote_model(target: str, params: Dict[str, Any], context,
 
     `target` is what the model DEPICTS — a stratigraphic unit, or the resource
     itself when the model came in as one. The ResourceNode that carries the
-    published asset is `params.resource_id`, or `<target>.model` by default: a
-    deterministic name, so promoting the same unit twice is the same resource.
+    published asset is `params.resource_id`; failing that:
+
+    * for a **stratigraphic unit** the model is its PROXY, and the proxy is a
+      property of the unit (E.D., 30 Sep 2026): the bytes go into the
+      ``proxy_model`` resource of ``US ─has_property→ geometry
+      ─has_semantic_shape→ SemanticShape ─has_linked_resource→ resource``
+      (`proxy_chain.ensure_unit_proxy`, s3Dgraphy's `create_geometry_proxy`),
+      the form EMStudio's Space reads. A ``<US>.model`` an older EMtools left
+      on the unit is migrated into that chain first (`migrate_unit_models`);
+    * for anything else (an RM) `<target>.model`, linked from the target: a
+      deterministic name, so promoting the same node twice is the same
+      resource.
 
     The uploader identity is the one the ROOM reports for the token, never one
     the client declares — the same rule the relay follows for operations.
@@ -370,6 +394,7 @@ def promote_model(target: str, params: Dict[str, Any], context,
 
     node = graph.find_node_by_id(target)
     is_resource = getattr(node, "node_type", None) == "resource"
+    unit_proxy = not is_resource and not params.get("resource_id") and _is_unit(node)
     resource_id = str(params.get("resource_id") or
                       (target if is_resource else f"{target}.model"))
     node_name = getattr(node, "name", None) or target
@@ -388,10 +413,20 @@ def promote_model(target: str, params: Dict[str, Any], context,
     # `store_backed_geometry` elenca e quindi ciò che la verifica della scena
     # può riscaricare.
     residency = str(params.get("residency") or "reference")
+    chain: Dict[str, Any] = {}
+    if unit_proxy:
+        # only now that the bytes are in the store: the chain is written when
+        # there is something for its resource to hold
+        from ..proxy_chain import (ensure_unit_proxy, migrate_old_proxies,
+                                   migrate_unit_models)
+        migrate_old_proxies(graph)
+        migrate_unit_models(graph, [target])
+        chain = ensure_unit_proxy(graph, target, node_name, author=info.get("author"))
+        resource_id = str(chain.get("resource_id") or resource_id)
     result = promote_resource(
         graph, resource_id, url=info["url"], sha256=info["sha256"],
         media_type=room.GLTF_MEDIA_TYPE, author=info.get("author"),
-        link_to=None if is_resource else target,
+        link_to=None if (is_resource or unit_proxy) else target,
         name=params.get("name") or f"{node_name} (glTF)",
         residency=residency)
     obj["em_resource_id"] = resource_id
@@ -403,9 +438,17 @@ def promote_model(target: str, params: Dict[str, Any], context,
     # P2 · …and the mesh those bytes were made from, for «Sync the scene…»
     from .scene_sync import record_fingerprint
     record_fingerprint(obj)
+    delta = promotion_delta(graph, result)
+    if chain:
+        extra = build_delta(graph, [chain["property_id"], chain["shape_id"]],
+                            _chain_edge_ids(graph, target, chain))
+        delta = {"nodes": extra["nodes"] + delta["nodes"],
+                 "edges": extra["edges"] + delta["edges"]}
     return {"ok": True,
-            "delta": promotion_delta(graph, result),
+            "delta": delta,
             "info": {"object": obj.name, "resource_id": resource_id,
+                     "property_id": chain.get("property_id"),
+                     "shape_id": chain.get("shape_id"),
                      "ref": info["ref"], "size": info.get("size"),
                      "stored": bool(info.get("created")),
                      "already": bool(info.get("already")),

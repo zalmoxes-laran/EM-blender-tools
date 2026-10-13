@@ -432,6 +432,10 @@ def _repopulate(context, graph):
         populate_blender_lists_from_graph(context, graph)
     except Exception as exc:  # noqa: BLE001
         print(f"[sync] repopulate failed: {exc}")
+    # …and the counters Graph info reads off the row (US/USV · Epochs · …):
+    # filled at import and at adoption only, so an epoch born in EMStudio —
+    # an op, live or replayed at the re-entry — left «Epochs 0» (13 Oct 2026)
+    _count_for_graph_row(context, graph)
 
 
 def _apply_op(msg: dict, context, graph):
@@ -1753,6 +1757,24 @@ def _count_for_active_row(context, graph) -> None:
         print(f"[sync] could not refresh the graph statistics: {exc}")
 
 
+def _count_for_graph_row(context, graph) -> None:
+    """The cached counters of the row that lists THIS graph (by `graph_id`),
+    the active row when none does."""
+    em_tools = getattr(getattr(context, "scene", None), "em_tools", None)
+    if em_tools is None or graph is None:
+        return
+    gid = str(getattr(graph, "graph_id", "") or "")
+    row = next((r for r in em_tools.graphml_files if gid and r.name == gid), None)
+    if row is None:
+        _count_for_active_row(context, graph)
+        return
+    try:
+        from ..populate_lists import update_graph_statistics
+        update_graph_statistics(context, graph, row)
+    except Exception as exc:  # noqa: BLE001 — a count is not worth an op
+        print(f"[sync] could not refresh the graph statistics: {exc}")
+
+
 def _adoption_note(graph, listed: list, overwritten: int, warnings: int) -> str:
     """What the adoption actually did, in the words of what changed.
 
@@ -1802,6 +1824,8 @@ def _adopt_snapshot(doc: dict, context) -> str:
         return "the room sent no document"
     path = None
     try:
+        from .room_session import live_view
+        doc = live_view(doc)
         with tempfile.NamedTemporaryFile("w", suffix=".em.json", delete=False,
                                          encoding="utf-8") as handle:
             _json.dump(doc, handle, ensure_ascii=False)

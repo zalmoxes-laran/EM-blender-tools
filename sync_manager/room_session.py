@@ -125,6 +125,39 @@ def plan_rejoin(base: Optional[str], gc_watermark: Optional[str]) -> str:
     return "resume" if str(base) >= str(gc_watermark) else "resync"
 
 
+def live_view(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """The room's document as a VIEW: without what was deleted.
+
+    A room's snapshot carries its tombstones (a node's ``data.removed``, an
+    edge's ``attributes.removed``) because the MERGE needs them; the importer
+    does not read them, so adopting the snapshot as it is brought every
+    deleted relation back to life in Blender. Measured on 13 Oct 2026: the
+    three ``US ─has_linked_resource→ <US>.model`` the proxy migration had
+    removed (tombstoned in the room) were there again at the next entry. The
+    view drops them — `crdt.live_nodes`/`live_edges`, the library's own split —
+    and an edge that touches a deleted node goes with it."""
+    from s3dgraphy import crdt
+
+    def section(sec: Any) -> Any:
+        if not isinstance(sec, dict) or not isinstance(sec.get("nodes"), list):
+            return sec
+        nodes = crdt.live_nodes(sec)
+        alive = {n.get("id") for n in nodes}
+        gone = {n.get("id") for n in sec["nodes"]} - alive
+        edges = [e for e in crdt.live_edges(sec)
+                 if e.get("source") not in gone and e.get("target") not in gone]
+        return {**sec, "nodes": nodes, "edges": edges}
+
+    if not isinstance(doc, dict):
+        return doc
+    out = dict(doc)
+    if isinstance(doc.get("graphs"), dict):
+        out["graphs"] = {gid: section(sec) for gid, sec in doc["graphs"].items()}
+    if isinstance(doc.get("graph"), dict):
+        out["graph"] = section(doc["graph"])
+    return out
+
+
 def _op_key(op: Dict[str, Any]) -> tuple:
     """What identifies an operation across its trip (the room adds the author
     and the access mode, never changes these)."""

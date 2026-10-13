@@ -138,13 +138,29 @@ def _first_revision(graph: Any, resource_id: str) -> str:
 
 
 def is_proxy_resource(graph: Any, resource_id: str) -> bool:
+    """The resource holds a unit's proxy: the ``proxy_model`` of its chain
+    (``US ─has_property→ geometry ─has_semantic_shape→ SemanticShape
+    ─has_linked_resource→ resource``, the canonical form) — or, read for the
+    rooms an older EMtools filled, a ``<US>.model``."""
+    for rid in dict.fromkeys((resource_id, _first_revision(graph, resource_id))):
+        data = _data(graph.find_node_by_id(rid))
+        if "proxy_model" in (data.get("url_type"), data.get("role"), data.get("kind")) \
+                or str(data.get("role") or data.get("kind") or "") == "proxy":
+            return True
+        if any(_is_geometry_payload(graph, shape.node_id)
+               for shape in _upstream(graph, rid)
+               if getattr(shape, "node_type", None) == "semantic_shape"):
+            return True
     resource_id = _first_revision(graph, resource_id)
-    node = graph.find_node_by_id(resource_id)
-    data = _data(node)
-    if str(data.get("role") or data.get("kind") or "") in ("proxy_model", "proxy"):
-        return True
     return str(resource_id).endswith(".model") and _is_unit(
         graph.find_node_by_id(str(resource_id)[:-len(".model")]))
+
+
+def _is_geometry_payload(graph: Any, shape_id: str) -> bool:
+    """The shape is the payload of a `geometry` property (a unit's proxy)."""
+    return any(getattr(n, "node_type", None) == "property"
+               and getattr(n, "property_type", None) == "geometry"
+               for n in _upstream(graph, shape_id))
 
 
 def _is_unit(node: Any) -> bool:

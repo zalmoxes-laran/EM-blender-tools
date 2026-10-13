@@ -402,6 +402,16 @@ def _operator_classes():  # pragma: no cover — bpy
                                  no_room=why)
             if why:
                 ULTIMA_VERIFICA["no_room"] = why
+            if SESSION.seated:
+                try:
+                    moved = scene_sync.migrate_proxy_models(context, graph)
+                except Exception as exc:  # noqa: BLE001 — the check goes on
+                    moved = {"migrated": []}
+                    print(f"[sync] the proxies were not migrated: {exc}")
+                if moved["migrated"]:
+                    ULTIMA_VERIFICA.setdefault("sentences", []).append(
+                        f"{len(moved['migrated'])} prox{'y' if len(moved['migrated']) == 1 else 'ies'} "
+                        f"moved to the canonical form (property → shape → resource)")
             groups = scene_sync.candidates(context, graph) if SESSION.seated else {
                 "changed": [], "new": [], "baseline": [], "skipped": []}
             report["edited"] = len(groups["changed"])

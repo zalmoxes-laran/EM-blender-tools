@@ -208,11 +208,15 @@ def commands(monkeypatch):
     """
     import types
 
-    package = types.ModuleType("_emtools_pkg")
+    # two levels, as in the addon: `promote_model` reaches `..proxy_chain`
+    root = types.ModuleType("_emtools_pkg")
+    root.__path__ = [str(_REPO)]
+    package = types.ModuleType("_emtools_pkg.sync_manager")
     package.__path__ = [str(_REPO / "sync_manager")]
-    sys.modules["_emtools_pkg"] = package
-    sys.modules["_emtools_pkg.room"] = room
-    module = _load("_emtools_pkg.commands", "sync_manager/commands.py")
+    sys.modules["_emtools_pkg"] = root
+    sys.modules["_emtools_pkg.sync_manager"] = package
+    sys.modules["_emtools_pkg.sync_manager.room"] = room
+    module = _load("_emtools_pkg.sync_manager.commands", "sync_manager/commands.py")
     monkeypatch.setattr(module, "_object_for_target",
                         lambda target, params, context, graph: _FakeObject("US101_proxy"))
     monkeypatch.setattr(module, "_export_gltf",
@@ -227,18 +231,89 @@ def _graph_with_unit():
     return graph
 
 
+def _proxy_resource(graph, unit_id="US101"):
+    """The resource of the unit's proxy, walked along the canonical chain:
+    unit → property(geometry) → SemanticShape → resource."""
+    def out(src, kind):
+        return [graph.find_node_by_id(e.edge_target) for e in graph.edges
+                if e.edge_source == src and e.edge_type == kind]
+    props = [p for p in out(unit_id, "has_property")
+             if p.node_type == "property" and p.property_type == "geometry"]
+    assert len(props) == 1, props
+    shapes = [s for s in out(props[0].node_id, "has_semantic_shape")
+              if s.node_type == "semantic_shape"]
+    assert len(shapes) == 1, shapes
+    resources = [r for r in out(shapes[0].node_id, "has_linked_resource")
+                 if r.node_type == "resource"]
+    assert len(resources) == 1, resources
+    return props[0], shapes[0], resources[0]
+
+
 def test_promoting_a_unit_publishes_the_bytes_and_references_them(commands, fake_room):
     graph = _graph_with_unit()
     result = commands.promote_model("US101", {}, None, graph)
     assert result["ok"], result.get("error")
     assert len(fake_room.store) == 1
 
-    resource = graph.find_node_by_id("US101.model")
+    _prop, _shape, resource = _proxy_resource(graph)
     assert resource.data["residency"] == "reference"
     assert resource.data["checksum"] == room.content_id(b"glTF\x02\x00\x00\x00US101")
     assert resource.data["url"].endswith(resource.data["checksum"])
+
+
+def test_a_units_model_is_its_proxy_in_the_canonical_form(commands, fake_room):
+    """MICRO il proxy arriva come proprietà (13 Oct 2026): the form EMStudio's
+    Space reads, never the `<US>.model` only EMtools knew."""
+    from s3dgraphy.geometry.proxy import proxy_resource_id
+
+    graph = _graph_with_unit()
+    result = commands.promote_model("US101", {"residency": "resident"}, None, graph)
+    prop, shape, resource = _proxy_resource(graph)
+    assert resource.node_id == proxy_resource_id(shape.node_id)
+    assert resource.data["url_type"] == "proxy_model"
+    assert resource.data["residency"] == "resident"
+    assert graph.find_node_by_id("US101.model") is None
+    assert not any(e.edge_source == "US101" and e.edge_type == "has_linked_resource"
+                   for e in graph.edges)
+    assert result["info"]["resource_id"] == resource.node_id
+    assert result["info"]["property_id"] == prop.node_id
+    # the genesis names the chain's resource
+    assert any(e.edge_type == "dtc_had_output" and e.edge_target == resource.node_id
+               for e in graph.edges)
+    # the delta carries the whole chain, for whoever asked by command
+    ids = {n["id"] for n in result["delta"]["nodes"]}
+    assert {prop.node_id, shape.node_id, resource.node_id} <= ids
+    kinds = {e["edge_type"] for e in result["delta"]["edges"]}
+    assert {"has_property", "has_semantic_shape", "has_linked_resource"} <= kinds
+
+
+def test_the_proxy_ids_are_stable(commands, fake_room):
+    a, b = _graph_with_unit(), _graph_with_unit()
+    commands.promote_model("US101", {}, None, a)
+    commands.promote_model("US101", {}, None, b)
+    ids = lambda g: sorted(n.node_id for n in _proxy_resource(g))
+    assert ids(a) == ids(b)
+
+
+def test_promoting_a_unit_again_adds_no_second_chain(commands, fake_room, monkeypatch):
+    graph = _graph_with_unit()
+    commands.promote_model("US101", {}, None, graph)
+    monkeypatch.setattr(commands, "_export_gltf", lambda obj, context: b"glTF changed")
+    commands.promote_model("US101", {}, None, graph)
+    _prop, _shape, resource = _proxy_resource(graph)       # still one of each
+    assert resource.data["checksum"] == room.content_id(b"glTF changed")
+
+
+def test_a_representation_model_keeps_its_own_road(commands, fake_room):
+    """The RM is not a proxy: its `<RM>.model`, linked from the RM, as before."""
+    from s3dgraphy.nodes.representation_node import RepresentationModelNode
+
+    graph = _graph_with_unit()
+    graph.add_node(RepresentationModelNode("RM1", name="RM1"))
+    commands.promote_model("RM1", {}, None, graph)
     triples = {(e.edge_source, e.edge_type, e.edge_target) for e in graph.edges}
-    assert ("US101", "has_linked_resource", "US101.model") in triples
+    assert ("RM1", "has_linked_resource", "RM1.model") in triples
+    assert not any(e.edge_type == "has_property" for e in graph.edges)
 
 
 def test_the_genesis_is_attributed_to_the_identity_the_room_reports(commands, fake_room):
@@ -254,7 +329,8 @@ def test_the_genesis_is_attributed_to_the_identity_the_room_reports(commands, fa
 def test_the_delta_comes_back_and_carries_the_reference(commands, fake_room):
     graph = _graph_with_unit()
     delta = commands.promote_model("US101", {}, None, graph)["delta"]
-    resource = next(n for n in delta["nodes"] if n["id"] == "US101.model")
+    rid = _proxy_resource(graph)[2].node_id
+    resource = next(n for n in delta["nodes"] if n["id"] == rid)
     assert resource["data"]["residency"] == "reference"
     assert resource["data"]["media_type"] == "model/gltf-binary"
     assert any(e["edge_type"] == "has_linked_resource" for e in delta["edges"])
@@ -291,6 +367,8 @@ def test_when_the_upload_fails_the_graph_is_not_written(commands, fake_room):
     result = commands.promote_model("US101", {}, None, graph)
     assert result["ok"] is False and "token" in result["error"]
     assert graph.find_node_by_id("US101.model") is None
+    assert not any(n.node_type in ("property", "semantic_shape", "resource")
+                   for n in graph.nodes)
 
 
 def test_the_verb_is_declared_by_name(commands):
