@@ -68,6 +68,55 @@ def library_relpath(asset_id: str, room: Optional[str]) -> str:
     return "/".join((CACHE_DIR, safe(room or "local"), f"{safe(asset_id)}.blend"))
 
 
+def sent_relpath(digest: Any, ext: str = "") -> str:
+    """`em_cache/files/<hex[:2]>/<hex><ext>` — where a file is kept by its
+    digest: the name «Keep on this computer» writes and the one resolver
+    reads (`locate.in_cache`)."""
+    hexd = _digest(digest)[len("sha256:"):]
+    ext = ext if not ext or ext.startswith(".") else "." + ext
+    return "/".join((CACHE_DIR, "files", hexd[:2], hexd + ext[:8].lower()))
+
+
+def keep_sent(digest: Any, *, path: str = "", data: Optional[bytes] = None,
+              ext: str = "", root: Optional[str] = None) -> str:
+    """MICRO-CACHE-E-RIGA (13 Oct 2026) · the bytes this computer just sent
+    stay in its cache, under the name the resolver looks for — so what was
+    sent is «Here and on the node», never a Download. Measured at 20:36:
+    after «Sync the scene…» four new proxy revisions read «only on the node»,
+    and Download fetched back what had just been exported.
+
+    `data` (the bytes in memory) or `path` (a file); ``root`` is the folder
+    of the cache (default: beside the .blend). → the path kept, "" when there
+    was nothing to keep or it could not be written — a copy that fails never
+    fails the upload it follows."""
+    hexd = _digest(digest)[len("sha256:"):]
+    if not hexd or (data is None and not (path and os.path.isfile(path))):
+        return ""
+    if not ext and path:
+        ext = os.path.splitext(path)[1]
+    try:
+        base = root if root is not None else cache_folder()
+        dest = os.path.join(base, *sent_relpath(hexd, ext).split("/"))
+        folder = os.path.dirname(dest)
+        if os.path.isdir(folder) and any(n == hexd or n.startswith(hexd + ".")
+                                         for n in os.listdir(folder)):
+            return dest                          # these bytes are kept already
+        os.makedirs(folder, exist_ok=True)
+        # written aside under a name the resolver does not take for the file
+        part = os.path.join(folder, f".part-{hexd}")
+        if data is not None:
+            with open(part, "wb") as fh:
+                fh.write(data)
+        else:
+            import shutil
+            shutil.copyfile(path, part)
+        os.replace(part, dest)
+        return dest
+    except Exception as exc:  # noqa: BLE001 — the upload is done; the cache follows
+        print(f"[cache] the bytes sent were not kept here: {exc}")
+        return ""
+
+
 def mesh_name(base: str, level: str) -> str:
     """The name of a version's mesh inside its asset's library."""
     return f"{base}{SEP}{level}"

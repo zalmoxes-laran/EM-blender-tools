@@ -193,6 +193,7 @@ def put_asset(data: bytes, media_type: str = GLTF_MEDIA_TYPE,
     # answer says so (`already`) — «uploaded 66 (0 B)» counted as uploads models
     # that never travelled
     if _room_has(local):
+        _keep_here(local, data, media_type)
         return {"ref": local, "sha256": local, "size": len(data),
                 "media_type": media_type, "created": False, "already": True,
                 "author": None, "url": asset_url(local)}
@@ -218,7 +219,19 @@ def put_asset(data: bytes, media_type: str = GLTF_MEDIA_TYPE,
                         f"than the bytes we sent ({local})")
     info["url"] = asset_url(info["ref"])
     info["already"] = not info.get("created", True)
+    _keep_here(local, data, media_type)
     return info
+
+
+def _keep_here(ref: str, data: bytes, media_type: str) -> None:
+    """MICRO-CACHE-E-RIGA · bytes sent from here stay here: the cache keeps
+    them by their digest (`asset_versions.keep_sent`), so the files say
+    «Here and on the node» and offer no Download of what was just sent."""
+    try:
+        from .asset_versions import keep_sent
+    except ImportError:          # loaded by path, outside the package (the suite)
+        return
+    keep_sent(ref, data=data, ext=".glb" if media_type == GLTF_MEDIA_TYPE else "")
 
 
 def _room_has(ref: str, timeout: float = 30.0) -> bool:

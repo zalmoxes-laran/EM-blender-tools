@@ -91,7 +91,9 @@ def resolve_active(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover 
                    "models": model_states(graph, results)})
     try:                                   # the Storage list is rebuilt with the results
         from . import files_list
-        files_list.fill(context, files_list.build_rows(graph, results, ULTIMI["described"]))
+        rows = files_list.build_rows(graph, results, ULTIMI["described"])
+        ULTIMI["assets"] = {x["id"]: x["members"] for x in rows if x.get("members")}
+        files_list.fill(context, rows)
     except Exception as exc:  # noqa: BLE001 — the old rows still say something
         ULTIMI["list_error"] = str(exc)
     return results
@@ -274,6 +276,22 @@ def _upload_by_reference(where: Dict[str, Any], row: Dict[str, Any]) -> Dict[str
     return out
 
 
+def _send(where, path, sha256, media_type=""):
+    """The bytes at `path` into the room's store (by reference on a
+    personal node)."""
+    from . import room as room_cfg
+    from .asset_upload import upload_asset
+    from .asset_versions import keep_sent
+    if _personal(where["base_url"]):
+        return _upload_by_reference(where, {"path": path, "sha256": sha256})
+    out = upload_asset(where["base_url"], where["room_id"], path, sha256 or None,
+                       media_type, room_cfg._session.get("token"))
+    # MICRO-CACHE-E-RIGA · what was sent from here is kept here, by its
+    # digest, before the states are read again: «Here and on the node»
+    keep_sent(out.get("sha256") or sha256, path=path)
+    return out
+
+
 def _operator_classes():  # pragma: no cover — bpy
     import bpy  # type: ignore
 
@@ -325,16 +343,6 @@ def _operator_classes():  # pragma: no cover — bpy
             relink(graph, self.resource_id, bpy.path.abspath(self.filepath))
             resolve_active(context, graph)
             return {"FINISHED"}
-
-    def _send(where, path, sha256, media_type=""):
-        """The bytes at `path` into the room's store (by reference on a
-        personal node)."""
-        from . import room as room_cfg
-        from .asset_upload import upload_asset
-        if _personal(where["base_url"]):
-            return _upload_by_reference(where, {"path": path, "sha256": sha256})
-        return upload_asset(where["base_url"], where["room_id"], path, sha256 or None,
-                            media_type, room_cfg._session.get("token"))
 
     def _store_url(graph):
         from .commands import _store_url as store_url_of
@@ -477,7 +485,7 @@ def _operator_classes():  # pragma: no cover — bpy
             import hashlib
             from . import room as room_cfg
             from .asset_upload import asset_url
-            from .asset_versions import CACHE_DIR, cache_folder
+            from .asset_versions import cache_folder, sent_relpath
             import urllib.request
             graph = _graph(context)
             where = room_cfg.room()
@@ -493,7 +501,7 @@ def _operator_classes():  # pragma: no cover — bpy
                 if not hexd:
                     continue
                 ext = os.path.splitext(r.get("name") or "")[1][:8]
-                dest = os.path.join(cache_folder(), CACHE_DIR, "files", hexd[:2], hexd + ext)
+                dest = os.path.join(cache_folder(), *sent_relpath(hexd, ext).split("/"))
                 if os.path.exists(dest):
                     continue
                 req = urllib.request.Request(asset_url(where["base_url"], where["room_id"], hexd),
