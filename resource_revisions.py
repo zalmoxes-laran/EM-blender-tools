@@ -85,10 +85,15 @@ def move_citations(graph, old_id: str, new_id: str, edge_ids: Iterable[str]) -> 
     """Sposta le citazioni scelte da `old_id` a `new_id`. → quante.
 
     Come `movePointers` di EMStudio: l'arco si toglie e si rifà verso la
-    revisione, con l'id in cui il vecchio id è sostituito dal nuovo (o lo
-    stesso, se l'id non lo nomina). Un arco della catena DTC non si sposta
-    mai, anche se qualcuno lo chiede: è un fatto sui byte vecchi.
+    revisione, con l'id in cui il vecchio id è sostituito dal nuovo. Un id
+    che non nomina la risorsa (quelli coniati da s3Dgraphy) ne prende uno
+    derivato: l'arco spostato non può tenere l'id di quello tolto — misurato
+    il 13 ott 2026, il delta verso la stanza confronta per id e non vedeva lo
+    spostamento, e chi applica un `add_edge` scarta un id che ha già. Un arco
+    della catena DTC non si sposta mai, anche se qualcuno lo chiede: è un
+    fatto sui byte vecchi.
     """
+    import uuid
     chain = chain_edge_types()
     want = set(edge_ids or ())
     moved = 0
@@ -98,6 +103,9 @@ def move_citations(graph, old_id: str, new_id: str, edge_ids: Iterable[str]) -> 
         attrs = dict(getattr(e, "attributes", None) or {})
         graph.remove_edge(e.edge_id)
         nid = str(e.edge_id).replace(old_id, new_id)
+        if nid == e.edge_id:
+            nid = str(uuid.uuid5(uuid.NAMESPACE_URL,
+                                 f"em-citation|{e.edge_source}|{e.edge_type}|{new_id}"))
         if graph.find_edge_by_id(nid) is None:
             edge = graph.add_edge(nid, e.edge_source, new_id, e.edge_type)
             if attrs and edge is not None:

@@ -125,6 +125,30 @@ def plan_rejoin(base: Optional[str], gc_watermark: Optional[str]) -> str:
     return "resume" if str(base) >= str(gc_watermark) else "resync"
 
 
+#: the nodes the room has tombstoned (read off its snapshot, or arrived as a
+#: `remove_node`) and those this Blender withdrew: what lets the Storage panel
+#: say «withdrawn» of an object whose resource is gone — and not of one that
+#: belongs to another graph
+REMOVED_IN_ROOM: set = set()
+
+
+def removed_node_ids(doc: Dict[str, Any]) -> set:
+    """The ids of the nodes the room's document carries as tombstones."""
+    from s3dgraphy import crdt
+    out: set = set()
+    if not isinstance(doc, dict):
+        return out
+    sections = list((doc.get("graphs") or {}).values()) if isinstance(doc.get("graphs"), dict) else []
+    if isinstance(doc.get("graph"), dict):
+        sections.append(doc["graph"])
+    for sec in sections:
+        if not isinstance(sec, dict) or not isinstance(sec.get("nodes"), list):
+            continue
+        alive = {n.get("id") for n in crdt.live_nodes(sec)}
+        out |= {n.get("id") for n in sec["nodes"] if n.get("id") not in alive}
+    return out
+
+
 def live_view(doc: Dict[str, Any]) -> Dict[str, Any]:
     """The room's document as a VIEW: without what was deleted.
 

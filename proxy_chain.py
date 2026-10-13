@@ -229,18 +229,20 @@ def migrate_unit_models(graph, unit_ids: Optional[Iterable[str]] = None
     ─has_semantic_shape→ SemanticShape ─has_linked_resource→ risorsa``, id da
     `proxy_resource_id`): i fatti sui byte (url, checksum, residenza…) passano
     a lei, la genesi (``dtc_had_output``) la nomina, e l'unità smette di
-    citare la ``<US>.model``. Quella resta nel grafo com'era — la
-    pubblicazione di allora è un fatto — ma non è più il proxy di nessuno.
+    citare la ``<US>.model``. Poi la ``<US>.model`` esce dal grafo
+    (`resource_governance.close_legacy_models`, 13 ott 2026): lasciata viva,
+    nessuna revisione la superava e `materialise` la riportava in scena appena
+    il proxy veniva modificato. I suoi byte restano nello store.
 
     Una catena che ha già byte DIVERSI non viene sovrascritta: lo si dice e
     la ``<US>.model`` resta citata. Idempotente: un secondo passaggio non
     trova niente da fare.
 
-    Returns ``{migrated: [{unit_id, old, new}], warnings}``.
+    Returns ``{migrated: [{unit_id, old, new}], closed, warnings}``.
     """
     import uuid
 
-    report: Dict[str, Any] = {"migrated": [], "warnings": []}
+    report: Dict[str, Any] = {"migrated": [], "closed": [], "warnings": []}
     for unit_id, unit, old in legacy_unit_models(graph, unit_ids):
         chain = ensure_unit_proxy(graph, unit_id, getattr(unit, "name", None) or unit_id)
         new = graph.find_node_by_id(chain.get("resource_id") or "")
@@ -275,6 +277,15 @@ def migrate_unit_models(graph, unit_ids: Optional[Iterable[str]] = None
                 graph.remove_edge(edge.edge_id)
         report["migrated"].append({"unit_id": unit_id, "old": old.node_id,
                                    "new": new.node_id})
+    if report["migrated"]:
+        try:
+            from . import resource_governance as governance
+        except ImportError:
+            import resource_governance as governance
+        closed = governance.close_legacy_models(
+            graph, [m["unit_id"] for m in report["migrated"]])
+        report["closed"] = closed["closed"]
+        report["warnings"] += closed["warnings"]
     return report
 
 

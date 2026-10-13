@@ -510,6 +510,8 @@ def _apply_wire_op(op: dict, context, graph) -> bool:
     if kind == "remove_node":
         nid = op.get("id") or op.get("node_id")
         if nid and graph.find_node_by_id(nid):
+            from .room_session import REMOVED_IN_ROOM
+            REMOVED_IN_ROOM.add(nid)
             graph.remove_node(nid)
             return True
         return False
@@ -1824,7 +1826,8 @@ def _adopt_snapshot(doc: dict, context) -> str:
         return "the room sent no document"
     path = None
     try:
-        from .room_session import live_view
+        from .room_session import REMOVED_IN_ROOM, live_view, removed_node_ids
+        REMOVED_IN_ROOM.update(removed_node_ids(doc))
         doc = live_view(doc)
         with tempfile.NamedTemporaryFile("w", suffix=".em.json", delete=False,
                                          encoding="utf-8") as handle:

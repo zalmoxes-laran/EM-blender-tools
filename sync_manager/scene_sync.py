@@ -101,7 +101,8 @@ def section_delta_ops(before: Dict[str, Any], after: Dict[str, Any]
                       ) -> List[Dict[str, Any]]:
     """The changes from one em.json section to another, as local changes
     `emit_op` takes: a new node whole, a changed node by its changed fields
-    (a field that went is an emptying, `remove`), a new edge, an edge gone."""
+    (a field that went is an emptying, `remove`), a new edge, an edge gone, a
+    node gone (a tombstone: «Withdraw», the old proxy form closed)."""
     old_nodes = {n.get("id"): n for n in before.get("nodes") or [] if n.get("id")}
     new_nodes = {n.get("id"): n for n in after.get("nodes") or [] if n.get("id")}
     ops: List[Dict[str, Any]] = []
@@ -124,14 +125,26 @@ def section_delta_ops(before: Dict[str, Any], after: Dict[str, Any]
                             "value": now[field]})
     old_edges = {e.get("id"): e for e in before.get("edges") or [] if e.get("id")}
     new_edges = {e.get("id"): e for e in after.get("edges") or [] if e.get("id")}
-    for eid, e in new_edges.items():
-        if eid not in old_edges:
-            ops.append({"op": "add_edge", "id": eid, "source": e.get("source"),
-                        "target": e.get("target"), "edge_type": e.get("edge_type")})
+
+    def triple(e):
+        return (e.get("source"), e.get("edge_type"), e.get("target"))
+
+    # an edge that kept its id but changed its ends is a removal and an
+    # addition (the room matches a removal by id OR by its ends)
+    changed = {eid for eid, e in new_edges.items()
+               if eid in old_edges and triple(old_edges[eid]) != triple(e)}
     for eid, e in old_edges.items():
-        if eid not in new_edges:
+        if eid not in new_edges or eid in changed:
             ops.append({"op": "remove_edge", "id": eid, "source": e.get("source"),
                         "target": e.get("target"), "edge_type": e.get("edge_type")})
+    for eid, e in new_edges.items():
+        if eid not in old_edges or eid in changed:
+            ops.append({"op": "add_edge", "id": eid, "source": e.get("source"),
+                        "target": e.get("target"), "edge_type": e.get("edge_type")})
+    # a node gone is a tombstone, after its edges
+    for nid in old_nodes:
+        if nid not in new_nodes:
+            ops.append({"op": "remove_node", "id": nid})
     return ops
 
 
@@ -229,58 +242,92 @@ def _section(graph) -> Dict[str, Any]:  # pragma: no cover — bpy
     return graph_to_emjson_dict(graph).get("graph") or {}
 
 
+def to_the_room(graph, change) -> Any:  # pragma: no cover — bpy
+    """Run `change(graph)` and send what it changed to the room, as operations
+    (P1: a dropped connection keeps them). → what `change` returned."""
+    from . import operators as ops
+    before = _section(graph)
+    out = change(graph)
+    for op in section_delta_ops(before, _section(graph)):
+        ops.emit_op(op)
+    return out
+
+
 def _revise(context, graph, model) -> Dict[str, Any]:  # pragma: no cover — bpy
     """A changed model: its bytes up, a revision of its resource, the
     citations moved to it."""
     import bpy  # type: ignore
-    from . import commands
-    from . import room as room_cfg
 
     obj = bpy.data.objects.get(model["object"])
     rid = str(obj.get("em_resource_id") or "") if obj is not None else ""
     if obj is None or not rid or graph.find_node_by_id(rid) is None:
         return {"ok": False, "error": f"{model['object']}: no resource to revise"}
+    return revise_object(context, graph, obj, rid, kind=model.get("kind") or "",
+                         target=model.get("target") or "")
+
+
+def revise_object(context, graph, obj, rid: str, *, kind: str = "",
+                  target: str = "") -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The object's mesh as a revision of the resource `rid` (of its CURRENT
+    revision: `resource_governance.revise_and_cite`), its citations moved;
+    nothing written when the current revision already has these bytes. Also
+    «Replace with the scene's object» of the Storage panel."""
+    from . import commands
+    from . import room as room_cfg
+    from .. import resource_governance as governance
+
+    # a proxy's glb is its chain's resource: the object may still be bound to
+    # the `<US>.model` of before or to an old revision — the chain is the one
+    # revised, once (measured 13 Oct 2026: revising the object's resource and
+    # then the chain's made two revisions of the same bytes)
+    if kind == "proxy" and target:
+        try:
+            from ..proxy_chain import glb_proxy
+            _shape, chain = glb_proxy(graph, target)
+        except Exception:  # noqa: BLE001
+            chain = None
+        if chain is not None:
+            rid = chain.node_id
     data = commands._export_gltf(obj, context)
     info = room_cfg.put_asset(data, room_cfg.GLTF_MEDIA_TYPE)
     spec = {"path": f"{obj.name}.glb", "url": info["url"], "checksum": info["sha256"],
             "size_bytes": len(data), "media_type": room_cfg.GLTF_MEDIA_TYPE}
-    new_id = _revision(graph, rid, spec)
-    if not new_id:
-        return {"ok": False, "error": f"{model['object']}: the bytes did not change"}
-    # a proxy's glb is also its chain's resource (`_fill_proxy_chain`): the
-    # same bytes, the same revision — or the next check would owe the scene
-    # the old glb
-    if model.get("kind") == "proxy":
-        try:
-            from ..proxy_chain import glb_proxy
-            _shape, chain = glb_proxy(graph, model["target"])
-        except Exception:  # noqa: BLE001
-            chain = None
-        if chain is not None and chain.node_id != rid:
-            _revision(graph, chain.node_id, spec)
-    obj["em_resource_id"] = new_id
+    out = governance.revise_and_cite(graph, rid, spec)
+    obj["em_resource_id"] = out["resource_id"]
     obj["em_asset_sha256"] = info["ref"]
     record_fingerprint(obj)
-    return {"ok": True, "info": {"object": obj.name, "resource_id": new_id,
-                                 "revision_of": rid, "size": len(data),
+    if not out["created"]:
+        return {"ok": True, "info": {"object": obj.name, "resource_id": out["resource_id"],
+                                     "revision_of": None, "size": 0, "same": True,
+                                     "stored": False}}
+    return {"ok": True, "info": {"object": obj.name, "resource_id": out["resource_id"],
+                                 "revision_of": out["revision_of"], "size": len(data),
                                  "stored": bool(info.get("created"))}}
 
 
-def _revision(graph, rid: str, spec: Dict[str, Any]) -> Optional[str]:  # pragma: no cover — bpy
-    """`rid` revised with the bytes of `spec`, resident, its citations moved."""
-    from .. import resource_revisions as revisions
-    out = revisions.revise_files(graph, rid, [spec], force=True)
-    new_id = out.get("new_resource_id")
-    if not new_id:
-        return None
-    node = graph.find_node_by_id(new_id)
-    if node is not None:
-        node.data = dict(getattr(node, "data", None) or {})
-        node.data.update({"url": spec["url"], "checksum": spec["checksum"],
-                          "residency": "resident"})
-    citing, _staying = revisions.split_pointers(out.get("pointing_at_old") or [])
-    revisions.move_citations(graph, rid, new_id, [c["edge_id"] for c in citing])
-    return new_id
+def repair_versions(graph) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """A room migrated before the old form was closed, or revised before the
+    citation moved: the `<US>.model` left alive are closed, the proxy shapes
+    citing a superseded revision cite the current one, and the objects bound
+    to an old revision with the current one's bytes are bound to it."""
+    import bpy  # type: ignore
+    from .. import resource_governance as governance
+    from .materialise import PROP_DIGEST, PROP_RESOURCE
+
+    closed = governance.close_legacy_models(graph)
+    forwarded = governance.forward_proxy_citations(graph)
+    rebound = 0
+    for obj in bpy.data.objects:
+        rid = str(obj.get(PROP_RESOURCE) or "")
+        if not rid or graph.find_node_by_id(rid) is None:
+            continue
+        head = governance.head_of(graph, rid)
+        if head != rid and governance.object_status(
+                graph, rid, str(obj.get(PROP_DIGEST) or "")) == governance.STATUS_CURRENT:
+            obj[PROP_RESOURCE] = head
+            rebound += 1
+    return {"closed": closed["closed"], "warnings": closed["warnings"],
+            "forwarded": forwarded, "rebound": rebound}
 
 
 def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover — bpy
@@ -295,12 +342,26 @@ def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover 
     from ..proxy_chain import legacy_unit_models, migrate_old_proxies, migrate_unit_models
     from . import operators as ops
 
-    if not legacy_unit_models(graph) or not ops.current_session(context).can_write:
-        return {"migrated": [], "warnings": [], "ops": 0}
+    if not ops.current_session(context).can_write:
+        return {"migrated": [], "closed": [], "warnings": [], "ops": 0}
     before = _section(graph)
-    migrate_old_proxies(graph)
-    report = migrate_unit_models(graph)
+    if legacy_unit_models(graph):
+        migrate_old_proxies(graph)
+        report = migrate_unit_models(graph)
+    else:
+        report = {"migrated": [], "closed": [], "warnings": []}
+    # …and what an earlier sync left: the old form alive, a citation behind
+    repaired = repair_versions(graph)
+    report["closed"] = list(report.get("closed") or []) + repaired["closed"]
+    report["warnings"] = list(report["warnings"]) + repaired["warnings"]
+    report["forwarded"] = repaired["forwarded"]
     delta = section_delta_ops(before, _section(graph))
+    if not delta and not report["migrated"]:
+        report["ops"] = 0
+        return report
+    from . import room_session
+    for item in report["closed"]:
+        room_session.REMOVED_IN_ROOM.update(item["removed"])
     for op in delta:
         ops.emit_op(op)
     moved = {m["old"]: m["new"] for m in report["migrated"]}
@@ -314,6 +375,8 @@ def migrate_proxy_models(context, graph) -> Dict[str, Any]:  # pragma: no cover 
         em_log = print
     em_log(f"[sync] proxies migrated to the canonical form (property → shape → "
            f"resource): {', '.join(m['unit_id'] for m in report['migrated']) or 'none'}"
+           f" · old form closed: {', '.join(i for c in report['closed'] for i in c['removed']) or 'none'}"
+           f" · citations moved to the current revision: {len(report['forwarded'])}"
            f" · {len(delta)} change(s) to the room"
            + (f" · {'; '.join(report['warnings'])}" if report["warnings"] else ""),
            "WARNING")

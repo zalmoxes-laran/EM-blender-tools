@@ -100,13 +100,14 @@ def test_the_old_model_becomes_the_canonical_chain():
     assert new.data["residency"] == "resident"
     assert new.data["url_type"] == "proxy_model"
     assert g.find_node_by_id(props[0]).property_type == "geometry"
-    # the unit no longer cites the old resource; the old one stays, as history
+    # the unit no longer cites the old resource, and the old one is out of
+    # the live graph (13 Oct 2026: left alive, it came back into the scene)
     assert ("US3", "has_linked_resource", "US3.model") not in _triples(g)
-    assert g.find_node_by_id("US3.model") is not None
-    # the genesis names the new one too
-    process = next(e.edge_source for e in g.edges
-                   if e.edge_type == "dtc_had_output" and e.edge_target == "US3.model")
-    assert (process, "dtc_had_output", res[0]) in _triples(g)
+    assert g.find_node_by_id("US3.model") is None
+    assert report["closed"][0]["removed"] == ["US3.model"]
+    # the genesis names the new one
+    assert any(e.edge_type == "dtc_had_output" and e.edge_target == res[0]
+               for e in g.edges)
     # a unit without the old form is not touched
     assert _chain(g, "US4") == ([], [], [])
 
@@ -162,8 +163,11 @@ def test_the_migration_reaches_the_room_as_operations():
     assert {"has_property", "has_semantic_shape", "has_linked_resource",
             "dtc_had_output"} <= added
     removed = [o for o in ops if o["op"] == "remove_edge"]
-    assert [(o["source"], o["edge_type"], o["target"]) for o in removed] == \
-        [("US3", "has_linked_resource", "US3.model")]
+    assert {(o["edge_type"], o["target"]) for o in removed} == \
+        {("has_linked_resource", "US3.model"), ("dtc_had_output", "US3.model")}
+    # the old form closed: a tombstone, after its edges
+    assert [o["id"] for o in ops if o["op"] == "remove_node"] == ["US3.model"]
+    assert kinds[-1] == "remove_node"
 
 
 def test_is_proxy_resource_reads_the_canonical_chain_and_the_old_form():

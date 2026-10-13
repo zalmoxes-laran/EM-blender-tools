@@ -397,21 +397,31 @@ def _operator_classes():  # pragma: no cover — bpy
             if self.download:
                 joined, why = ensure_room(context)
             SESSION = ops.current_session(context)
+            # the migration and the repair BEFORE the download: an old form
+            # left alive would otherwise be materialised once more
+            moved = {"migrated": []}
+            if SESSION.seated:
+                try:
+                    moved = scene_sync.migrate_proxy_models(context, graph)
+                except Exception as exc:  # noqa: BLE001 — the check goes on
+                    print(f"[sync] the proxies were not migrated: {exc}")
             report = check_scene(context, graph,
                                  download=bool(self.download and joined),
                                  no_room=why)
             if why:
                 ULTIMA_VERIFICA["no_room"] = why
-            if SESSION.seated:
-                try:
-                    moved = scene_sync.migrate_proxy_models(context, graph)
-                except Exception as exc:  # noqa: BLE001 — the check goes on
-                    moved = {"migrated": []}
-                    print(f"[sync] the proxies were not migrated: {exc}")
-                if moved["migrated"]:
-                    ULTIMA_VERIFICA.setdefault("sentences", []).append(
-                        f"{len(moved['migrated'])} prox{'y' if len(moved['migrated']) == 1 else 'ies'} "
-                        f"moved to the canonical form (property → shape → resource)")
+            if moved["migrated"]:
+                ULTIMA_VERIFICA.setdefault("sentences", []).append(
+                    f"{len(moved['migrated'])} prox{'y' if len(moved['migrated']) == 1 else 'ies'} "
+                    f"moved to the canonical form (property → shape → resource)")
+            if moved.get("closed"):
+                ULTIMA_VERIFICA.setdefault("sentences", []).append(
+                    f"{len(moved['closed'])} old proxy resource(s) withdrawn from the "
+                    f"room (their bytes are the canonical chain's)")
+            if moved.get("forwarded"):
+                ULTIMA_VERIFICA.setdefault("sentences", []).append(
+                    f"{len(moved['forwarded'])} proxy citation(s) moved to the "
+                    f"current revision")
             groups = scene_sync.candidates(context, graph) if SESSION.seated else {
                 "changed": [], "new": [], "baseline": [], "skipped": []}
             report["edited"] = len(groups["changed"])

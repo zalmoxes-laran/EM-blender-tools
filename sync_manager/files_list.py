@@ -35,10 +35,34 @@ def build_rows(graph, results: List[Dict[str, Any]],
     ``described`` is no longer needed: the library names the file and its document."""
     from s3dgraphy import api
     rows = api.storage_rows(graph, results)
+    revs = _revisions(graph, [x["id"] for x in rows])
     for x in rows:
         x["use"] = ",".join(x["use"])
         x["rm"] = ", ".join(x["rm"])
+        # the revisions of one resource are ONE entry: the current one shows,
+        # the history opens under it (13 Oct 2026: «US 2 · dopo A.glb» twice)
+        r = revs.get(x["id"])
+        x["head"] = r["head"] if r else x["id"]
+        x["revs"] = len(r["chain"]) if r else 1
+        x["rev"] = ("" if not r or len(r["chain"]) < 2 else
+                    "current" if r["head"] == x["id"] else f"{r['index'] + 1}")
     return rows
+
+
+def _revisions(graph, ids):
+    try:
+        from .. import resource_governance as governance
+    except ImportError:              # loaded by path, outside the package (the suite)
+        import resource_governance as governance
+    try:
+        return governance.revision_info(graph, ids)
+    except Exception:  # noqa: BLE001 — a list never fails on a revision it cannot read
+        return {}
+
+
+def is_history(row) -> bool:
+    """A past revision: under its current one, not a row of its own."""
+    return bool(row.get("rev")) and row["rev"] != "current"
 
 
 def siblings(rows: List[Dict[str, Any]], row: Dict[str, Any]) -> List[int]:
@@ -68,6 +92,9 @@ def _classes():  # pragma: no cover — bpy
         tag: bpy.props.StringProperty()  # type: ignore
         rm: bpy.props.StringProperty()  # type: ignore
         search: bpy.props.StringProperty()  # type: ignore
+        head: bpy.props.StringProperty()  # type: ignore
+        rev: bpy.props.StringProperty()  # type: ignore
+        revs: bpy.props.StringProperty()  # type: ignore
 
     class EM_UL_files(bpy.types.UIList):
         def draw_item(self, context, layout, data, item, icon, active_data, active_prop, index):
@@ -75,9 +102,13 @@ def _classes():  # pragma: no cover — bpy
             ic, _text, _meaning = sign("file." + item.state)
             row = layout.row(align=True)
             row.alert = item.state in ("missing", "empty_copy")
-            if item.kind in ("version", "file"):
+            if item.kind in ("version", "file") or (item.rev and item.rev != "current"):
                 row.label(text="", icon="BLANK1")          # a version hangs under its asset
             row.label(text=item.file, icon=ic)
+            if item.rev == "current":
+                row.label(text=f"⟳ {item.revs}")           # its history is under it
+            elif item.rev:
+                row.label(text=f"rev {item.rev}/{item.revs}")
             from . import file_states
             b = (file_states.ULTIMI.get("bucket") or {}).get(item.id)
             if b:
@@ -100,9 +131,11 @@ def _classes():  # pragma: no cover — bpy
             use = getattr(wm, "em_files_use", "all")
             use = "" if use == "all" else use
             words = (getattr(wm, "em_files_query", "") or "").lower().split()
+            history = getattr(wm, "em_files_history", False)
             flags = [self.bitflag_filter_item] * len(items)
             for i, it in enumerate(items):
-                ok = ((not state or it.state == state) and (not kind or it.kind == kind)
+                ok = ((history or not it.rev or it.rev == "current")
+                      and (not state or it.state == state) and (not kind or it.kind == kind)
                       and (not use or use in it.use.split(","))
                       and all(w in it.search for w in words))
                 if not ok:
@@ -364,9 +397,222 @@ def _classes():  # pragma: no cover — bpy
             file_states.ULTIMI["bucket"] = {}
             return {"FINISHED"}
 
+    # ── the versions: which one is current, which is history, which is gone ──
+
+    def _graph_or_report(op, context):
+        from ..functions import is_graph_available
+        ok, graph = is_graph_available(context)
+        if not ok or graph is None:
+            op.report({"ERROR"}, "no graph loaded")
+            return None
+        from . import operators as ops
+        session = ops.current_session(context)
+        if (session.joined or session.seated) and not session.can_write:
+            op.report({"ERROR"}, "you may read this room, not change it")
+            return None
+        return graph
+
+    def _refresh(context, graph):
+        from . import file_states
+        try:
+            file_states.resolve_active(context, graph)
+        except Exception as exc:  # noqa: BLE001 — the gesture is done; the list follows at the next check
+            print(f"[storage] the list was not rebuilt: {exc}")
+
+    class EM_OT_files_use_version(bpy.types.Operator):
+        """Use this version: its bytes become the current revision of the
+        resource (a new revision, the old ones stay as history) and what cited
+        the resource cites it"""
+        bl_idname = "em.files_use_version"
+        bl_label = "Use this version"
+        resource_id: bpy.props.StringProperty()  # type: ignore
+
+        def execute(self, context):
+            from .. import resource_governance as governance
+            from .scene_sync import to_the_room
+            graph = _graph_or_report(self, context)
+            if graph is None:
+                return {"CANCELLED"}
+            try:
+                out = to_the_room(graph, lambda g: governance.use_version(g, self.resource_id))
+            except Exception as exc:  # noqa: BLE001 — the reason is the person's
+                self.report({"ERROR"}, f"could not use this version: {exc}")
+                return {"CANCELLED"}
+            _refresh(context, graph)
+            if not out["created"]:
+                self.report({"INFO"}, "this is already the current version")
+            else:
+                self.report({"INFO"}, f"current again, as a new revision · {out['moved']} "
+                            f"citation(s) moved · «Sync the scene…» brings its bytes here")
+            return {"FINISHED"}
+
+    class EM_OT_files_replace(bpy.types.Operator):
+        """Replace with the scene's object: the selected object is sent as a new
+        revision of this resource; the old revision stays as history"""
+        bl_idname = "em.files_replace"
+        bl_label = "Replace with the scene's object"
+        resource_id: bpy.props.StringProperty()  # type: ignore
+
+        @classmethod
+        def poll(cls, context):
+            obj = context.active_object
+            return obj is not None and obj.type == "MESH"
+
+        def invoke(self, context, event):
+            return context.window_manager.invoke_confirm(self, event)
+
+        def execute(self, context):
+            from . import operators as ops
+            from .scene_sync import revise_object, to_the_room
+            graph = _graph_or_report(self, context)
+            if graph is None:
+                return {"CANCELLED"}
+            if not ops.current_session(context).seated:
+                self.report({"ERROR"}, "not in a room: there is nowhere to send the bytes to")
+                return {"CANCELLED"}
+            obj = context.active_object
+            try:
+                out = to_the_room(graph, lambda g: revise_object(context, g, obj, self.resource_id))
+            except Exception as exc:  # noqa: BLE001
+                self.report({"ERROR"}, f"{obj.name}: not sent ({exc})")
+                return {"CANCELLED"}
+            _refresh(context, graph)
+            info = out["info"]
+            self.report({"INFO"}, f"{obj.name}: the current revision already has these bytes"
+                        if info.get("same") else
+                        f"{obj.name} sent as a new revision ({info['size'] / 1e6:.1f} MB)")
+            return {"FINISHED"}
+
+    class EM_OT_files_withdraw(bpy.types.Operator):
+        """Withdraw from the room: the resource and its revisions leave the
+        graph (tombstones, signed by you). The bytes stay in the node's store,
+        as history"""
+        bl_idname = "em.files_withdraw"
+        bl_label = "Withdraw from the room…"
+        resource_id: bpy.props.StringProperty()  # type: ignore
+
+        def invoke(self, context, event):
+            from .. import resource_governance as governance
+            graph = _graph_or_report(self, context)
+            if graph is None:
+                return {"CANCELLED"}
+            self.plan = governance.withdraw_plan(graph, self.resource_id)
+            return context.window_manager.invoke_props_dialog(self, width=520)
+
+        def draw(self, context):
+            plan = getattr(self, "plan", None) or {"members": [], "files": [], "citing": []}
+            col = self.layout.column()
+            box = col.box()
+            box.alert = True
+            box.label(text="This withdraws the resource from the room's graph.", icon="ERROR")
+            box.label(text="Everybody in the room stops seeing it; its bytes stay in the store.")
+            n = len(plan["members"])
+            col.label(text=f"{n} revision(s)" + (f" and {len(plan['files'])} file node(s)"
+                                                 if plan["files"] else ""), icon="FILE")
+            if plan["citing"]:
+                col.label(text="It is cited by — these citations go with it:", icon="LINKED")
+                for c in plan["citing"][:8]:
+                    col.label(text=f"{c['source_name']}  ({c['edge_type'].replace('_', ' ')})",
+                              icon="BLANK1")
+                if len(plan["citing"]) > 8:
+                    col.label(text=f"… and {len(plan['citing']) - 8} more", icon="BLANK1")
+            else:
+                col.label(text="Nothing cites it.", icon="CHECKMARK")
+
+        def execute(self, context):
+            from .. import resource_governance as governance
+            from .room_session import REMOVED_IN_ROOM
+            from .scene_sync import to_the_room
+            graph = _graph_or_report(self, context)
+            if graph is None:
+                return {"CANCELLED"}
+            plan = to_the_room(graph, lambda g: governance.withdraw(g, self.resource_id))
+            REMOVED_IN_ROOM.update(plan["members"] + plan["files"])
+            _refresh(context, graph)
+            self.report({"INFO"}, f"withdrawn: {len(plan['members'])} revision(s), "
+                        f"{len(plan['citing'])} citation(s) with them · the objects in the "
+                        f"scene that show it are marked «withdrawn»")
+            return {"FINISHED"}
+
+    class EM_OT_files_remove_from_scene(bpy.types.Operator):
+        """Remove from the scene the objects whose resource is superseded or
+        withdrawn (one, or all of them). Nothing in the room changes"""
+        bl_idname = "em.files_remove_from_scene"
+        bl_label = "Remove from the scene"
+        bl_options = {"REGISTER", "UNDO"}
+        object_name: bpy.props.StringProperty(default="")  # type: ignore
+
+        def execute(self, context):
+            names = ([self.object_name] if self.object_name
+                     else [o["object"] for o in marked_objects(context)])
+            gone = 0
+            for name in names:
+                obj = bpy.data.objects.get(name)
+                if obj is not None:
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                    gone += 1
+            self.report({"INFO"}, f"{gone} object(s) removed from the scene")
+            return {"FINISHED"}
+
     return (EMFileRow, EM_UL_files, EM_OT_files_select, EM_OT_files_find_moved,
             EM_OT_files_relink_moved, EM_OT_files_bucket_check, EM_OT_files_bucket_promote,
-            EM_OT_files_free_local)
+            EM_OT_files_free_local, EM_OT_files_use_version, EM_OT_files_replace,
+            EM_OT_files_withdraw, EM_OT_files_remove_from_scene)
+
+
+def marked_objects(context) -> List[Dict[str, Any]]:  # pragma: no cover — bpy
+    """The objects of the scene bound to a resource that is superseded (a newer
+    revision has other bytes) or withdrawn: ``[{object, status, resource}]``."""
+    import bpy  # type: ignore
+    from .. import resource_governance as governance
+    from ..functions import is_graph_available
+    from .materialise import PROP_DIGEST, PROP_RESOURCE
+    from .room_session import REMOVED_IN_ROOM
+    ok, graph = is_graph_available(context)
+    if not ok or graph is None:
+        return []
+    # drawn at every redraw: read again only when the graph, the objects or
+    # the room's tombstones changed
+    key = (id(graph), len(graph.nodes), len(graph.edges), len(bpy.data.objects),
+           len(REMOVED_IN_ROOM),
+           hash(tuple(str(o.get(PROP_RESOURCE) or "") for o in bpy.data.objects)))
+    if _MARKED.get("key") == key:
+        return _MARKED["rows"]
+    out = []
+    for obj in bpy.data.objects:
+        rid = str(obj.get(PROP_RESOURCE) or "")
+        if not rid:
+            continue
+        status = governance.object_status(graph, rid, str(obj.get(PROP_DIGEST) or ""),
+                                          removed=REMOVED_IN_ROOM)
+        if status:
+            out.append({"object": obj.name, "status": status, "resource": rid})
+    _MARKED.update(key=key, rows=out)
+    return out
+
+
+_MARKED: Dict[str, Any] = {}
+
+
+def draw_marked(layout, context) -> None:  # pragma: no cover — bpy
+    """The objects in the scene that show a superseded or withdrawn resource,
+    each with the gesture that removes it — never removed by themselves."""
+    marked = marked_objects(context)
+    if not marked:
+        return
+    box = layout.box()
+    head = box.row(align=True)
+    head.alert = True
+    head.label(text=f"In the scene, not current: {len(marked)}", icon="ERROR")
+    head.operator("em.files_remove_from_scene", text="Remove all",
+                  icon="TRASH").object_name = ""
+    for m in marked[:10]:
+        row = box.row(align=True)
+        row.label(text=f"{m['object']} — {m['status']}", icon="OBJECT_DATA")
+        row.operator("em.files_remove_from_scene", text="",
+                     icon="X").object_name = m["object"]
+    if len(marked) > 10:
+        box.label(text=f"… and {len(marked) - 10} more")
 
 
 def fill(context, rows: List[Dict[str, Any]]) -> None:  # pragma: no cover — bpy
@@ -409,6 +655,7 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     from . import room as room_cfg
     from ..state_symbols import sign
     wm = context.window_manager
+    draw_marked(layout, context)
     draw_moved(layout, context)
     draw_bucket(layout, context)
     q = layout.row(align=True)
@@ -416,6 +663,7 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     f = layout.row(align=True)
     f.prop(wm, "em_files_kind", text="")
     f.prop(wm, "em_files_use", text="")
+    f.prop(wm, "em_files_history", text="", icon="RECOVER_LAST")
     layout.template_list("EM_UL_files", "", wm, "em_files", wm, "em_files_index", rows=8)
     try:
         it = wm.em_files[wm.em_files_index]
@@ -450,7 +698,20 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
                   icon="WORLD")
         if b.get("bucket"):
             col.label(text=b["bucket"], icon="BLANK1")
-    near = [i for i, x in enumerate(wm.em_files) if x.asset == it.asset and x.id != it.id]
+    history = [i for i, x in enumerate(wm.em_files) if x.head == it.head and x.id != it.id]
+    if it.rev:
+        col.separator()
+        col.label(text=("Current version" if it.rev == "current" else
+                        f"Revision {it.rev} of {it.revs} — not the current one")
+                  + f" · history · {it.revs}:", icon="RECOVER_LAST")
+        for i in sorted(history, key=lambda i: wm.em_files[i].rev != "current"):
+            x = wm.em_files[i]
+            row = col.row(align=True)
+            label = "current" if x.rev == "current" else f"rev {x.rev}"
+            row.operator("em.files_select", text=f"{label} · {x.file}  ({x.tag})",
+                         icon=sign("file." + x.state)[0], emboss=False).index = i
+    near = [i for i, x in enumerate(wm.em_files)
+            if x.asset == it.asset and x.id != it.id and i not in history]
     if near:
         col.separator()
         col.label(text=f"Same asset · {len(near)}:", icon="LINKED")
@@ -473,6 +734,22 @@ def draw(layout, context, results) -> None:  # pragma: no cover — bpy
     if res and res.get("path"):
         acts.operator("em.files_open_where", text="Open where it is",
                       icon="FILEBROWSER").path = res["path"]
+    if it.kind == "file":
+        return                       # a file of a set: its resource is the entry
+    gov = card.column(align=True)
+    if it.rev and it.rev != "current":
+        gov.operator("em.files_use_version", text="Use this version",
+                     icon="LOOP_BACK").resource_id = it.id
+    if room_cfg.room().get("room_id"):
+        obj = context.active_object
+        gov.operator("em.files_replace",
+                     text=f"Replace with the scene's object ({obj.name})" if obj is not None
+                     else "Replace with the scene's object (select one)",
+                     icon="FILE_REFRESH").resource_id = it.id
+    w = gov.row()
+    w.alert = True
+    w.operator("em.files_withdraw", text="Withdraw from the room…",
+               icon="CANCEL").resource_id = it.id
 
 
 def draw_moved(layout, context) -> None:  # pragma: no cover — bpy
@@ -561,12 +838,17 @@ def register():  # pragma: no cover — bpy
         name="Search", description="Words of the file, document, asset, level, use or model")
     wm.em_files_kind = bpy.props.EnumProperty(name="Kind", items=KINDS)
     wm.em_files_use = bpy.props.EnumProperty(name="Use", items=_use_items)
+    wm.em_files_history = bpy.props.BoolProperty(
+        name="History", default=False,
+        description="Show the past revisions as rows of their own (they are under "
+                    "their current version in the card)")
 
 
 def unregister():  # pragma: no cover — bpy
     import bpy  # type: ignore
     wm = bpy.types.WindowManager
-    for name in ("em_files", "em_files_index", "em_files_query", "em_files_kind", "em_files_use"):
+    for name in ("em_files", "em_files_index", "em_files_query", "em_files_kind", "em_files_use",
+                 "em_files_history"):
         if hasattr(wm, name):
             delattr(wm, name)
     for cls in reversed(_CLASSES):
