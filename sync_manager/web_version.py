@@ -108,10 +108,17 @@ def rm_of(graph, rid: str) -> str:
 
 
 def point_at_store(graph, rid: str, url: str, digest: str) -> None:
-    """The resource now says where the room keeps its bytes: ``checksum``,
-    ``residency resident`` (a resource; a file of a set carries no residency),
-    ``url`` on the room's base. The address it had (the disk, the cache) stays
-    as a second address, the store's first."""
+    """The resource now says where the room keeps its bytes — the room
+    importer's rewrite (s3Dgraphy `room_import.inventory.make_store_backed`,
+    the same one «Bring into a room» and the command write): ``checksum``,
+    ``residency resident``, ``url`` on the room's base, the address it had
+    (the disk, the cache) kept as a second address (a file of a set keeps it
+    in ``path``). And its ``media_type`` when the graph did not say it, from
+    the file's name (the engine's choice 11, measured on 15 Oct 2026: a glb
+    at ``…/asset/sha256:…`` with no type was not a glTF for EMStudio's
+    Space); a declared one is never overwritten. A ``blend://`` it had is not
+    an address of these bytes."""
+    from s3dgraphy.room_import import inventory
     node = graph.find_node_by_id(rid)
     if node is None:
         raise ValueError(f"no resource {rid}")
@@ -121,17 +128,15 @@ def point_at_store(graph, rid: str, url: str, digest: str) -> None:
     data = node.data if isinstance(getattr(node, "data", None), dict) else {}
     node.data = data
     had = str(data.get("url") or "")
-    data["checksum"] = digest
-    data["url"] = url
-    if getattr(node, "node_type", "") == "resource":
-        data["residency"] = "resident"
-    if hasattr(node, "url"):
-        node.url = url
-    if had and had != url and not had.startswith("blend://"):
-        listed = [a for a in (data.get("addresses") or []) if isinstance(a, dict)
-                  and a.get("locator") not in (url, had)]
-        data["addresses"] = ([{"locator": url, "residency": "resident"},
-                              {"locator": had, "residency": "resident"}] + listed)
+    if had.startswith("blend://"):
+        data["url"] = ""
+        if hasattr(node, "url"):
+            node.url = ""
+    inventory.make_store_backed(node, url=url, sha256=digest)
+    if had and not had.startswith("blend://") and not data.get("media_type"):
+        media = inventory.media_type_for(had)
+        if media != "application/octet-stream":
+            data["media_type"] = media
 
 
 def upload_row(graph, row: Dict[str, Any], *,

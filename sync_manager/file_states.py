@@ -21,13 +21,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 def _urlopen(request, timeout=None):
     """Every call to a node verifies TLS against what this computer trusts
-    (`trust.py`: the dev node behind Caddy included), with an access renewed
-    before it runs out and said when it cannot be (`access.py`)."""
-    try:
-        from .access import urlopen
-    except ImportError:          # loaded by path, outside the package (the suite)
-        import urllib.request
-        return urllib.request.urlopen(request, timeout=timeout)
+    (s3Dgraphy's `room_import.trust`: the dev node behind Caddy included),
+    with an access renewed before it runs out and said when it cannot be
+    (`room_import.access`)."""
+    from s3dgraphy.room_import.access import urlopen
     return urlopen(request, timeout=timeout)
 
 #: the last resolution of the active graph, for the panel (session state)
@@ -59,7 +56,7 @@ def project_root(context) -> Optional[str]:  # pragma: no cover — bpy
 def node_probe() -> Optional[Callable[[str], bool]]:  # pragma: no cover — network
     """``on_node(hex)`` for the room this Blender is in, or None outside a room."""
     from . import room as room_cfg
-    from .asset_upload import has_asset
+    from s3dgraphy.room_import.node import has_asset
     where = room_cfg.room()
     if not (where.get("base_url") and where.get("room_id") and where.get("has_token")):
         return None
@@ -73,7 +70,7 @@ def node_probe() -> Optional[Callable[[str], bool]]:  # pragma: no cover — net
 def resolve_active(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover — bpy
     """The state of every resource of ``graph``, remembered for the panel."""
     from s3dgraphy import api
-    from .asset_upload import sha256_of_file
+    from s3dgraphy.room_import.node import sha256_of_file
     from .asset_versions import CACHE_DIR, cache_folder
     from .bring import base_dirs
     cache = os.path.join(cache_folder(), CACHE_DIR)
@@ -241,7 +238,7 @@ def relink(graph, resource_id: str, path: str) -> None:  # pragma: no cover — 
     """«Find here…»: the resource now points at ``path`` (a new locator, the
     digest written if the graph had none). The node keeps its id."""
     from s3dgraphy import api
-    from .asset_upload import sha256_of_file
+    from s3dgraphy.room_import.node import sha256_of_file
     node = graph.find_node_by_id(resource_id)
     if node is None:
         raise ValueError(f"no resource {resource_id}")
@@ -256,36 +253,25 @@ def _personal(base: str) -> bool:
     return probe(base, timeout=2).get("profile") == "personal"
 
 
-def _upload_by_reference(where: Dict[str, Any], row: Dict[str, Any]) -> Dict[str, Any]:
-    """N2 · on a personal node a file of the tree is registered BY REFERENCE:
-    no byte is copied, the project's folders keep it."""
-    import json as _json
-    import urllib.parse
-    import urllib.request
-    from . import room as room_cfg
-    token = room_cfg._session.get("token")
-    url = (f"{where['base_url'].rstrip('/')}/v1/rooms/"
-           f"{urllib.parse.quote(where['room_id'], safe='')}/asset-reference")
-    body = _json.dumps({"path": row["path"], "sha256": row.get("sha256") or None}).encode()
-    req = urllib.request.Request(url, data=body, method="POST",
-                                 headers={"Content-Type": "application/json",
-                                          **({"Authorization": f"Bearer {token}"} if token else {})})
-    with _urlopen(req, timeout=60) as answer:
-        out = _json.loads(answer.read())
-    out["already"] = not out.get("created", True)
-    return out
-
-
 def _send(where, path, sha256, media_type=""):
-    """The bytes at `path` into the room's store (by reference on a
-    personal node)."""
+    """The bytes at `path` into the room's store, through the room importer's
+    doors (s3Dgraphy `room_import.node`: HEAD first, the streamed PUT, the
+    resumable door; on a personal node BY REFERENCE, N2 — no byte is copied,
+    the project's folders keep it). The media type, when the caller does not
+    say it, from the file's name — as the importer sends it."""
+    from s3dgraphy.room_import import inventory
+    from s3dgraphy.room_import.node import asset_reference, upload_asset
     from . import room as room_cfg
-    from .asset_upload import upload_asset
     from .asset_versions import keep_sent
+    token = room_cfg._session.get("token")
+    media_type = media_type or inventory.media_type_for(path)
     if _personal(where["base_url"]):
-        return _upload_by_reference(where, {"path": path, "sha256": sha256})
+        out = asset_reference(where["base_url"], token, where["room_id"], path,
+                              sha256 or None, media_type)
+        out["already"] = not out.get("created", True)
+        return out
     out = upload_asset(where["base_url"], where["room_id"], path, sha256 or None,
-                       media_type, room_cfg._session.get("token"))
+                       media_type, token)
     # MICRO-CACHE-E-RIGA · what was sent from here is kept here, by its
     # digest, before the states are read again: «Here and on the node»
     keep_sent(out.get("sha256") or sha256, path=path)
@@ -484,7 +470,7 @@ def _operator_classes():  # pragma: no cover — bpy
         def execute(self, context):
             import hashlib
             from . import room as room_cfg
-            from .asset_upload import asset_url
+            from s3dgraphy.room_import.node import asset_url
             from .asset_versions import cache_folder, sent_relpath
             import urllib.request
             graph = _graph(context)
