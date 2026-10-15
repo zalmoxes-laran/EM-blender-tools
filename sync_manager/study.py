@@ -6,11 +6,13 @@ em.json WHOLE — its graphs (the ones open here and the ones the file holds tha
 are not), its shelf, its DTC corpus — and not the active graph alone (D-A, which
 the invariants replace now that EM Tools names the graph in every operation).
 
-This module says what the study is (`study_of`), how a room is born with it
-(`birth_sections`: the sections, EMPTY — the node's G2 — their content coming
-afterwards as operations naming the graph, `seed_plan`), and where it already
-lives (`room_of_study`): a study in a room is offered that room, never a second
-one.
+This module says what the study is (`study_of`) and where it already lives
+(`room_of_study`): a study in a room is offered that room, never a second one.
+How a room is born with it (the sections, EMPTY — the node's G2 — their content
+coming afterwards as operations naming the graph) is the room importer's,
+since 15 Oct 2026: s3Dgraphy `room_import.engine.birth_sections` and its
+seeding; the DTC corpus is not seated there (on a node the documentation
+register is the node's own).
 
 Where a study lives is remembered twice, because a file outlives a session: on
 the rows of the EM Data Tree (`origin_kind = ROOM`, as before), and in the
@@ -18,7 +20,7 @@ study's own header (`header.room = {node, room_id}`), which the next Save
 writes into the em.json.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 ROOM_KEY = "room"
 
@@ -115,37 +117,3 @@ def mark_room(study: Dict[str, Any], node: str, room_id: str) -> None:
         base.header[ROOM_KEY] = {"node": (node or "").rstrip("/"), "room_id": room_id}
     study.setdefault("header", {})[ROOM_KEY] = {"node": (node or "").rstrip("/"),
                                                 "room_id": room_id}
-
-
-def _section(graph) -> Dict[str, Any]:
-    from s3dgraphy.exporter.emjson_exporter import build_emjson
-    return build_emjson(graph)["graph"]
-
-
-def members(study: Dict[str, Any]) -> List[Any]:
-    """`[(graph_id, Graph)]`: the study's graphs, then its shelf and corpus."""
-    out = [(g, graph) for g, graph in study["graphs"].items()]
-    for key in ("shelf", "corpus"):
-        member = study.get(key)
-        if member is not None:
-            out.append((str(getattr(member, "graph_id", "") or key), member))
-    return out
-
-
-def birth_sections(study: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """The sections a room is born with: `{graph_id, name, data}`, EMPTY."""
-    out = []
-    for gid, graph in members(study):
-        section = _section(graph)
-        item: Dict[str, Any] = {"graph_id": gid,
-                                "name": str(section.get("name") or getattr(graph, "name", "")
-                                            or gid)}
-        if isinstance(section.get("data"), dict):
-            item["data"] = dict(section["data"])
-        out.append(item)
-    return out
-
-
-def seed_plan(study: Dict[str, Any]) -> List[Any]:
-    """`[(graph_id, graph, section)]`: what is seeded, graph by graph."""
-    return [(gid, graph, _section(graph)) for gid, graph in members(study)]

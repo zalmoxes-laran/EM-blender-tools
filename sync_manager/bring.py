@@ -1,39 +1,35 @@
-"""P3 · «Bring into a room…» from Blender — one gesture, the same as EMStudio's.
+"""P3 · «Bring into a room…» from Blender — the dialog around ONE engine.
 
-MICRO-LA-BARRA-E-LE-STANZE. Node + name → the room is created with you as its
-owner → the RESOURCE INVENTORY of the graph in four groups (`inventory.py`) →
-the person chooses (upload by default / leave as reference / skip, per group,
-per batch, per item) → the chosen files go up (`asset_upload.upload_asset`, HEAD
-first) and their resource nodes become store-backed keeping their path → the
-scene models linked to the graph (RM, proxy) are published (`promote_model`,
-`residency: resident`) — never an object «only here» → the graph is seated in
-the room → Blender ENTERS the room by itself (D-B: each tool enters directly,
-not behind EMStudio) → the report: uploaded N (size), references M, missing K,
-the room's link. A `.blend` snapshot is OFFERED at the end
-(`em.blend_backup_archive`), never taken silently.
+MICRO-LA-BARRA-E-LE-STANZE, then MICRO-BRING-CHIAMA-IL-MOTORE (15 Oct 2026):
+the gesture is s3Dgraphy's room importer (`s3dgraphy.room_import`, E.D.: «un
+motore, tre porte» — the command, EMStudio, EM Tools). What stays HERE is what
+only Blender has: the study as the scene holds it (`study.study_of`), the
+dialog that collects the person's choices, the SCENE's models exported and
+published (`commands.promote_model`), entering the room, and the people.
 
-**Why the graph is seated LAST, not first.** The proposal lists «the graph goes
-up» as step 1; here it goes up after the uploads, in the same gesture, so the
-room receives the resource nodes already store-backed — one seeding, instead of
-a seeding followed by a second wave of updates for every uploaded file.
+The order, the engine's: node + name → the room is created with you as its
+owner, born with the study's sections (`engine.prepare`, before any question
+about its files) → the PLAN: every resource and every file of a set, in five
+groups (found here / already in the room / at home in another room / external
+/ missing) → the person chooses (upload by default / leave as reference /
+skip, per group, per batch, per item; «Move here»; the proposed lots) → the
+files go up once (HEAD by sha256 first) and their resources become hosted
+keeping their path → the scene's models are published (the engine's
+`before_seed` hook: `residency: resident`, never an object «only here») → the
+graph is seated, LAST, in one seeding → Blender ENTERS the room by itself
+(D-B) → the report: uploaded N (size), references M, missing K, the room's
+link. A `.blend` snapshot is OFFERED at the end (`em.blend_backup_archive`),
+never taken silently.
 
-**How the graph is seated: operations**, the five idempotent verbs, through the
-node's connector door (`POST /v1/rooms/{id}/ops`, applied and kept under the
-room's lock). The same ops EMStudio's `seedOpsForContainer` sends over the
-socket — no seeding endpoint that writes past the merge.
-
-**A second «Bring into a room» uploads nothing**: every file it finds, the HEAD
-says the room already has; the seeding is all idempotent refusals.
-
-**One room, one graph (D-A)**: the ACTIVE graph is brought. Other graphs of the
-project stay here, and the report says so.
+**A second «Bring into a room» uploads nothing**: the HEAD says the room has
+every file, and the engine's journal sends only the operations that changed.
 
 **A file lives in one room (F1).** A file the node already keeps in ANOTHER
-room is listed apart («at home in another room»): the dialog names the rooms
-it would leave and the rooms whose graphs cite it (there it becomes a
-reference), and «Move here» happens only if the person ticks it — then the
-node changes its home, no byte is sent. Unticked, the resource points at the
-file where it lives, as a reference.
+room is listed apart: the dialog names the rooms it would leave and the rooms
+whose graphs cite it, and «Move here» happens only if the person ticks it.
+Unticked, the engine's default (`elsewhere="host"`, measured on Templu Mare:
+the Space loads only what is resident): hosted at THIS room's address, its
+home unchanged — nobody moves anything without a yes.
 
 **Lots are proposed (L1).** Photos of one session (same camera, EXIF times at
 most 30 min apart, at least 5) are proposed as a lot; a D.nn document or the
@@ -45,10 +41,13 @@ DosCo never is. Only a ticked proposal becomes one acquisition.
 # globals, where `bpy` is imported lazily — a string annotation would not
 # resolve (measured: «name 'bpy' is not defined» at register).
 import os
+import tempfile
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from . import asset_upload, inventory, rooms_list
+from s3dgraphy.room_import import engine, inventory
+from s3dgraphy.room_import import node as nodeio
+
 from . import room as room_cfg
 
 try:
@@ -57,7 +56,8 @@ except Exception:  # noqa: BLE001 — outside the addon (tests)
     def em_log(message, *_a, **_k):
         print(message)
 
-#: The last gesture, in memory, between the inventory dialog and the upload.
+#: The last gesture, in memory, between the inventory dialog and the upload:
+#: the engine's run (`run`), its rows, the proposed lots, the F1 views.
 STATE: Dict[str, Any] = {}
 #: The last report, for the panel.
 ULTIMO_REFERTO: Dict[str, Any] = {}
@@ -75,13 +75,14 @@ def _active_entry(context):
 
 
 def base_dirs(context) -> List[str]:
-    """Where a relative path of this project is looked for: the DosCo folder,
-    the em.json/GraphML's folder, the .blend's folder."""
+    """Where a relative path of this project is looked for: the em.json/GraphML's
+    folder, the DosCo folder, the .blend's folder. The em.json's folder first:
+    a study's paths are relative to it (the engine's `base_dir`)."""
     import bpy  # type: ignore
     out = []
     entry = _active_entry(context)
     if entry is not None:
-        for raw in (getattr(entry, "dosco_dir", ""), getattr(entry, "graphml_path", "")):
+        for raw in (getattr(entry, "graphml_path", ""), getattr(entry, "dosco_dir", "")):
             if not raw:
                 continue
             path = bpy.path.abspath(raw)
@@ -92,7 +93,21 @@ def base_dirs(context) -> List[str]:
                 out.append(bpy.path.abspath(aux.dosco_folder))
     if bpy.data.filepath:
         out.append(os.path.dirname(bpy.data.filepath))
-    return [p for p in out if p]
+    return list(dict.fromkeys(p for p in out if p))
+
+
+def journal_path(study: Dict[str, Any]) -> str:
+    """Where the engine keeps its journal (and writes its report): beside the
+    study's em.json, as the command does; else beside the .blend; else in
+    Blender's temporary folder."""
+    folder = os.path.dirname(study.get("path") or "")
+    if not folder:
+        try:
+            import bpy  # type: ignore
+            folder = os.path.dirname(bpy.data.filepath or "") or bpy.app.tempdir
+        except Exception:  # noqa: BLE001 — outside Blender
+            folder = ""
+    return os.path.join(folder or tempfile.gettempdir(), engine.JOURNAL_NAME)
 
 
 def lot_thresholds(context) -> tuple:
@@ -116,82 +131,53 @@ def dosco_dirs(context) -> List[str]:
     return [bpy.path.abspath(raw)] if raw else []
 
 
-def open_room(base: str, token: Optional[str], name: str, *,
-              sections: Optional[List[Dict[str, Any]]] = None,
-              active_graph_id: Optional[str] = None) -> Dict[str, Any]:
-    """Create the room; or, if it exists and you may write in it, use it.
-
-    → `{room_id, created, role, seedable, note}`. A NEW room that already holds
-    a graph (an implicit room somebody used without declaring it) is not
-    seeded: writing our file over somebody's undeclared work is the one mistake
-    this gesture must not make — the same rule as EMStudio's.
-    """
-    room_id = rooms_list.room_id_from_name(name)
-    try:
-        created = rooms_list.create_room(base, token, name, graphs=sections,
-                                         active_graph_id=active_graph_id)
-        missing = created.get("missing_refs") or []
-        refs = created.get("container_refs") or [room_id]
-        empty = all(ref in missing for ref in refs)
-        return {"room_id": created["room_id"], "created": True,
-                "role": created.get("your_role") or "owner", "seedable": empty,
-                # S1 · the sections the room was born with (a node before G2
-                # answers none: then the active graph alone, as before)
-                "born_with": list(created.get("born_with") or []),
-                "title": str(created.get("title") or name),
-                "note": "" if empty else
-                f"the room {room_id} already holds a graph: not seeded"}
-    except room_cfg.RoomError as exc:
-        if exc.status != 409:
-            raise
-    info = rooms_list.room_info(base, token, room_id)
-    role = str(info.get("your_role") or "")
-    if role not in ("owner", "admin", "editor"):
-        raise room_cfg.RoomError(
-            f"the room {room_id} exists and you are {role or 'not a member'} "
-            f"there: choose another name")
-    return {"room_id": room_id, "created": False, "role": role, "seedable": True,
-            "born_with": [], "title": str(info.get("title") or name),
-            "note": f"the room {room_id} already exists ({role}): what is "
-                    f"brought merges into it"}
+def container_of(study: Dict[str, Any]):
+    """The study as the engine takes it: the scene's LIVE graphs (rewritten in
+    place when their files are hosted), the file's shelf. The DTC corpus stays
+    out, as in the engine: on a node the documentation register is the
+    node's own."""
+    from s3dgraphy.container import Container
+    return Container(graphs=dict(study.get("graphs") or {}), shelf=study.get("shelf"),
+                     active_graph_id=study.get("active") or None,
+                     header=dict(study.get("header") or {}))
 
 
 def prepare(context, graph, *, base: str, name: str, token: Optional[str]
             ) -> Dict[str, Any]:
-    """Step 1 and 2: the room, then the inventory. Nothing is uploaded yet.
+    """The first half: the room, then the plan (`engine.prepare`). Nothing is
+    uploaded yet.
 
     S1 · the room is built around the STUDY (`study.study_of`): born with all
-    its sections, and the inventory is of all its graphs, each row naming the
-    graph it is in."""
+    its sections, and the plan is of all its graphs, each row naming the graph
+    it is in."""
+    from . import exif_lite
     from . import study as study_mod
     the_study = study_mod.study_of(context, graph)
-    where = open_room(base, token, name,
-                      sections=study_mod.birth_sections(the_study),
-                      active_graph_id=the_study.get("active") or None)
-    room_cfg.set_room(base, where["room_id"], token)
-    from . import exif_lite
+    room_id = nodeio.room_id_from_name(name)
+    if not room_id:
+        raise room_cfg.RoomError(f"«{name}» has no letters or digits to make a room "
+                                 f"id from: choose another name")
+    run = engine.prepare(container=container_of(the_study), base_dirs=base_dirs(context),
+                         node=base, room=room_id, title=name, token=token,
+                         journal_path=journal_path(the_study))
+    where = dict(run["where"], title=run["title"])
+    room_cfg.set_room(base, room_id, token)
+    rows = run["plan"]["rows"]
     gap, least = lot_thresholds(context)
-    rows, lots = [], []
-    for gid, member in the_study["graphs"].items():
-        part = inventory.classify(
-            inventory.resource_entries(member), base_dirs=base_dirs(context),
-            asset_home=lambda hexd: asset_upload.asset_head(base, where["room_id"],
-                                                            hexd, token),
-            room_id=where["room_id"], hasher=asset_upload.sha256_of_file)
-        for row in part:
-            row["graph_id"] = gid
-        rows.extend(part)
-        for lot in inventory.propose_sessions(part, exif_of=exif_lite.photo_exif,
+    lots = []
+    for gid in the_study["graphs"]:
+        for lot in inventory.propose_sessions([r for r in rows if r.get("graph_id") == gid],
+                                              exif_of=exif_lite.photo_exif,
                                               dosco_dirs=dosco_dirs(context),
                                               gap_seconds=gap, min_photos=least):
             lot["graph_id"] = gid
+            lot["source"] = "EMtools · bring into a room"
             lots.append(lot)
     # F1 · for every file at home elsewhere, the node's answer BEFORE the yes
-    views = {r["id"]: asset_upload.asset_home_view(base, where["room_id"],
-                                                   r["sha256"], token)
+    views = {r["id"]: nodeio.asset_home_view(base, room_id, r["sha256"], token)
              for r in rows if r["group"] == inventory.GROUP_ELSEWHERE and r.get("sha256")}
     STATE.clear()
-    STATE.update({"base": base, "room_id": where["room_id"], "where": where,
+    STATE.update({"base": base, "room_id": room_id, "where": where, "run": run,
                   "rows": rows, "lots": lots, "move_views": views,
                   "graph_id": str(getattr(graph, "graph_id", "")),
                   "study": the_study})
@@ -202,68 +188,6 @@ def graph_of_row(row: Dict[str, Any], default: Any) -> Any:
     """S1 · the graph of the study a row of the inventory is in."""
     study = STATE.get("study") or {}
     return (study.get("graphs") or {}).get(row.get("graph_id")) or default
-
-
-def move_here(graph, *, token: Optional[str], yes: bool) -> Dict[str, Any]:
-    """F1 · the files at home in another room: moved here on the person's yes,
-    else (or when the node refuses) left as references to where they live.
-    → `{moved, references, failed: [sentence]}`."""
-    base, room_id, rows = STATE["base"], STATE["room_id"], STATE["rows"]
-    plan = inventory.move_plan(rows, STATE.get("move_views") or {})
-    done = {"moved": 0, "references": 0, "failed": []}
-    moved_ids = set()
-    if yes:
-        for row in plan["movable"]:
-            view = STATE["move_views"][row["id"]]
-            try:
-                answer = asset_upload.move_asset_home(base, room_id, row["sha256"],
-                                                      view.get("home"), token)
-            except Exception as exc:  # noqa: BLE001 — one file, one sentence
-                done["failed"].append(f"{row['name']}: {exc}")
-                continue
-            if answer.get("home") != room_id:
-                done["failed"].append(f"{row['name']}: the node kept it in "
-                                      f"{answer.get('home')}")
-                continue
-            moved_ids.add(row["id"])
-            node = graph_of_row(row, graph).find_node_by_id(row["id"])
-            if node is not None:
-                inventory.make_store_backed(
-                    node, url=asset_upload.asset_url(base, room_id, row["sha256"]),
-                    sha256=row["sha256"])
-            done["moved"] += 1
-            em_log(f"[bring] {row['name']} moved here from {view.get('home')}; "
-                   f"references now in {', '.join(view.get('references') or []) or 'no other room'}")
-    for b in plan["blocked"]:
-        em_log(f"[bring] {b['row']['name']} stays in {b['row'].get('home')}: {b['why']}")
-    for row in rows:
-        if row["group"] != inventory.GROUP_ELSEWHERE or row["id"] in moved_ids:
-            continue
-        node = graph_of_row(row, graph).find_node_by_id(row["id"])
-        if node is not None and row.get("home") and row.get("sha256"):
-            inventory.make_store_backed(
-                node, url=asset_upload.asset_url(base, row["home"], row["sha256"]),
-                sha256=row["sha256"], residency="reference")
-        done["references"] += 1
-    return done
-
-
-def bucket_confirmed_lots(graph, lots: List[Dict[str, Any]]) -> List[str]:
-    """L1 · each CONFIRMED session becomes one acquisition in the graph (the
-    serial node, s3dgraphy `bucket_acquisition`); a proposal not confirmed
-    leaves its photos as files. → the acquisition ids."""
-    from s3dgraphy import api
-    made = []
-    for lot in lots or []:
-        if not lot.get("confirmed"):
-            continue
-        out = api.bucket_acquisition(
-            graph_of_row(lot, graph), lot["ids"], name=f"Photos · {lot['name']}",
-            metadata={"camera": lot["camera"], "taken_from": lot["from"],
-                      "taken_to": lot["to"],
-                      "source": "EMtools · bring into a room"})
-        made.append(str(out.get("acquisition_id") or out.get("id") or ""))
-    return made
 
 
 def scene_models(context, graph) -> List[Dict[str, str]]:
@@ -302,28 +226,71 @@ def _already_published(obj, graph) -> bool:
                 and str(data.get("checksum") or "") == str(digest))
 
 
-def _fill_proxy_chain(graph, unit_id: str, info: Dict[str, Any],
-                      rows: List[Dict[str, Any]]) -> bool:
+def _fill_proxy_chain(graph, unit_id: str, info: Dict[str, Any]) -> Optional[str]:
     """G2 · a unit's proxy just published: its chain's resource
     (`proxies/<US>.glb`, a placeholder until the Heriverse export names a file)
     becomes those bytes in the room's store. Measured on 4 Oct 2026: the room
     born from Templu Mare listed the 66 placeholders as «missing» beside the 66
     proxies it had just published, and EMStudio's Models sheet read the
-    placeholders. A resource that already has its bytes is not touched."""
+    placeholders. A resource that already has its bytes is not touched.
+    → the resource's id when it was filled (no longer missing)."""
     try:
         from ..proxy_chain import glb_proxy
     except ImportError:
-        return False
+        return None
     _shape, resource = glb_proxy(graph, unit_id)
     data = getattr(resource, "data", None) if resource is not None else None
     if resource is None or (isinstance(data, dict) and data.get("checksum")):
-        return False
+        return None
     inventory.make_store_backed(resource, url=room_cfg.asset_url(info["ref"]),
                                 sha256=info["ref"])
-    for row in rows:
-        if row.get("id") == resource.node_id and row["group"] == inventory.GROUP_MISSING:
-            row["group"] = inventory.GROUP_STORED
-    return True
+    return resource.node_id
+
+
+def publish_scene(context, study_graphs: Dict[str, Any]) -> Dict[str, Any]:
+    """The engine's `before_seed` hook: the SCENE's models (RM, proxy) exported
+    and published into the room (`promote_model`, `residency: resident`), after
+    the files are hosted and before the graph is seated — so they are in the
+    one seeding. → the counts the engine adds to its report."""
+    import bpy  # type: ignore
+    from . import commands
+    out: Dict[str, Any] = {"uploaded": 0, "bytes": 0, "already": 0, "failed": [],
+                           "filled": [], "models": []}
+    seen_objects = set()
+    for member in study_graphs.values():
+        for model in scene_models(context, member):
+            obj = bpy.data.objects.get(model["object"])
+            if obj is None or obj.name in seen_objects:
+                continue
+            seen_objects.add(obj.name)
+            if _already_published(obj, member):
+                out["already"] += 1
+                continue
+            try:
+                result = commands.promote_model(
+                    model["target"], {"object": obj.name, "residency": "resident"},
+                    context, member)
+            except Exception as exc:  # noqa: BLE001 — one model is one row, not the batch
+                # measured on 15 Oct 2026 (GreatTemple_2026_v2.blend): «Object
+                # 'Architrave_1_BAKE_SM_…' cannot be selected because it is not
+                # in View Layer» stopped the whole gesture before the seeding
+                result = {"ok": False, "error": str(exc)}
+            if not result.get("ok"):
+                out["failed"].append(f"{model['object']}: {result.get('error')}")
+                continue
+            info = result["info"]
+            if model.get("kind") == "proxy":
+                filled = _fill_proxy_chain(member, model["target"], info)
+                if filled:
+                    out["filled"].append(filled)
+            if info.get("stored"):
+                out["models"].append(info["object"])
+                out["uploaded"] += 1
+                out["bytes"] += int(info.get("size") or 0)
+            else:
+                # X2 · the node had these bytes: published, not uploaded
+                out["already"] += 1
+    return out
 
 
 def upload_phrase(uploaded: int, size: int, already: int) -> str:
@@ -341,98 +308,46 @@ def upload_phrase(uploaded: int, size: int, already: int) -> str:
 def execute(context, graph, *, token: Optional[str], promote: bool = True,
             progress: Optional[Callable[[str, int, int], None]] = None
             ) -> Dict[str, Any]:
-    """Steps 3–6: upload, publish the scene models, seat the graph, enter."""
-    import bpy  # type: ignore
-    from . import commands
+    """The second half (`engine.execute`, with the person's choices): upload,
+    publish the scene models, seat the graph; then Blender enters the room."""
     from . import operators as ops
 
+    run = STATE["run"]
     base, room_id, rows = STATE["base"], STATE["room_id"], STATE["rows"]
+    where = STATE["where"]
     started = time.time()
-    uploaded = {"count": 0, "size": 0, "already": 0}
-    failed: List[str] = []
-    moves = move_here(graph, token=token, yes=bool(STATE.get("move_yes")))
-    failed.extend(moves["failed"])
-    todo = [r for r in rows if r["group"] == inventory.GROUP_FOUND
-            and r["choice"] == inventory.CHOICE_UPLOAD]
-    total = sum(int(r.get("size") or 0) for r in todo)
-    done = [0]
-    for row in todo:
-        def tick(sent, _size, before=done[0]):
-            if progress:
-                progress(row["name"], before + sent, total)
-        try:
-            info = asset_upload.upload_asset(
-                base, room_id, row["path"], row.get("sha256") or None,
-                inventory.media_type_for(row["path"]), token, tick)
-        except Exception as exc:  # noqa: BLE001 — one file is one row, not the batch
-            failed.append(f"{row['name']}: {exc}")
-            continue
-        done[0] += int(row.get("size") or 0)
-        node = graph_of_row(row, graph).find_node_by_id(row["id"])
-        if node is not None:
-            inventory.make_store_backed(node, url=info["url"], sha256=info["sha256"])
-        if info.get("already"):
-            uploaded["already"] += 1
-        else:
-            uploaded["count"] += 1
-            uploaded["size"] += int(row.get("size") or 0)
-
     study_graphs = dict((STATE.get("study") or {}).get("graphs") or {}) or \
         {str(getattr(graph, "graph_id", "")): graph}
-    published, published_size, published_skip = [], 0, 0
-    if promote:
-        seen_objects = set()
-        for member in study_graphs.values():
-            for model in scene_models(context, member):
-                obj = bpy.data.objects.get(model["object"])
-                if obj is None or obj.name in seen_objects:
-                    continue
-                seen_objects.add(obj.name)
-                if _already_published(obj, member):
-                    published_skip += 1
-                    continue
-                result = commands.promote_model(
-                    model["target"], {"object": obj.name, "residency": "resident"},
-                    context, member)
-                if result.get("ok"):
-                    info = result["info"]
-                    if model.get("kind") == "proxy":
-                        _fill_proxy_chain(member, model["target"], info, rows)
-                    if info.get("stored"):
-                        published.append(info["object"])
-                        published_size += int(info.get("size") or 0)
-                    else:
-                        # X2 · the node had these bytes: published, not uploaded
-                        published_skip += 1
-                else:
-                    failed.append(f"{model['object']}: {result.get('error')}")
+    plan = inventory.move_plan(rows, STATE.get("move_views") or {})
+    move = [r["id"] for r in plan["movable"]] if STATE.get("move_yes") else []
+    if STATE.get("move_yes"):
+        for b in plan["blocked"]:
+            em_log(f"[bring] {b['row']['name']} stays in {b['row'].get('home')}: {b['why']}")
+    scene: Dict[str, Any] = {}
 
-    acquisitions = bucket_confirmed_lots(graph, STATE.get("lots") or [])
-    seeded = {"applied": 0, "refused": [], "requests": 0}
-    born = list(STATE["where"].get("born_with") or [])
-    seeded_graphs: List[str] = []
-    if STATE["where"].get("seedable") and born:
-        # S1 · the study WHOLE: every section the room was born with, seeded
-        # with operations that name their graph
-        from . import study as study_mod
-        for gid, member, section in study_mod.seed_plan(STATE["study"]):
-            if gid not in born:
+    def before_seed(_info):
+        scene.update(publish_scene(context, study_graphs))
+        # what the plan found missing and the scene has just given bytes to
+        # (a proxy's chain resource, `proxies/<US>.glb`: `promote_model` writes
+        # its digest itself) is no longer missing. Measured on 15 Oct 2026 on
+        # Templu Mare: 66 proxies published, 0 «filled» by `_fill_proxy_chain`
+        # (their resource already had its digest), 66 still said missing
+        filled = set(scene.get("filled") or [])
+        for row in rows:
+            if row["group"] != inventory.GROUP_MISSING or row["id"] in filled:
                 continue
-            part = rooms_list.send_ops(base, token, room_id,
-                                       inventory.seed_ops(member, section),
-                                       graph_id=gid)
-            seeded["applied"] += part["applied"]
-            seeded["refused"] += part["refused"]
-            seeded["requests"] += part["requests"]
-            seeded_graphs.append(gid)
-    elif STATE["where"].get("seedable"):
-        # a node that does not take a study's sections: the active graph, as
-        # before (D-A), and the report says so
-        from ..emjson_support import graph_to_emjson_dict
-        section = graph_to_emjson_dict(graph).get("graph") or {}
-        seeded = rooms_list.send_ops(base, token, room_id,
-                                     inventory.seed_ops(graph, section))
-        seeded_graphs = [str(getattr(graph, "graph_id", ""))]
+            res = graph_of_row(row, graph).find_node_by_id(row["id"])
+            data = getattr(res, "data", None) or {}
+            if data.get("checksum") and data.get("residency") == "resident":
+                filled.add(row["id"])
+        scene["filled"] = sorted(filled)
+        return scene
+
+    visibility = (STATE.get("access") or {}).get("visibility") or "restricted"
+    done = engine.execute(run, visibility=visibility, move=move,
+                          lots=[lot for lot in STATE.get("lots") or [] if lot.get("confirmed")],
+                          before_seed=before_seed if promote else None,
+                          progress=progress)
 
     # D-B · Blender ENTERS the room by itself. Not adopting: the room's graph is
     # the one we just seated from this very session.
@@ -443,6 +358,7 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
         if SESSION.joined:
             ops.leave_room()
         joined = ops.join_room(context, base, room_id, token or "", adopt=False)
+    born = list(where.get("born_with") or [])
     if joined.get("ok") and born:
         # S1 · ONE SESSION FOR THE STUDY: every graph of it is bound to this
         # room and named in the operations («Writing in: <graph>»)
@@ -456,65 +372,60 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
         from . import study as study_mod
         study_mod.mark_room(STATE.get("study") or {}, base, room_id)
         from . import where as _where
-        _where.ROOM_TITLES[room_id] = str(STATE["where"].get("title") or room_id)
+        _where.ROOM_TITLES[room_id] = str(where.get("title") or room_id)
 
-    from . import handoff
-    targets = handoff.open_targets(base, room_id, token=token) or {}
-    link = targets.get("web") or targets.get("scheme") or ""
-
-    summary = inventory.summarise(rows)
-    refs = summary["groups"][inventory.GROUP_EXTERNAL]["count"] + sum(
-        1 for r in rows if r["group"] == inventory.GROUP_FOUND
-        and r["choice"] == inventory.CHOICE_REFERENCE)
-    missing = summary["groups"][inventory.GROUP_MISSING]["count"]
     others = 0
     try:
         others = sum(1 for r in context.scene.em_tools.graphml_files
                      if r.name not in study_graphs)
     except Exception:  # noqa: BLE001
         pass
-    size_up = uploaded["size"] + published_size
+    seeded = done.get("seeded") or {}
+    moved = int((done.get("rewritten") or {}).get("moved_here") or 0)
     report = {
-        "room_id": room_id, "link": link, "created": STATE["where"]["created"],
-        "uploaded": uploaded["count"] + len(published),
-        "moved": moves["moved"], "lots": acquisitions,
-        "uploaded_size": size_up,
-        "already": uploaded["already"] + published_skip,
-        "references": refs, "missing": missing,
-        "models": published, "failed": failed,
-        "ops_applied": seeded["applied"], "ops_refused": len(seeded["refused"]),
-        "seeded_graphs": seeded_graphs, "study_graphs": list(study_graphs),
+        "room_id": room_id, "link": done.get("link") or "", "created": where["created"],
+        "uploaded": done["uploaded"]["files"], "uploaded_size": done["uploaded"]["bytes"],
+        "already": done["already"]["files"], "moved": moved,
+        "lots": done.get("lots") or [],
+        "references": done["references"], "missing": done["plan"]["missing"],
+        "models": scene.get("models") or [], "failed": list(done.get("failed") or []),
+        "ops_applied": int(seeded.get("applied") or 0),
+        "ops_refused": int(seeded.get("refused") or 0),
+        # the graphs whose operations went this time (none, a second time)
+        "seeded_graphs": list(seeded.get("graphs") or []),
+        "study_graphs": list(study_graphs), "born_with": born,
         "joined": bool(joined.get("ok")), "join_message": joined.get("message"),
         "other_graphs": others, "seconds": round(time.time() - started, 1),
-        "note": STATE["where"].get("note") or "",
+        "note": where.get("note") or "", "engine": done,
     }
-    refs += moves["references"]
-    report["references"] = refs
     report["sentence"] = (
-        upload_phrase(report["uploaded"], size_up, report["already"]) + ", "
-        + (f"moved here {moves['moved']}, " if moves["moved"] else "")
-        + f"references {refs}, missing {missing} — room {room_id}: {link}")
+        upload_phrase(report["uploaded"], report["uploaded_size"], report["already"]) + ", "
+        + (f"moved here {moved}, " if moved else "")
+        + f"references {report['references']}, missing {report['missing']} — "
+        + f"room {room_id}: {report['link']}")
     ULTIMO_REFERTO.clear()
     ULTIMO_REFERTO.update(report)
     print(f"[bring] {report['sentence']}")
-    for line in inventory.sentences(summary):
+    for line in inventory.sentences(inventory.summarise(rows)):
         print(f"[bring]   {line}")
-    print(f"[bring]   the study: {len(seeded_graphs)} graph(s) seeded "
-          f"({', '.join(seeded_graphs)})" + ("" if born else
-          " — the node took no sections: the active graph only (D-A)"))
+    print(f"[bring]   the study: {len(born)} graph(s) in the room ({', '.join(born)}); "
+          f"operations {seeded.get('sent', 0)} sent, {report['ops_applied']} applied, "
+          f"{seeded.get('not_news', 0)} already there")
     if others:
         print(f"[bring]   {others} graph(s) of this scene belong to other studies "
               f"and stay here")
-    for line in failed:
+    for line in report["failed"]:
         print(f"[bring]   FAILED {line}")
+    for path in done.get("report_files") or []:
+        print(f"[bring]   report: {path}")
     return report
 
 
 def apply_access(*, token: Optional[str]) -> Dict[str, Any]:
     """C1 · who takes part and who sees, on the room just made: the people by
-    ORCID with their roles, the invitation link, the study's visibility and
-    embargo. → `{members, link, access, failed, sentences}`; one refusal of the
-    node is one sentence, the rest still goes."""
+    ORCID with their roles, the invitation link, the study's embargo (its
+    visibility the engine set). → `{members, link, access, failed,
+    sentences}`; one refusal of the node is one sentence, the rest still goes."""
     from . import handoff, room_access
     want = STATE.get("access") or {}
     base, room_id = STATE.get("base"), STATE.get("room_id")
@@ -547,11 +458,13 @@ def apply_access(*, token: Optional[str]) -> Dict[str, Any]:
             out["failed"].append(f"invitation link: {exc}")
     visibility = want.get("visibility") or "restricted"
     embargo = want.get("embargo") or ""
-    try:
-        out["access"] = room_access.set_study_access(
-            base, token, room_id, visibility=visibility, embargo=embargo)
-    except Exception as exc:  # noqa: BLE001
-        out["failed"].append(f"who sees: {exc}")
+    out["access"] = dict((ULTIMO_REFERTO.get("engine") or {}).get("access") or {})
+    if embargo or not out["access"].get("visibility"):
+        try:
+            out["access"] = room_access.set_study_access(
+                base, token, room_id, visibility=visibility, embargo=embargo)
+        except Exception as exc:  # noqa: BLE001
+            out["failed"].append(f"who sees: {exc}")
     if out["members"]:
         out["sentences"].append("invited: " + ", ".join(
             f"{m['orcid']} ({m['role']})" for m in out["members"]))
@@ -686,7 +599,7 @@ def _operator_classes():  # pragma: no cover — bpy
             col.label(text=f"Node: {node}", icon="WORLD")
             box = col.box()
             box.prop(self, "name")
-            box.label(text=f"id: {rooms_list.room_id_from_name(self.name) or '—'}",
+            box.label(text=f"id: {nodeio.room_id_from_name(self.name) or '—'}",
                       icon="BLANK1")
             box = col.box()
             box.label(text="Who takes part", icon="USER")
@@ -779,7 +692,8 @@ def _operator_classes():  # pragma: no cover — bpy
         move_here: bpy.props.BoolProperty(  # type: ignore
             name="Move here the files kept in another room",
             description="Their home and rights become this room's; no byte is "
-                        "sent. Off: they stay where they are, as references",
+                        "sent. Off: their home stays where it is, and this room "
+                        "hosts them at its own address (the node already has them)",
             default=False)
         confirm_lots: bpy.props.BoolProperty(  # type: ignore
             name="Make each proposed session one lot",
@@ -832,7 +746,7 @@ def _operator_classes():  # pragma: no cover — bpy
 
         def execute(self, context):
             from ..functions import is_graph_available
-            if "rows" not in STATE:
+            if "run" not in STATE:
                 self.report({"ERROR"}, "no inventory: start from «Bring into a room…»")
                 return {"CANCELLED"}
             ok, graph = is_graph_available(context)
@@ -841,9 +755,9 @@ def _operator_classes():  # pragma: no cover — bpy
                 return {"CANCELLED"}
             per_item = {r.res_id: r.choice for r in context.window_manager.em_bring_rows
                         if r.choice != self.found_choice}
-            inventory.apply_choices(STATE["rows"],
-                                    per_group={inventory.GROUP_FOUND: self.found_choice},
-                                    per_item=per_item)
+            engine.apply_choices(STATE["run"],
+                                 per_group={inventory.GROUP_FOUND: self.found_choice},
+                                 per_item=per_item)
             STATE["move_yes"] = bool(self.move_here)
             for lot in STATE.get("lots") or []:
                 lot["confirmed"] = bool(self.confirm_lots)
