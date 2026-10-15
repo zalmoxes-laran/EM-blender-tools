@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Files and «Bring into a room» call the engine (MICRO-BRING-CHIAMA-IL-MOTORE, 15 October 2026)
+- **One engine, three doors** (E.D.: «un motore, tre porte»): «Bring into a
+  room…» is now the dialog around s3Dgraphy's room importer
+  (`s3dgraphy.room_import`): `engine.prepare` creates the room — before any
+  question about its files — and makes the plan from the study the scene
+  holds (its live graphs and the file's shelf, `container=`, `base_dirs=`);
+  the dialog's choices (per group / per item, «Move here», the confirmed
+  lots) go to `engine.apply_choices` and `engine.execute`. What stays in EM
+  Tools is the scene: the models exported and published (`promote_model`,
+  the engine's `before_seed` hook, so they are in the one seeding), entering
+  the room, the people and the embargo.
+- **Moved, not copied**: `sync_manager/inventory.py`, `asset_upload.py`,
+  `access.py`, `trust.py` are gone; every importer reads
+  `s3dgraphy.room_import.{inventory,node,access,trust}`. `RoomError` is the
+  engine's (`room_import.errors`); `rooms_list.create_room` / `room_info` /
+  `send_ops` / `room_id_from_name`, `room_access.set_study_access` and
+  `handoff.open_targets` are the engine's `node`. The renewal follows EM
+  Tools' copies of the token through a hook registered with the add-on
+  (`access.ON_RENEWED` ← `room._follow`) and says where to sign in again
+  (`access.SIGN_IN_HINT`). `study.birth_sections` / `seed_plan` went to the
+  engine (`engine.birth_sections`); the DTC corpus is not seated (as in the
+  engine: on a node the documentation register is the node's own).
+- **What the engine decided, the client follows**: every `resource_file` of a
+  set is a row (the 132 files of Templu Mare v3.2's `file_set`s), a tileset
+  folder goes up file by file with its members' list, `blend://` is a
+  reference by digest, a file at home in another room is hosted here without
+  moving it unless «Move here» is ticked (`elsewhere="host"`), a room is
+  taken up again only by its owner or an admin, the journal and the report
+  are written beside the study's em.json (`.em_room_import.json`,
+  `<room>.room-import.json/.md`).
+- **Files («Upload», «Send a web version»)** upload through the engine's
+  doors (`node.upload_asset`, `node.asset_reference` on a personal node) with
+  the file's media type, and rewrite the resource with
+  `inventory.make_store_backed` + the `media_type` when the graph did not say
+  it (the engine's choice 11).
+- **One model is one row, not the batch**: a scene model that cannot be
+  exported (measured on `GreatTemple_2026_v2.blend`: 153 objects «not in View
+  Layer») is a FAILED line of the report; the gesture goes on and the graph
+  is seated. A proxy's chain resource the scene gave bytes to is no longer
+  counted missing.
+
 ### Changed — The units' order comes from the chronology, not from y_pos (MICRO, E.D. 10 October 2026)
 - **`y_pos` is a fossil of the GraphML**: the yEd coordinate, which only the
   GraphML importer needs to rebuild the chronology from the drawing. The
