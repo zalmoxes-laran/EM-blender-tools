@@ -352,8 +352,14 @@ def test_no_door_at_all_beats_a_door_that_fails_after_the_click():
 
 
 def test_the_link_is_ASKED_FOR_never_assembled_here():
+    """`open_targets` is the room importer's door since 15 Oct 2026
+    (s3Dgraphy `room_import.node`): handoff imports it, and its code is read
+    where it lives."""
+    import inspect
     source = (_REPO / "sync_manager" / "handoff.py").read_text(encoding="utf-8")
-    emit = source[source.index("def open_targets"):]
+    assert "from s3dgraphy.room_import.node import open_targets" in source
+    from s3dgraphy.room_import import node
+    emit = inspect.getsource(node.open_targets)
     code = re.sub(r'"""[\s\S]*?"""|#.*', "", emit)
     assert "stratigraph://" not in code, "the emit half writes no scheme of its own"
     assert "/v1/rooms/" in code and "/open" in code, "it asks the handoff endpoint"

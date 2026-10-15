@@ -55,7 +55,9 @@ _pkg("_cr", "")
 _pkg("_cr.sync_manager", "sync_manager")
 ROOM = _load("_cr.sync_manager.room", "sync_manager/room.py")
 AV = _load("_cr.sync_manager.asset_versions", "sync_manager/asset_versions.py")
-UP = _load("_cr.sync_manager.asset_upload", "sync_manager/asset_upload.py")
+# the transport is the room importer's (s3Dgraphy, since 15 Oct 2026):
+# `file_states._send` reads `upload_asset` from it at every call
+from s3dgraphy.room_import import node as UP  # noqa: E402
 FS = _load("_cr.sync_manager.file_states", "sync_manager/file_states.py")
 GOV = _load("resource_governance", "resource_governance.py")
 WV = _load("_cr.sync_manager.web_version", "sync_manager/web_version.py")

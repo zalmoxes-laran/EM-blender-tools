@@ -414,7 +414,7 @@ class RoomSession:
         headers = {}
         token = room._session.get("token")        # never stored, never printed
         try:
-            from . import access                  # X1 · renewed, not stale
+            from s3dgraphy.room_import import access                  # X1 · renewed, not stale
             token = access.fresh(token)
         except ImportError:                       # loaded by path (the suite)
             pass

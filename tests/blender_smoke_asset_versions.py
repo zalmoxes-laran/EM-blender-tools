@@ -223,7 +223,7 @@ if not TOKEN:
     print("[SMOKE] no EM_DEV_TOKEN: T-A3 and B1 skipped")
 else:
     rooms_list = mod(".sync_manager.rooms_list")
-    upload = mod(".sync_manager.asset_upload")
+    from s3dgraphy.room_import import node as upload  # the engine's, since 15 Oct 2026
     package = mod(".sync_manager.scene_package")
     ROOM_NAME = f"T-A3 {int(time.time())}"
     ROOM = rooms_list.room_id_from_name(ROOM_NAME)

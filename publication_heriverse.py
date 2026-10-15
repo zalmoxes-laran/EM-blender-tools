@@ -115,9 +115,9 @@ def sha256_of_file(path: str) -> str:
 
 def _is_store_url(url: str) -> bool:
     """A node's asset address (`…/v1/rooms/<room>/asset/sha256:<hex>`): the
-    same test as `sync_manager.inventory._is_store_url`."""
+    same test as `s3dgraphy.room_import.inventory._is_store_url`."""
     try:
-        from .sync_manager.inventory import _is_store_url as store
+        from s3dgraphy.room_import.inventory import _is_store_url as store
     except ImportError:      # loaded outside the package (the suite): the
         store = None         # package imports bpy, its one line is below
     if store is not None:

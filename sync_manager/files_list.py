@@ -489,7 +489,7 @@ def _classes():  # pragma: no cover — bpy
             from s3dgraphy import api
             from . import file_states
             from ..functions import is_graph_available
-            from .asset_upload import sha256_of_file
+            from s3dgraphy.room_import.node import sha256_of_file
             ok, graph = is_graph_available(context)
             if not ok or graph is None or not file_states.ULTIMI.get("results"):
                 self.report({"ERROR"}, "the files are not checked yet (↻ in Files): the search is for the missing ones")
@@ -565,7 +565,7 @@ def _classes():  # pragma: no cover — bpy
         def execute(self, context):
             from s3dgraphy import api
             from . import file_states
-            from .asset_upload import sha256_of_file
+            from s3dgraphy.room_import.node import sha256_of_file
             from ..functions import is_graph_available
             ok, graph = is_graph_available(context)
             if not ok or graph is None or not file_states.ULTIMI.get("results"):
@@ -601,7 +601,7 @@ def _classes():  # pragma: no cover — bpy
         def execute(self, context):
             from s3dgraphy import api
             from . import file_states
-            from .asset_upload import sha256_of_file
+            from s3dgraphy.room_import.node import sha256_of_file
             from ..functions import is_graph_available
             ok, graph = is_graph_available(context)
             row = next((r for r in file_states.ULTIMI.get("results") or [] if r["id"] == self.resource_id), None)
@@ -684,7 +684,7 @@ def _classes():  # pragma: no cover — bpy
             import time
             from s3dgraphy import api
             from . import file_states
-            from .asset_upload import sha256_of_file
+            from s3dgraphy.room_import.node import sha256_of_file
             from ..functions import is_graph_available
             plan = getattr(self, "plan", None) or self._plan(context)
             if _needs_config(self):

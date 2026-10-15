@@ -1366,7 +1366,7 @@ def write_version(obj, mesh, recipe: Dict[str, Any], folder: str, base: str
     takes them (the entry point first), ``applied`` what was measured."""
     import shutil
     import uuid
-    from .asset_upload import sha256_of_file
+    from s3dgraphy.room_import.node import sha256_of_file
     gltf = recipe["format"] == "gltf_separate"
     applied: Dict[str, Any] = {}
     if not gltf:
@@ -1538,7 +1538,7 @@ def _room_id() -> Optional[str]:  # pragma: no cover — bpy
 def _operator_classes():  # pragma: no cover — bpy
     import bpy  # type: ignore
 
-    from .asset_upload import sha256_of_file
+    from s3dgraphy.room_import.node import sha256_of_file
 
     def _graph(context):
         from ..functions import is_graph_available

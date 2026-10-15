@@ -47,7 +47,7 @@ ops = importlib.import_module(PKG + ".sync_manager.operators")
 rs = importlib.import_module(PKG + ".sync_manager.room_session")
 room_cfg = importlib.import_module(PKG + ".sync_manager.room")
 rooms_list = importlib.import_module(PKG + ".sync_manager.rooms_list")
-inventory = importlib.import_module(PKG + ".sync_manager.inventory")
+from s3dgraphy.room_import import inventory  # noqa: E402 — the engine's, since 15 Oct 2026
 ws_client = importlib.import_module(PKG + ".sync_bridge.ws_client")
 wire = importlib.import_module(PKG + ".sync_bridge.wire")
 IMPORT = getattr(bpy.ops, "import")

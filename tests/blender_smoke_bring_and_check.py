@@ -61,7 +61,7 @@ if not TOKEN:
     sys.exit(1)
 
 bring = mod(".sync_manager.bring")
-inventory = mod(".sync_manager.inventory")
+from s3dgraphy.room_import import inventory  # noqa: E402 — the engine's, since 15 Oct 2026
 room_cfg = mod(".sync_manager.room")
 scene_check = mod(".sync_manager.scene_check")
 ops = mod(".sync_manager.operators")

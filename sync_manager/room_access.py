@@ -102,17 +102,9 @@ def study_access(base: str, token: Optional[str], room_id: str) -> Dict[str, Any
     return _json(base, token, "GET", f"{_room(room_id)}/study-access") or {}
 
 
-def set_study_access(base: str, token: Optional[str], room_id: str, *,
-                     visibility: Optional[str] = None,
-                     embargo: Optional[str] = None) -> Dict[str, Any]:
-    body: Dict[str, Any] = {}
-    if visibility is not None:
-        if visibility not in VISIBILITIES:
-            raise ValueError(f"visibility is restricted or public, not {visibility!r}")
-        body["visibility"] = visibility
-    if embargo is not None:
-        body["embargo"] = str(embargo).strip()
-    return _json(base, token, "PUT", f"{_room(room_id)}/study-access", body) or {}
+#: `PUT …/study-access {visibility, embargo}` — the room importer's door
+#: (s3Dgraphy `room_import.node`, moved there on 15 Oct 2026).
+from s3dgraphy.room_import.node import set_study_access  # noqa: E402,F401
 
 
 def parse_people(text: str) -> List[Dict[str, str]]:

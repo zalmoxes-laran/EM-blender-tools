@@ -46,7 +46,7 @@ def _held(base: str) -> Optional[str]:
     held_base = room_cfg._session.get("base_url")
     if held and (not held_base or held_base == base.rstrip("/")):
         try:
-            from . import access
+            from s3dgraphy.room_import import access
             return access.fresh(held)
         except ImportError:      # loaded by path, outside the package (the suite)
             return held
@@ -156,7 +156,7 @@ def draw(layout) -> None:  # pragma: no cover — bpy
         row.label(text=line, icon="TIME")
         row.operator("em.sign_in_cancel", text="Cancel", icon="CANCEL")
         return
-    from . import access
+    from s3dgraphy.room_import import access
     if access.EXPIRED.get("base"):
         # X1 · the access ran out and could not be renewed: say it, and the
         # one gesture that fixes it, beside it
@@ -171,7 +171,7 @@ def draw(layout) -> None:  # pragma: no cover — bpy
 
 def sign_in_again() -> str:
     """Forget the expired access and sign in to that node again → the sentence."""
-    from . import access
+    from s3dgraphy.room_import import access
     base = access.EXPIRED.get("base") or room_cfg._session.get("base_url") or ""
     if not base:
         return "no node to sign in to"

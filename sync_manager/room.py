@@ -32,13 +32,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 def _urlopen(request, timeout=None):
     """Every call to a node verifies TLS against what this computer trusts
-    (`trust.py`: the dev node behind Caddy included), with an access renewed
-    before it runs out and said when it cannot be (`access.py`)."""
-    try:
-        from .access import urlopen
-    except ImportError:          # loaded by path, outside the package (the suite)
-        import urllib.request
-        return urllib.request.urlopen(request, timeout=timeout)
+    (s3Dgraphy's `room_import.trust`: the dev node behind Caddy included),
+    with an access renewed before it runs out and said when it cannot be
+    (`room_import.access`)."""
+    from s3dgraphy.room_import.access import urlopen
     return urlopen(request, timeout=timeout)
 
 #: The room this Blender is talking to, for the length of THIS session.
@@ -52,21 +49,10 @@ _session: Dict[str, Optional[str]] = {"base_url": None, "room_id": None,
 GLTF_MEDIA_TYPE = "model/gltf-binary"
 
 
-class RoomError(RuntimeError):
-    """The room refused, or could not be reached. Carries a sentence a user can
-    act on rather than an HTTP number nobody reads.
-
-    …and, when there was one, the **status** beside the sentence. Not for
-    display: for the one caller that must tell refusals apart. A 403 on an asset
-    is the embargo gate doing its job (the study is closed and this token is not
-    an editor of it) while a 404 is a missing file — the first is a row to skip
-    with an explanation, the second is something wrong. A consumer that could
-    only read the sentence would have to match on English.
-    """
-
-    def __init__(self, message: str, *, status: Optional[int] = None):
-        super().__init__(message)
-        self.status = status
+#: The one error of a talk with a node — the SAME class the room importer
+#: raises (s3Dgraphy, `room_import.errors`, moved there on 15 Oct 2026), so a
+#: `status` read here is the one the node answered there.
+from s3dgraphy.room_import.errors import RoomError  # noqa: E402
 
 
 # ── the session ──────────────────────────────────────────────────────────────
@@ -79,10 +65,7 @@ def set_room(base_url: Optional[str], room_id: Optional[str],
     if token is not None:
         _session["token"] = token.strip() or None
         if _session["token"] and _session["base_url"]:
-            try:
-                from . import access
-            except ImportError:  # loaded by path, outside the package (the suite)
-                return
+            from s3dgraphy.room_import import access
             # a token that came another way is known by its node, so its
             # expiry can be said as one; a signed-in one is already known
             access.adopt(_session["base_url"], _session["token"])
@@ -96,11 +79,44 @@ def forget_token() -> None:
     exactly what this module exists to prevent.
     """
     _session["token"] = None
-    try:
-        from . import access
-    except ImportError:          # loaded by path, outside the package (the suite)
-        return
+    from s3dgraphy.room_import import access
     access.forget(_session["base_url"])
+
+
+#: What the sentence of an expired access tells the person to do, here.
+SIGN_IN_HINT = "sign in again (EM ▸ Where you work ▸ Sign in again)"
+
+
+def _follow(base: str, token: str) -> None:
+    """After a renewal (s3Dgraphy's `access.ON_RENEWED`): the REST session and
+    the per-graph rooms that held the old token of `base` carry the new one.
+    Was `access._follow` in EM Tools' own copy of the module, which reached
+    into these two; the copy moved to s3Dgraphy and the reach became a hook."""
+    from s3dgraphy.room_import import access
+    if _session.get("token") and access._lineage.get(_session["token"]) == base:
+        _session["token"] = token
+    try:
+        from . import room_session
+    except Exception:  # noqa: BLE001 — no bpy (the suite)
+        return
+    for where in room_session._where.values():
+        if where.get("token") and access._lineage.get(where["token"]) == base:
+            where["token"] = token
+
+
+def register_access() -> None:
+    """At the add-on's registration: EM Tools follows the renewals and says
+    where to sign in again. Idempotent (a reload registers twice)."""
+    from s3dgraphy.room_import import access
+    access.SIGN_IN_HINT = SIGN_IN_HINT
+    if _follow not in access.ON_RENEWED:
+        access.ON_RENEWED.append(_follow)
+
+
+def unregister_access() -> None:
+    from s3dgraphy.room_import import access
+    while _follow in access.ON_RENEWED:
+        access.ON_RENEWED.remove(_follow)
 
 
 def room() -> Dict[str, Optional[str]]:

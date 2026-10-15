@@ -220,7 +220,7 @@ class EM_OT_unit_images_confirm(Operator):
 
     def execute(self, context):
         from s3dgraphy import api
-        from ..sync_manager.asset_upload import sha256_of_file
+        from s3dgraphy.room_import.node import sha256_of_file
         graph = _graph(context)
         st = context.scene.em_unit_images
         if graph is None:

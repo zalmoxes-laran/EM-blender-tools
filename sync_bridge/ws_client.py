@@ -150,7 +150,7 @@ class WsClient:
             sock = socket.create_connection((host, port), timeout=timeout)
             if secure:
                 try:            # what this computer trusts (sync_manager/trust.py)
-                    from ..sync_manager.trust import context as _trusted
+                    from s3dgraphy.room_import.trust import context as _trusted
                     tls = _trusted()
                 except ImportError:  # loaded by path, outside the package
                     tls = ssl.create_default_context()

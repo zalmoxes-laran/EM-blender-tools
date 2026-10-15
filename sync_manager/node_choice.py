@@ -56,7 +56,8 @@ def personal(action: str, root: str = "", lan: bool = False) -> Dict[str, Any]:
 
 def find(typed: str = "") -> Dict[str, Any]:
     from s3dgraphy.tools.node_finder import find_nodes, probe
-    from . import servers, trust
+    from . import servers
+    from s3dgraphy.room_import import trust
     saved = [s["url"] for s in servers.saved()]
     FOUND.clear()
     # each probe verifies TLS against what this computer trusts: without it the
@@ -81,7 +82,7 @@ def identity_of(url: str, fetch=None) -> str:
     if url in IDENTITY:
         return IDENTITY[url]
     if fetch is None:
-        from . import trust
+        from s3dgraphy.room_import import trust
         fetch = trust.fetch_json
     try:
         said = fetch(f"{url}/v1/node", 2.0) or {}

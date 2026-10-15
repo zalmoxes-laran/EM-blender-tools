@@ -1,18 +1,24 @@
-"""X1 · the access to a node, renewed before it runs out — measured headless.
+"""X1 · the access to a node, renewed before it runs out — EM Tools' half.
 
 Measured on 4 Oct 2026: «Archive this .blend» died fifteen minutes after
 entering the room with «could not reach the room: [Errno 32] Broken pipe»; the
-node had answered 401 (the `em-tools` client's tokens live 900 s). What is under
-test is `sync_manager/access.py` with `room.py` beside it, loaded as a package
-(without the addon's `__init__`, which imports bpy), against a real socket that
-plays both the node and the realm's token endpoint:
+node had answered 401 (the `em-tools` client's tokens live 900 s).
 
-* an access about to run out is renewed BEFORE the call: the node only ever
-  sees the new token, also when the caller handed in the old copy;
-* a 401 on a live-looking token is renewed once and sent again;
-* a realm that will not renew gives the sentence «has expired: sign in again»,
-  never a pipe, and the panel's «Sign in again» knows which node;
-* the backup itself (`room.put_blend_backup`) goes through it.
+The renewal itself moved to s3Dgraphy on 15 Oct 2026 (`room_import.access`,
+measured there by `tests/test_room_import_access.py`: renewed before the call,
+a stale copy replaced, a 401 renewed once, another person another lineage, a
+short access not renewed at every call). What stays under test HERE is EM
+Tools' side of it — `room.py` loaded as a package (without the addon's
+`__init__`, which imports bpy) against a real socket that plays both the node
+and the realm's token endpoint:
+
+* the hook EM Tools gives the renewal at registration (`room.register_access`:
+  `access.ON_RENEWED` follows the REST session, `access.SIGN_IN_HINT` says
+  where to sign in again);
+* a realm that will not renew gives the sentence «has expired: sign in again
+  (EM ▸ …)», never a pipe, and the panel's «Sign in again» knows which node;
+* the backup itself (`room.put_blend_backup`) goes through it, and the
+  session follows the renewal.
 """
 
 from __future__ import annotations
@@ -41,11 +47,12 @@ def _package():
         pkg = types.ModuleType(_PKG)
         pkg.__path__ = [str(_REPO / "sync_manager")]
         sys.modules[_PKG] = pkg
-    return (importlib.import_module(f"{_PKG}.access"),
-            importlib.import_module(f"{_PKG}.room"))
+    from s3dgraphy.room_import import access as _access
+    return _access, importlib.import_module(f"{_PKG}.room")
 
 
 access, room = _package()
+room.register_access()
 
 
 def jwt(exp: float, name: str) -> str:
@@ -132,65 +139,31 @@ def _get(base, token):
         return json.loads(answer.read())
 
 
-def test_an_access_about_to_run_out_is_renewed_before_the_call(world):
-    old = _sign_in(world, left=30)                  # less than SKEW
-    assert _get(world, old) == {"ok": True}
-    assert _World.seen == [t for t in _World.seen if t != old], \
-        "the node must never see the access that was running out"
-    assert _World.issued == 1
-
-
-def test_a_stale_copy_is_replaced_by_the_newest_of_its_lineage(world):
-    old = _sign_in(world, left=30)
-    _get(world, old)                                # renewed once
-    _get(world, old)                                # the caller's copy is stale
-    assert _World.issued == 1
-    assert old not in _World.seen
-
-
-def test_a_401_is_renewed_once_and_sent_again(world):
-    old = _sign_in(world, left=600)                 # looks alive
-    _World.valid.discard(old)                       # …but the node refuses it
-    assert _get(world, old) == {"ok": True}
-    assert _World.seen[0] == old and _World.seen[1] != old
-    assert _World.issued == 1
-
-
 def test_a_realm_that_will_not_renew_says_expired_not_broken_pipe(world):
     old = _sign_in(world, left=-5)
     _World.refresh_ok = False
     with pytest.raises(access.AccessExpired) as caught:
         _get(world, old)
     sentence = str(caught.value)
-    assert "has expired: sign in again" in sentence
+    assert "has expired: sign in again (EM ▸ Where you work ▸ Sign in again)" in sentence
     assert "Broken pipe" not in sentence and "Session not active" in sentence
     assert access.EXPIRED["base"] == world
     assert _World.seen == [], "nothing is sent on an access that is known dead"
     assert isinstance(caught.value, room.RoomError) and caught.value.status == 401
 
 
+def test_em_tools_hooks_itself_once_into_the_renewal():
+    room.register_access()                          # a reload registers again
+    assert access.ON_RENEWED.count(room._follow) == 1
+    assert access.SIGN_IN_HINT == room.SIGN_IN_HINT
+    import s3dgraphy.room_import.access as same
+    assert same is access, "one access module: EM Tools has no copy of its own"
+
+
 def test_a_pasted_token_without_refresh_says_expired(world):
     room.set_room(world, "r", jwt(time.time() - 5, "pasted"))
     with pytest.raises(access.AccessExpired):
         _get(world, room._session["token"])
-
-
-def test_another_person_on_the_same_node_is_another_lineage(world):
-    """Measured on 5 Oct 2026 (the room list smoke): a viewer's token pasted
-    after dev's joined dev's lineage, and every call went out as dev."""
-    def b64(obj):
-        return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
-
-    def person(sub):
-        return f"{b64({'alg': 'none'})}.{b64({'exp': int(time.time() + 900), 'sub': sub})}.sig"
-
-    dev = person("dev")
-    access.remember(world, dev, refresh_token="r0", token_endpoint=world + "/token",
-                    client_id="em-tools")
-    viewer = person("viewer")
-    room.set_room(world, None, viewer)
-    assert access.fresh(viewer) == viewer
-    assert access.fresh(dev) == dev          # dev's own copy is not swapped either
 
 
 def test_the_blend_backup_goes_through_the_renewal(world):
@@ -232,18 +205,3 @@ def test_put_asset_does_not_send_bytes_the_room_holds(world):
         assert info["ref"] == Room.held
     finally:
         server.shutdown()
-
-
-def test_a_short_access_is_not_renewed_at_every_call(world):
-    """Measured with a 60 s access (the run of T-X1): 195 renewals in one
-    bring, because the margin was longer than the access's life."""
-    def b64(obj):
-        return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
-    now = time.time()
-    token = f"{b64({'alg': 'none'})}.{b64({'iat': int(now), 'exp': int(now) + 60})}.sig"
-    _World.valid.add(token)
-    access.remember(world, token, refresh_token="r0",
-                    token_endpoint=f"{world}/token", client_id="em-tools")
-    for _ in range(5):
-        _get(world, token)
-    assert _World.issued == 0, "a 60 s access with 59 s left needs no renewal"

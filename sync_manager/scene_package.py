@@ -37,7 +37,7 @@ def _urlopen(request, timeout=None):
     (`trust.py`: the dev node behind Caddy included), with an access renewed
     before it runs out and said when it cannot be (`access.py`)."""
     try:
-        from .access import urlopen
+        from s3dgraphy.room_import.access import urlopen
     except ImportError:          # loaded by path, outside the package (the suite)
         import urllib.request
         return urllib.request.urlopen(request, timeout=timeout)

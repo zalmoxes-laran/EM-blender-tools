@@ -105,7 +105,7 @@ def auth_config(server: str, *, timeout: float = 10.0
     import urllib.request
 
     try:
-        from .trust import urlopen as _open
+        from s3dgraphy.room_import.trust import urlopen as _open
     except ImportError:          # loaded by path, outside the package (the suite)
         _open = urllib.request.urlopen
     try:
@@ -168,7 +168,7 @@ def _refused_redirect(url: str, timeout: float = 10.0) -> bool:
 
     handlers = [_Stay()]
     try:
-        from .trust import context as _ctx
+        from s3dgraphy.room_import.trust import context as _ctx
         handlers.append(urllib.request.HTTPSHandler(context=_ctx()))
     except ImportError:          # loaded by path, outside the package (the suite)
         pass
@@ -322,7 +322,7 @@ class SignIn:
             headers={"Content-Type": "application/x-www-form-urlencoded"})
         try:
             try:
-                from .trust import urlopen as _open
+                from s3dgraphy.room_import.trust import urlopen as _open
             except ImportError:  # loaded by path, outside the package (the suite)
                 _open = urllib.request.urlopen
             with _open(request, timeout=30) as answer:
@@ -396,7 +396,7 @@ def sign_in(server: str, *, open_browser: Optional[Callable[[str], Any]] = None,
 def keep(running: "SignIn") -> None:
     """The access a finished sign-in returned, kept with what renews it."""
     try:
-        from . import access
+        from s3dgraphy.room_import import access
     except ImportError:          # loaded by path, outside the package (the suite)
         return
     access.remember(running.server, running.token or "",
@@ -425,34 +425,11 @@ def resolve(link: str, *, sign_in_with: Optional[Callable[[str], Optional[str]]]
 # registered launcher or the `ws_server` this addon already exposes. Offering
 # half of it here as if it worked would be the worse half.
 
-def open_targets(base_url: str, room_id: str, *, token: Optional[str] = None,
-                 timeout: float = 10.0) -> Optional[Dict[str, Any]]:
-    """Ask the node how THIS room can be opened — `GET /v1/rooms/{id}/open`.
-
-    The link is asked for and never assembled here: one grammar, on the server,
-    measured against every consumer's copy. `None` when the node cannot be
-    reached or refuses, so the caller can say which of the two happened.
-    """
-    import json
-    import urllib.error
-    import urllib.request
-
-    url = (f"{base_url.rstrip('/')}/v1/rooms/"
-           f"{urllib.parse.quote(str(room_id))}/open")
-    request = urllib.request.Request(url, headers={"Accept": "application/json"})
-    if token:
-        # the token authenticates the QUESTION — a handoff for a room you have no
-        # grant in is refused, because a listing is not a discovery service
-        request.add_header("Authorization", f"Bearer {token}")
-    try:
-        from .access import urlopen as _open
-    except ImportError:          # loaded by path, outside the package (the suite)
-        _open = urllib.request.urlopen
-    try:
-        with _open(request, timeout=timeout) as answer:
-            return json.loads(answer.read() or b"{}")
-    except (urllib.error.URLError, OSError, ValueError):
-        return None
+#: Ask the node how THIS room can be opened — `GET /v1/rooms/{id}/open`. The
+#: link is asked for and never assembled here: one grammar, on the server.
+#: `None` when the node cannot be reached or refuses. The room importer's door
+#: (s3Dgraphy `room_import.node`, moved there on 15 Oct 2026).
+from s3dgraphy.room_import.node import open_targets  # noqa: E402,F401
 
 
 def emstudio_link(targets: Dict[str, Any]) -> Dict[str, Optional[str]]:

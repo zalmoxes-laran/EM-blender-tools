@@ -106,7 +106,7 @@ try:
     RESULT["life_set"] = set_life(LIFE)
     check(f"the em-tools access lives {LIFE} s for the run", RESULT["life_set"] == str(LIFE))
 
-    access = mod(".sync_manager.access")
+    from s3dgraphy.room_import import access  # the engine's, since 15 Oct 2026
     room_cfg = mod(".sync_manager.room")
     signin_ui = mod(".sync_manager.signin_ui")
     bring = mod(".sync_manager.bring")

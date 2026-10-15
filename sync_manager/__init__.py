@@ -22,9 +22,12 @@ Modules:
 - rooms_ui    : R1 · the room list in the panel: cache, UIList, refresh/pick/new
 - scene_check : S1 · the scene as a cache of the graph: here / missing (fetched) /
                 changed / external / only here (marked, never uploaded)
-- inventory   : P3 · the graph's resources in four groups (pure, no bpy)
-- asset_upload: P3 · THE upload function (HEAD, streamed PUT, resumable door)
-- bring       : P3 · «Bring into a room…»: room, inventory, uploads, models, seed, enter
+- bring       : P3 · «Bring into a room…»: the dialog around s3Dgraphy's room
+                importer (`s3dgraphy.room_import`: the room, the plan, the
+                uploads, the seeding), the scene's models, entering the room.
+                The inventory, the node's doors (HEAD, streamed PUT, resumable
+                door), the access renewal and TLS live in s3Dgraphy since
+                15 Oct 2026 (`room_import.{inventory,node,access,trust}`)
 - asset_versions: A1–A3 · an asset and its versions: one library .blend per
                 asset, ONE object whose mesh changes («LOD ▸»), the cache checked
                 mesh by mesh
@@ -38,10 +41,11 @@ from __future__ import annotations
 
 from . import (asset_versions, backups, bring, entry, file_states, files_list, materialise, node_choice,
                open_in_emstudio, signin_ui,
-               operators, panel, proxy_hook, rooms_ui, scene_check, scene_package, windows)
+               operators, panel, proxy_hook, room, rooms_ui, scene_check, scene_package, windows)
 
 
 def register():
+    room.register_access()
     operators.register()
     materialise.register()
     scene_check.register()
@@ -79,3 +83,4 @@ def unregister():
     scene_check.unregister()
     materialise.unregister()
     operators.unregister()
+    room.unregister_access()

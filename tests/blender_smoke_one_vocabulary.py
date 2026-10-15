@@ -54,7 +54,7 @@ PKG = names[0].rsplit(".graph_origins", 1)[0]
 ops = importlib.import_module(PKG + ".sync_manager.operators")
 rs = importlib.import_module(PKG + ".sync_manager.room_session")
 rooms_list = importlib.import_module(PKG + ".sync_manager.rooms_list")
-inventory = importlib.import_module(PKG + ".sync_manager.inventory")
+from s3dgraphy.room_import import inventory  # noqa: E402 — the engine's, since 15 Oct 2026
 ws_client = importlib.import_module(PKG + ".sync_bridge.ws_client")
 wire = importlib.import_module(PKG + ".sync_bridge.wire")
 IMPORT = getattr(bpy.ops, "import")

@@ -5,28 +5,17 @@ Measured: the RM ME_EST_bk_LOD0 (bytes sha256:7fb52213…) answered
 those bytes at home in a room editor2 is not part of. Sending the bytes is
 the proof of possession the node asks for, so the upload goes on.
 """
-import importlib.util
 import pathlib
 import sys
-import types
 
 _REPO = pathlib.Path(__file__).resolve().parents[1]
+_S3D = _REPO.parent / "s3Dgraphy" / "src"
+if _S3D.is_dir() and str(_S3D) not in sys.path:
+    sys.path.insert(0, str(_S3D))
 
-
-def _load():
-    pkg = types.ModuleType("_p403_pkg")
-    pkg.__path__ = [str(_REPO / "sync_manager")]
-    sys.modules["_p403_pkg"] = pkg
-    for name in ("room", "asset_upload"):
-        spec = importlib.util.spec_from_file_location(
-            f"_p403_pkg.{name}", _REPO / "sync_manager" / f"{name}.py")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
-    return sys.modules["_p403_pkg.asset_upload"]
-
-
-up = _load()
+# EM Tools' uploads (Files, «Bring into a room») go through the room importer's
+# doors since 15 Oct 2026: the rule is measured there, where it lives
+from s3dgraphy.room_import import node as up  # noqa: E402
 
 
 def _probe(status):

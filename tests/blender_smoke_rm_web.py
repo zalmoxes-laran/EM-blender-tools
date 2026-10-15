@@ -54,7 +54,7 @@ fs = importlib.import_module("emtools_wc.sync_manager.file_states")
 gov = importlib.import_module("emtools_wc.resource_governance")
 rs = importlib.import_module("emtools_wc.sync_manager.room_session")
 room = importlib.import_module("emtools_wc.sync_manager.room")
-upl = importlib.import_module("emtools_wc.sync_manager.asset_upload")
+from s3dgraphy.room_import import node as upl  # noqa: E402 — the engine's, since 15 Oct 2026
 ops = importlib.import_module("emtools_wc.sync_manager.operators")
 functions = importlib.import_module("emtools_wc.functions")
 fs_web = importlib.import_module("emtools_wc.sync_manager.web_version")

@@ -381,7 +381,8 @@ def read_state(context) -> Dict[str, Any]:  # pragma: no cover — bpy
         s["study_file"] = ""
     held = room_cfg._session.get("token") and room_cfg._session.get("base_url")
     s["signed_in_to"] = room_cfg._session.get("base_url") if held else ""
-    from . import access, signin_ui
+    from s3dgraphy.room_import import access
+    from . import signin_ui
     running = signin_ui.PENDING.get("signin")
     s["signin_waiting"] = bool(running is not None and running.state == "waiting")
     s["signin_line"] = signin_ui.PENDING.get("line") or ""
