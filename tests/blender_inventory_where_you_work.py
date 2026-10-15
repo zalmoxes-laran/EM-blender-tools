@@ -234,7 +234,12 @@ def run():
                       for r in st["drawn"]), str(room_ops))
         texts = [r.get("text") or "" for r in st["drawn"] if r["k"] == "label"]
         check("4: the place names the room", any("present" in t for t in texts), str(texts[:2]))
-        check("4: who you are, once", sum(t.startswith("dev ·") for t in texts) == 1, str(texts))
+        # who you are: the token's name, else its username («Dev User» or
+        # «dev» — measured on 15 Oct 2026 the dev realm gives the user a name)
+        import re as _re
+        check("4: who you are, once",
+              sum(bool(_re.match(r"^[^·▣●]+ · (owner|admin|editor|viewer) · ", t))
+                  for t in texts) == 1, str(texts))
         check("4: no Create inside a room",
               not any("Create a collaborative room" in c for c in st["commands"]))
         check("4: no INFO line outside the zones", not st["info"], str(st["info"][:2]))

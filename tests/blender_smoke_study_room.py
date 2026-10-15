@@ -177,6 +177,11 @@ observer.leave()
 # ── (5) the same gesture again: no second room ─────────────────────────────
 before = len(mod(".sync_manager.rooms_list").list_rooms(NODE, TOKEN))
 ops.leave_room()
+# leaving forgets the access (`room.forget_token`, «the credential goes when
+# the membership does»): the person signs in again — here, the dev token.
+# Measured on 15 Oct 2026: without it the gesture waited 300 s for a browser
+# sign-in nobody completed, and the operator raised
+room_cfg.set_room(NODE, None, TOKEN)
 r = bpy.ops.em.room_bring(name=f"{name} again", confirm=True)
 after = len(mod(".sync_manager.rooms_list").list_rooms(NODE, TOKEN))
 check("a study in a room does not make a second one", after == before,
