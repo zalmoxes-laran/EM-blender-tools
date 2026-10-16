@@ -1085,14 +1085,7 @@ def reconcile_container_groups(context, create_missing: bool = False) -> dict:
             container.group_node_id = gid
 
         # The model node ids of this container's meshes, in mesh_names order.
-        model_ids = []
-        for entry in container.mesh_names:
-            obj = bpy.data.objects.get(entry.name)
-            if obj is None:
-                continue            # already reported by the pass above
-            rm_id = obj.get("em_rm_node_id", "")
-            if rm_id:
-                model_ids.append(rm_id)
+        model_ids = _container_model_ids(scene, graph, container)
 
         rapporto = _gn.reconcile_container(
             graph, gid,
@@ -1131,6 +1124,196 @@ def reconcile_container_groups(context, create_missing: bool = False) -> dict:
                 (container.label or container.doc_name or "<unnamed>",
                  len(ignoti)))
     return esito
+
+
+def _container_model_ids(scene, graph, container) -> List[str]:
+    """The model node ids of the container's meshes, in ``mesh_names`` order.
+
+    Through :func:`resolve_rm_node_id`, the resolution every other path uses:
+    a mesh of the Templu Mare whose RM node is the legacy ``<name>_model`` and
+    whose ``em_rm_node_id`` was never written is still found. A mesh the graph
+    does not know is passed on as its raw property, so the reconciliation
+    reports it as ``unknown`` instead of losing it."""
+    out = []
+    for entry in container.mesh_names:
+        obj = bpy.data.objects.get(entry.name)
+        if obj is None:
+            continue            # reported by sync_rm_containers
+        rm_id = (resolve_rm_node_id(graph, obj, scene=scene)
+                 or obj.get("em_rm_node_id", ""))
+        if rm_id and rm_id not in out:
+            out.append(rm_id)
+    return out
+
+
+class _ContainerView:
+    """A container as ``group_nodes`` reads it: the PropertyGroup's fields plus
+    the model ids resolved against ONE graph."""
+
+    def __init__(self, container, model_node_ids):
+        self.item = container
+        self.label = container.label or container.doc_name or ""
+        self.doc_node_id = container.doc_node_id
+        self.group_node_id = container.group_node_id
+        self.model_node_ids = model_node_ids
+
+
+def _em_log(message, level="INFO"):
+    try:
+        from ..functions import em_log
+        em_log(message, level)
+    except Exception:                                   # noqa: BLE001
+        print(f"[EM {level}] {message}")
+
+
+def project_containers_before_save(context, graph_ids) -> dict:
+    """MICRO-EMTOOLS-CONTENITORI · before an em.json is written, every container
+    of the scene is in the graphs that file carries.
+
+    1. :func:`sync_rm_containers` — the sanitisation pass (missing meshes out,
+       with a warning each) and the reconciliation of what is already projected;
+    2. for each graph being written, :func:`group_nodes.project_all` — every
+       container that concerns it is reconciled, the missing groups CREATED.
+
+    ``mesh_names`` stays authoritative and the graph is the projection; the
+    group sits beside the Document→model and epoch↔model edges, never instead.
+    Creating here is not the load-time rewrite the Project button was kept
+    apart from: saving is the user writing the graph, and a file that does
+    not carry its containers is the bug this function closes.
+
+    Returns the totals; the divergences become RMContainerWarning rows and one
+    line in the console Log."""
+    scene = context.scene
+    esito = {"graphs": 0, "groups": 0, "created": 0, "added": 0,
+             "removed": 0, "refused": 0, "unknown": 0}
+    if not len(scene.rm_containers) and not len(scene.rm_list):
+        return esito
+    try:
+        sync_rm_containers(context)
+    except Exception as exc:                            # noqa: BLE001
+        _em_log(f"[RM containers] sync before save failed: {exc}", "WARNING")
+    try:
+        from s3dgraphy import get_graph
+    except Exception:                                   # noqa: BLE001
+        return esito
+    for gid in graph_ids:
+        graph = get_graph(gid) if gid else None
+        if graph is None:
+            continue
+        try:
+            viste = [_ContainerView(c, _container_model_ids(scene, graph, c))
+                     for c in scene.rm_containers]
+            fatti = _gn.project_all(graph, viste)
+        except Exception as exc:                        # noqa: BLE001
+            # the file is still written: a save refused for the projection
+            # would lose the user's work for the sake of a derived thing
+            _em_log(f"[RM containers] projection into {gid} failed, the file "
+                    f"is saved without it: {exc}", "ERROR")
+            continue
+        if not fatti:
+            continue
+        esito["graphs"] += 1
+        for vista, group_id, rapporto in fatti:
+            if vista.item.group_node_id != group_id:
+                vista.item.group_node_id = group_id
+            esito["groups"] += 1
+            esito["created"] += 1 if rapporto["created"] else 0
+            esito["added"] += len(rapporto["added"])
+            esito["removed"] += len(rapporto["removed"])
+            esito["refused"] += len(rapporto["refused"])
+            esito["unknown"] += len(rapporto.get("unknown") or [])
+            for rm_id in rapporto["refused"]:
+                _add_warning(scene, vista.label or "<unnamed>",
+                             f"{rm_id} (already in another group in the graph)")
+            if rapporto["removed"]:
+                _em_log(f"[RM containers] {vista.label!r}: "
+                        f"{len(rapporto['removed'])} membership(s) dropped from "
+                        f"the graph — not in the container", "WARNING")
+    if esito["groups"]:
+        _em_log(f"[RM containers] before save: {esito['groups']} group(s) in "
+                f"{esito['graphs']} graph(s), {esito['created']} created, "
+                f"{esito['added']} membership(s) added, {esito['removed']} "
+                f"dropped, {esito['refused']} refused, {esito['unknown']} "
+                f"model(s) unknown to the graph", "WARNING"
+                if (esito["refused"] or esito["unknown"]) else "INFO")
+    return esito
+
+
+def _object_for_model(scene, graph, model_node_id, by_prop):
+    """The scene object an RM node is the projection of, or None."""
+    obj = by_prop.get(model_node_id)
+    if obj is not None:
+        return obj
+    for rm in scene.rm_list:
+        if rm.node_id == model_node_id and rm.name in bpy.data.objects:
+            return bpy.data.objects[rm.name]
+    if model_node_id.endswith(ID_MODEL_LEGACY):
+        obj = bpy.data.objects.get(model_node_id[:-len(ID_MODEL_LEGACY)])
+        if obj is not None:
+            return obj
+    node = graph.find_node_by_id(model_node_id)
+    name = getattr(node, "name", "") if node is not None else ""
+    return bpy.data.objects.get(name) if name else None
+
+
+def check_containers_on_open(context, graphs) -> List[str]:
+    """MICRO-EMTOOLS-CONTENITORI · an em.json with RM groups has been opened.
+
+    * the scene has NO container → the containers are REBUILT from the groups
+      (label, Document, members found by ``em_rm_node_id`` / rm_list / legacy
+      ``<name>_model`` / node name). A member with no object in this scene is
+      a line, not a container entry;
+    * the scene HAS containers → they are COMPARED, and each difference is a
+      line. Nothing is corrected: neither the graph nor ``mesh_names``.
+
+    Every line goes to the console Log and to the RM container warnings the
+    panel header shows. Returns the lines."""
+    scene = context.scene
+    righe = []
+    graphs = [g for g in graphs if g is not None]
+    tutti = [(g, _gn.groups_in(g)) for g in graphs]
+    if not any(gr for _g, gr in tutti):
+        return righe
+    if not len(scene.rm_containers):
+        by_prop = {}
+        for obj in bpy.data.objects:
+            rid = obj.get("em_rm_node_id", "")
+            if rid:
+                by_prop.setdefault(rid, obj)
+        for graph, gruppi in tutti:
+            for g in gruppi:
+                c = scene.rm_containers.add()
+                c.label = g["label"]
+                c.doc_node_id = g["doc_node_id"]
+                c.doc_name = _resolve_doc_name(graph, g["doc_node_id"])
+                c.group_node_id = g["id"]
+                assenti = 0
+                for mid in g["members"]:
+                    obj = _object_for_model(scene, graph, mid, by_prop)
+                    if obj is None:
+                        assenti += 1
+                        continue
+                    if any(e.name == obj.name for e in c.mesh_names):
+                        continue
+                    e = c.mesh_names.add()
+                    e.name = obj.name
+                riga = (f"container {g['label']!r} rebuilt from the graph: "
+                        f"{len(c.mesh_names)} mesh(es)")
+                if assenti:
+                    riga += f", {assenti} model(s) with no object in this scene"
+                righe.append(riga)
+        scene.rm_containers_index = 0
+    else:
+        for graph, gruppi in tutti:
+            if not gruppi:
+                continue
+            viste = [_ContainerView(c, _container_model_ids(scene, graph, c))
+                     for c in scene.rm_containers]
+            righe.extend(_gn.compare_with_graph(graph, viste))
+    for riga in righe:
+        _em_log(f"[RM containers] on open: {riga}", "WARNING")
+        _add_warning(scene, "em.json", riga)
+    return righe
 
 
 def active_container(scene):

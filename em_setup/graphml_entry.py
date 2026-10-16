@@ -88,6 +88,9 @@ def convert(context, index: int, emjson_path: str) -> Dict[str, Any]:
     before = count_proxies(graph)
     update_semantic_shapes(graph)
     proxies = count_proxies(graph) - before
+    # MICRO-EMTOOLS-CONTENITORI · the models are seated: now their containers
+    from ..rm_manager.containers import project_containers_before_save
+    project_containers_before_save(context, [graph.graph_id])
 
     result = graph_origins.save_file(out, [graph.graph_id], get_graph,
                                      active_graph_id=graph.graph_id)

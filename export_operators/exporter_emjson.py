@@ -24,19 +24,28 @@ def _save_as_origin(context, graph, out_path: str) -> str:
     from s3dgraphy import get_graph
     from .. import graph_origins
 
+    from ..rm_manager.containers import project_containers_before_save
+
     em_tools = context.scene.em_tools
     rows = list(em_tools.graphml_files)
     index = em_tools.active_file_index
     gid = getattr(graph, "graph_id", None)
     if not (0 <= index < len(rows)):
+        from s3dgraphy.multigraph.multigraph import multi_graph_manager
+        project_containers_before_save(context, list(multi_graph_manager.graphs))
         return export_container_to_emjson(out_path, active_graph_id=gid)
     origin = graph_origins.origin_of(rows[index], abspath=bpy.path.abspath)
     if origin.is_emjson:
         members = graph_origins.members_of(rows, origin, abspath=bpy.path.abspath)
         base = graph_origins.remembered(origin.path)
+        project_containers_before_save(context, members)
         return graph_origins.save_file(out_path, members, get_graph,
                                        active_graph_id=gid, base=base).path
-    # a GraphML, a room's graph, a graph with no file: this graph alone
+    # a GraphML, a room's graph, a graph with no file: this graph alone. A
+    # room's graph is not reconciled here: what changes in it goes to the room
+    # as operations, and a Save As is a copy, not an edit of the room.
+    if not origin.is_room:
+        project_containers_before_save(context, [gid])
     return graph_origins.save_file(out_path, [gid], get_graph,
                                    active_graph_id=gid).path
 

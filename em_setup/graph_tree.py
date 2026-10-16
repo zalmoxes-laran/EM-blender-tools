@@ -157,6 +157,9 @@ def save_origin(context, index: int) -> tuple:
                        f"graph as em.json", True)
     members = graph_origins.members_of(rows, origin, abspath=_abspath)
     active_gid = rows[index].name
+    # MICRO-EMTOOLS-CONTENITORI · the RM containers into the graphs first
+    from ..rm_manager.containers import project_containers_before_save
+    project_containers_before_save(context, members)
     result = graph_origins.save_file(origin.path, members, get_graph,
                                      active_graph_id=active_gid)
     return True, result.sentence(), False

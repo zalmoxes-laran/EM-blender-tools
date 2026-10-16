@@ -257,6 +257,15 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         except Exception as exc:  # noqa: BLE001
             print(f"[em.json import] WARN doc_list sync: {exc}")
 
+        # MICRO-EMTOOLS-CONTENITORI · the RM groups the file carries against the
+        # scene's containers: rebuilt when the scene has none, compared when it
+        # has some — a difference is a line in the Log, never a correction.
+        try:
+            from ..rm_manager.containers import check_containers_on_open
+            check_containers_on_open(context, list(container.graphs.values()))
+        except Exception as exc:  # noqa: BLE001 — the load succeeded anyway
+            print(f"[em.json import] WARN RM containers check: {exc}")
+
         # B1 · chi aspettava un grafo dal ponte (EMStudio in Sidecar) lo riceve
         # adesso, senza doversi riconnettere.
         try:

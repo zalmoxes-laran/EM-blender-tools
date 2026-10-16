@@ -389,3 +389,128 @@ def no_rm_nodes_yet(mesh=0, container=0) -> str:
           "Promote the meshes first (RM Manager \u2192 Promote to RM), then "
           "press Project again."
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PRIMA DI OGNI SALVATAGGIO, E ALL'APERTURA (MICRO-EMTOOLS-CONTENITORI, 16-10)
+#
+# Misurato sui quattro em.json del Templu Mare: 99 representation_model, gli
+# archi diretti D.09→87 e D.01→12, e nessun gruppo. La proiezione esisteva
+# soltanto dietro i bottoni Sync e Project; il salvataggio dell'em.json non la
+# chiamava, e un container mai proiettato (`group_node_id` vuoto) restava fuori
+# dal file. Ora ogni salvataggio proietta TUTTI i container, e l'apertura
+# confronta senza correggere.
+#
+# Un container qui è un oggetto qualsiasi con `label`, `doc_node_id`,
+# `group_node_id` e `model_node_ids` — la PropertyGroup vista dal lato Blender,
+# o un SimpleNamespace in una prova. Il modulo resta senza `bpy`.
+
+def concerns(graph, doc_node_id, model_node_ids):
+    """Has this graph anything of the container — its Document or one model?
+
+    A scene holds several graphs and the containers are the scene's, not one
+    graph's: a container is projected into the graph that carries its things,
+    and an unrelated graph (the shelf, another study) gets no empty group."""
+    if graph is None:
+        return False
+    if doc_node_id and graph.find_node_by_id(doc_node_id) is not None:
+        return True
+    return any(m and graph.find_node_by_id(m) is not None
+               for m in (model_node_ids or []))
+
+
+def project_all(graph, containers):
+    """Reconcile EVERY container that concerns this graph, creating the groups
+    that are missing. Returns ``[(container, group_node_id, report)]``.
+
+    The caller writes ``group_node_id`` back on its container: the id is stable
+    (:func:`group_node_id_for`), so writing it is idempotent."""
+    out = []
+    if graph is None:
+        return out
+    for c in containers:
+        models = [m for m in (getattr(c, "model_node_ids", None) or []) if m]
+        doc = getattr(c, "doc_node_id", "") or ""
+        if not concerns(graph, doc, models):
+            continue
+        label = getattr(c, "label", "") or ""
+        gid = (getattr(c, "group_node_id", "") or ""
+               or group_node_id_for(label, doc))
+        report = reconcile_container(graph, gid, label=label or gid,
+                                     model_node_ids=models, doc_node_id=doc)
+        out.append((c, gid, report))
+    return out
+
+
+def groups_in(graph):
+    """The RM groups this graph carries: ``[{id, label, doc_node_id, members}]``.
+
+    ``doc_node_id`` is the source of the ``has_representation_model`` edge that
+    points at the group (empty for an unattached container)."""
+    out = []
+    if graph is None:
+        return out
+    for node in list(graph.nodes):
+        if getattr(node, "node_type", None) != GROUP_NODE_TYPE:
+            continue
+        gid = node.node_id
+        doc = ""
+        for edge in list(graph.edges):
+            if edge.edge_type == DOC_EDGE and edge.edge_target == gid:
+                doc = edge.edge_source
+                break
+        out.append({"id": gid, "label": getattr(node, "name", "") or gid,
+                    "doc_node_id": doc, "members": members_of(graph, gid)})
+    return out
+
+
+def compare_with_graph(graph, containers):
+    """What the opened graph says against what the scene's containers say.
+
+    Returns one sentence per difference, and touches NOTHING — neither the graph
+    nor the containers. On open a difference is a line in the Log, not a silent
+    correction: which side is right is the user's call, and the next save
+    (where ``mesh_names`` is authoritative) is where it gets decided."""
+    righe = []
+    if graph is None:
+        return righe
+    gruppi = {g["id"]: g for g in groups_in(graph)}
+    visti = set()
+    for c in containers:
+        label = getattr(c, "label", "") or "<unnamed>"
+        models = [m for m in (getattr(c, "model_node_ids", None) or []) if m]
+        doc = getattr(c, "doc_node_id", "") or ""
+        gid = (getattr(c, "group_node_id", "") or ""
+               or group_node_id_for(label, doc))
+        g = gruppi.get(gid)
+        if g is None:
+            if concerns(graph, doc, models):
+                righe.append(f"container {label!r}: the graph has no group "
+                             f"{gid} — the next save writes it")
+            continue
+        visti.add(gid)
+        if g["label"] != (getattr(c, "label", "") or gid):
+            righe.append(f"container {label!r}: the graph names its group "
+                         f"{g['label']!r}")
+        if doc and g["doc_node_id"] and g["doc_node_id"] != doc:
+            righe.append(f"container {label!r}: the graph attaches its group "
+                         f"to {g['doc_node_id']}, the container to {doc}")
+        solo_grafo = [m for m in g["members"] if m not in models]
+        solo_scena = [m for m in models if m not in g["members"]
+                      and graph.find_node_by_id(m) is not None]
+        if solo_grafo:
+            righe.append(f"container {label!r}: {len(solo_grafo)} model(s) in "
+                         f"the graph's group and not in the container "
+                         f"({', '.join(solo_grafo[:3])}"
+                         f"{', …' if len(solo_grafo) > 3 else ''})")
+        if solo_scena:
+            righe.append(f"container {label!r}: {len(solo_scena)} model(s) in "
+                         f"the container and not in the graph's group "
+                         f"({', '.join(solo_scena[:3])}"
+                         f"{', …' if len(solo_scena) > 3 else ''})")
+    for gid, g in gruppi.items():
+        if gid not in visti:
+            righe.append(f"group {g['label']!r} ({gid}, {len(g['members'])} "
+                         f"model(s)) is in the graph and in no container of "
+                         f"this scene")
+    return righe

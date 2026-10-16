@@ -425,14 +425,16 @@ class VIEW3D_PT_RM_Manager(Panel):
                     ocol.label(
                         text=f"  \u2022 ... and {len(_orphans) - 6} more")
 
-        # Warnings banner (orphan meshes removed by the sync pass).
+        # Warnings banner: meshes removed by the sync pass, models refused by
+        # the projection, and the differences found opening an em.json — so
+        # the count says «warnings», not only «missing meshes».
         if len(scene.rm_container_warnings) > 0:
             warn_box = layout.box()
             warn_box.alert = True
             wrow = warn_box.row(align=True)
             wrow.label(
-                text=f"{len(scene.rm_container_warnings)} missing mesh(es) "
-                     f"removed from containers",
+                text=f"{len(scene.rm_container_warnings)} RM container "
+                     f"warning(s)",
                 icon='ERROR')
             wrow.operator("rmcontainer.acknowledge_warnings",
                           text="Acknowledge", icon='CHECKMARK')
