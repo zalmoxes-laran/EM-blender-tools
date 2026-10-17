@@ -12,6 +12,7 @@ from . import resource_operators
 from . import ui
 from . import utils
 from . import graph_tree
+from . import unsaved
 
 # Re-export utility functions for external use
 from .utils import auto_import_auxiliary_files
@@ -59,6 +60,7 @@ def register():
     resource_operators.register()
 
     graph_tree.register()
+    unsaved.register()
 
     # Finally UI (which may depend on properties and operators)
     ui.register()
@@ -68,6 +70,7 @@ def unregister():
     """Unregister all EM Setup classes and properties."""
     # Unregister in reverse order
     ui.unregister()
+    unsaved.unregister()
     graph_tree.unregister()
     resource_operators.unregister()
     operators.unregister()

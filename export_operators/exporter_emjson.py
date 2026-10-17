@@ -77,8 +77,9 @@ def _rebind_origin(context, out: str) -> None:
 
 class EM_export_saveas(bpy.types.Operator, ExportHelper):
     bl_idname = "export.em_saveas"
-    bl_label = "Save As…"
-    bl_description = "Save the active EM graph as an em.json (full, lossless)"
+    bl_label = "Save em.json As…"
+    bl_description = ("Save the active EM graph as an em.json (full, lossless), "
+                      "its RM containers included")
 
     # Single-dot filename_ext: Blender's ensure_ext splits on the last dot, so
     # ".em.json" would double to ".em.em.json". We normalise in execute.
@@ -155,6 +156,18 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
         # Remember the em.json path on the active entry so a later "Save" writes
         # in place (em.json is the canonical file).
         _rebind_origin(context, out)
+        # MICRO salva · the file written is the one the scene now matches
+        try:
+            em_tools = context.scene.em_tools
+            rows = list(em_tools.graphml_files)
+            index = em_tools.active_file_index
+            from .. import graph_origins
+            if 0 <= index < len(rows) and not graph_origins.origin_of(
+                    rows[index], abspath=bpy.path.abspath).is_room:
+                from ..em_setup.unsaved import mark
+                mark(context, out)
+        except Exception as exc:  # noqa: BLE001 — the file is written anyway
+            print(f"[em.json save] unsaved mark skipped: {exc}")
 
         self.report({"INFO"}, f"Saved em.json → {out}")
         return {"FINISHED"}
@@ -162,8 +175,11 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
 
 class EM_export_save(bpy.types.Operator):
     bl_idname = "export.em_save"
-    bl_label = "Save"
-    bl_description = "Save the active graph to its .em.json file in place (falls back to Save As… when there is no em.json target)"
+    bl_label = "Save em.json"
+    bl_description = ("Save the active graph to its .em.json file in place, its "
+                      "RM containers included; the first save of the session "
+                      "keeps the previous file beside it (.bak-<date-time>). "
+                      "Falls back to Save As… when there is no em.json target")
 
     @classmethod
     def poll(cls, context):
@@ -201,11 +217,24 @@ class EM_export_save(bpy.types.Operator):
         return {"FINISHED"} if ok else {"CANCELLED"}
 
 
+def menu_func_export(self, context):
+    """MICRO salva · File › Export › Extended Matrix (.em.json), like Blender's
+    other exporters: the Save As… of the active graph (greyed, with the
+    reason, when no graph is loaded)."""
+    self.layout.operator(EM_export_saveas.bl_idname,
+                         text="Extended Matrix (.em.json)")
+
+
 def register():
     bpy.utils.register_class(EM_export_saveas)
     bpy.utils.register_class(EM_export_save)
+    bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 
 def unregister():
+    try:
+        bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+    except Exception:  # noqa: BLE001
+        pass
     bpy.utils.unregister_class(EM_export_save)
     bpy.utils.unregister_class(EM_export_saveas)

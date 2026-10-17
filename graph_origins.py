@@ -286,6 +286,9 @@ class SaveResult:
     retained: List[str] = field(default_factory=list)
     shelf: bool = False
     corpus: bool = False
+    #: the file as it was before this save, copied beside it (first overwrite
+    #: of the session), or ""
+    backup: str = ""
 
     def sentence(self) -> str:
         parts = [f"saved {os.path.basename(self.path)} — "
@@ -297,7 +300,25 @@ class SaveResult:
             parts.append("its shelf")
         if self.corpus:
             parts.append("its DTC corpus")
-        return ", ".join(parts) + "; no other file touched"
+        said = ", ".join(parts) + "; no other file touched"
+        if self.backup:
+            said += f" (the previous file kept as {os.path.basename(self.backup)})"
+        return said
+
+
+def _safety_copy(full: str) -> Optional[str]:
+    """MICRO salva · the em.json about to be overwritten, copied beside itself
+    once per session (``emjson_state.safety_copy``). A copy that fails never
+    stops the save: it is said in the console."""
+    try:
+        from . import emjson_state
+    except ImportError:          # loaded as a lone module (the tests)
+        import emjson_state  # type: ignore
+    try:
+        return emjson_state.safety_copy(full)
+    except OSError as exc:
+        print(f"[em.json save] no safety copy of {full}: {exc}")
+        return None
 
 
 def save_file(path: str, graph_ids: Iterable[str],
@@ -359,6 +380,7 @@ def save_file(path: str, graph_ids: Iterable[str],
     )
     result.shelf = container.shelf is not None
     result.corpus = container.corpus is not None
+    result.backup = _safety_copy(full) or ""
     save_container_file(container, full)
     remember(full, container)
     return result

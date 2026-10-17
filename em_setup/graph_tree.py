@@ -162,6 +162,8 @@ def save_origin(context, index: int) -> tuple:
     project_containers_before_save(context, members)
     result = graph_origins.save_file(origin.path, members, get_graph,
                                      active_graph_id=active_gid)
+    from .unsaved import mark
+    mark(context, origin.path)
     return True, result.sentence(), False
 
 
@@ -284,8 +286,11 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             _draw_room_branch(col, origin, indices, rows, active)
             continue
         head = col.row(align=True)
+        unsaved = _unsaved_reasons(origin)
         if origin.is_file:
-            head.label(text=origin.label,
+            # MICRO salva · ● before the name: the graph in memory moved away
+            # from the file since it was loaded or saved
+            head.label(text=f"● {origin.label}" if unsaved else origin.label,
                        icon="FILE" if origin.is_emjson else "FILE_BLANK")
         else:
             head.label(text="No file", icon="QUESTION")
@@ -295,6 +300,7 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             # a branch: the per-branch save icon and «Save all files» left the
             # view (Save all files is in the ▾ menu)
             head.label(text="", icon="CHECKMARK")
+            draw_save_row(col, origin, unsaved)
         writing = writing_in(origin, rows, active)
         if writing:
             sub = col.row()
@@ -321,6 +327,39 @@ def draw_graph_tree(layout, context, em_tools) -> None:
                     emboss=False)
             if i == active:
                 _draw_active_path(col, row, i, present, origin)
+
+
+def _unsaved_reasons(origin) -> list:
+    if not origin.is_emjson:
+        return []
+    try:
+        from .unsaved import reasons
+        return reasons(origin)
+    except Exception:  # noqa: BLE001 — a mark is never worth a failed panel
+        return []
+
+
+def draw_save_row(col, origin, unsaved) -> None:
+    """MICRO salva (17 Oct 2026) · E.D. never found the save: it was a bare
+    icon (FILE_TICK) between + ↻ and − in the bar, «Save as…» in the ▾ menu.
+    Under the name of the active graph's file, two buttons WITH words: «Save
+    em.json» (in place) and «Save as…»; a GraphML or a graph with no file
+    gets «Save as em.json…» alone. When the file is behind the scene, the
+    button is lit and one line says why."""
+    line = col.row(align=True)
+    line.separator(factor=2.0)
+    if origin.is_emjson:
+        save = line.row(align=True)
+        save.alert = bool(unsaved)
+        save.operator("export.em_save", text="Save em.json", icon="FILE_TICK")
+        line.operator("export.em_saveas", text="Save as…", icon="FILE_NEW")
+        if unsaved:
+            note = col.row()
+            note.separator(factor=2.0)
+            note.label(text="Unsaved: " + " · ".join(unsaved), icon="INFO")
+    else:
+        line.operator("export.em_saveas", text="Save as em.json…",
+                      icon="FILE_NEW")
 
 
 def room_alignment(origin) -> tuple:

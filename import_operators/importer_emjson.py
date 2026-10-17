@@ -274,6 +274,14 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         except Exception as exc:  # noqa: BLE001 — il caricamento è riuscito comunque
             print(f"[em.json import] snapshot push skipped: {exc}")
 
+        # MICRO salva · what the file holds now, to say later when the scene
+        # moved away from it (the unsaved mark on the file's name)
+        try:
+            from ..em_setup.unsaved import mark as _mark_loaded
+            _mark_loaded(context, target_origin.path, saved=False)
+        except Exception as exc:  # noqa: BLE001 — the load succeeded anyway
+            print(f"[em.json import] WARN unsaved mark: {exc}")
+
         n_warn = len(warnings) if warnings else 0
         n_graphs = len(container.graph_ids())
         project = f"{n_graphs} graphs" if n_graphs > 1 else "1 graph"
