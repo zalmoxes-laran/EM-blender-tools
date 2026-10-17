@@ -1146,6 +1146,40 @@ def _container_model_ids(scene, graph, container) -> List[str]:
     return out
 
 
+def _seat_by_place(context, graph, container) -> dict:
+    """MICRO salva (17 Oct 2026) · before the projection, the container's
+    meshes that carry no RM of the graph are matched BY PLACE to the RM that
+    has their box (IoU ≥ 0.9, ``place_twins``: the rule «Link to document…»
+    already writes), and the match is written on the mesh as its
+    ``em_rm_node_id`` — the migration ``resolve_rm_node_id`` does for a legacy
+    name. Measured on GreatTemple_2026_v2.blend: the 10 ME_ meshes of
+    Survey2015 resolve to no RM, their SM_OB_*_LOD1 have the same box to the
+    millimetre; without this the save left Survey2015 out of the em.json.
+    → ``{mesh: rm_id}`` written."""
+    try:
+        from .alternative_operators import place_twins
+        twins = place_twins(context, graph, container)
+    except Exception as exc:                            # noqa: BLE001
+        _em_log(f"[RM containers] {container.label!r}: match by place "
+                f"skipped ({exc})", "WARNING")
+        return {}
+    done = {}
+    for mesh_name, rm_id in twins.items():
+        obj = bpy.data.objects.get(mesh_name)
+        if obj is None or graph.find_node_by_id(rm_id) is None:
+            continue
+        if graph.find_node_by_id(str(obj.get("em_rm_node_id", ""))) is not None:
+            continue
+        obj["em_rm_node_id"] = rm_id
+        done[mesh_name] = rm_id
+    if done:
+        _em_log(f"[RM containers] {container.label!r}: {len(done)} mesh(es) "
+                f"matched by place to their model (same box) — "
+                + ", ".join(f"{m} → {r}" for m, r in sorted(done.items())[:4])
+                + (", …" if len(done) > 4 else ""), "WARNING")
+    return done
+
+
 class _ContainerView:
     """A container as ``group_nodes`` reads it: the PropertyGroup's fields plus
     the model ids resolved against ONE graph."""
@@ -1201,6 +1235,8 @@ def project_containers_before_save(context, graph_ids) -> dict:
         if graph is None:
             continue
         try:
+            for c in scene.rm_containers:
+                _seat_by_place(context, graph, c)
             viste = [_ContainerView(c, _container_model_ids(scene, graph, c))
                      for c in scene.rm_containers]
             fatti = _gn.project_all(graph, viste)
@@ -1210,6 +1246,19 @@ def project_containers_before_save(context, graph_ids) -> dict:
             _em_log(f"[RM containers] projection into {gid} failed, the file "
                     f"is saved without it: {exc}", "ERROR")
             continue
+        projected = {id(v.item) for v, _g, _r in fatti}
+        for vista in viste:
+            if id(vista.item) in projected or not len(vista.item.mesh_names):
+                continue
+            # MICRO salva · said, never silent: before, Survey2015 (10 meshes
+            # with no RM id) was left out of the file without a word
+            if not any(graph.find_node_by_id(m) is not None
+                       for m in vista.model_node_ids):
+                esito["left_out"] = esito.get("left_out", 0) + 1
+                _em_log(f"[RM containers] {vista.label!r}: none of its "
+                        f"{len(vista.item.mesh_names)} mesh(es) has a model "
+                        f"in graph {gid} — the container is not in this "
+                        f"em.json", "WARNING")
         if not fatti:
             continue
         esito["graphs"] += 1
