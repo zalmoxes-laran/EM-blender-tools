@@ -179,6 +179,12 @@ def placement(location, rotation_euler, scale, *, rotation_order: str = "XYZ",
     return rebase_pivot(t, [float(v) for v in pivot])
 
 
+#: the signature the recipe writes in its ``lod_generation`` step: how a
+#: version DERIVED by the recipe is told from a level the author made
+#: (``version_families``). Never change it: the data written carry it.
+RECIPE_TOOL = "EM Tools · Prepare for a use"
+
+
 def step_parameters(recipe: Dict[str, Any], *, applied: Dict[str, Any]) -> Dict[str, Any]:
     """The parameters of the ``lod_generation`` step: the recipe as asked, then
     what was MEASURED applying it (``textures_resized``, ``textures_reencoded``,
@@ -187,7 +193,7 @@ def step_parameters(recipe: Dict[str, Any], *, applied: Dict[str, Any]) -> Dict[
     params = {k: recipe[k] for k in KEYS if k in recipe}
     for k, v in (applied or {}).items():
         params[k] = v
-    params["tool"] = "EM Tools · Prepare for a use"
+    params["tool"] = RECIPE_TOOL
     return params
 
 

@@ -244,4 +244,19 @@ check("saving the .blend warns about the em.json", "the em.json has unsaved chan
       in line and "Save em.json" in line)
 check("the .blend save did not write the em.json", "changed after the save" not in open(TARGET).read())
 
+# ── Part 4 · the versions in two families (Asset versions) ──────────────────
+av = importlib.import_module("emtools_wc.sync_manager.asset_versions")
+for obj_name, want in (("Column_entrance1", ["Whole: the author made no levels of detail",
+                                             "Derived versions (the recipe's)"]),
+                       ("ME_EST_L_LOD2", ["LOD0 · analysis", "LOD2 · preview",
+                                          "Derived version · web · decimated to 0.50"])):
+    Rec.lines, Rec.errors = [], []
+    obj = bpy.data.objects.get(obj_name)
+    av.draw_families(Rec(), bpy.context, obj)
+    text = "\n".join(Rec.lines)
+    with open(os.path.join(OUT, f"versions-{obj_name}.txt"), "w") as fh:
+        fh.write(text + "\n")
+    check(f"Asset versions · {obj_name}: the two families", obj is not None
+          and all(w in text for w in want), text.replace("\n", " | ")[:400])
+
 print(f"[SMOKE] {'ALL PASS' if not FAILURES else 'FAILURES: ' + ', '.join(FAILURES)}")

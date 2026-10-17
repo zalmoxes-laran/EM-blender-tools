@@ -1248,6 +1248,47 @@ def _version_info(context, obj) -> Optional[Dict[str, Any]]:  # pragma: no cover
         return None
 
 
+def _is_derived_info(context, info) -> bool:  # pragma: no cover — bpy
+    try:
+        from ..functions import is_graph_available
+        from ..version_families import is_derived_info
+        ok, graph = is_graph_available(context)
+        return bool(ok and graph is not None and is_derived_info(graph, info))
+    except Exception:  # noqa: BLE001 — the panel draws without it
+        return False
+
+
+def draw_families(layout, context, obj) -> None:  # pragma: no cover — bpy
+    """MICRO salva (17 Oct 2026) · the versions of the object's asset in two
+    families: «Author's levels» (or «Whole» when the author made none) and
+    «Derived versions», the recipe's (``version_families``). Read only."""
+    try:
+        from ..functions import is_graph_available
+        from ..version_families import lines
+        ok, graph = is_graph_available(context)
+        if not ok or graph is None:
+            return
+        asset = master_of(graph, obj, context.scene)
+        if not asset:
+            return
+        rows = lines(graph, asset)
+    except Exception as exc:  # noqa: BLE001 — the panel draws without it
+        print(f"[asset versions] families: {exc}")
+        return
+    box = layout.box()
+    col = box.column(align=True)
+    shown = _shown_version(obj)
+    for kind, text, vid in rows:
+        if kind == "head":
+            col.label(text=text, icon="OUTLINER_COLLECTION")
+            continue
+        icon = {"author": "MESH_DATA", "whole": "CHECKBOX_HLT",
+                "derived": "MOD_DECIM"}[kind]
+        line = col.row()
+        line.separator(factor=1.5)
+        line.label(text=text + ("  ◂ shown" if vid and vid == shown else ""), icon=icon)
+
+
 def _export_glb(mesh, path: str, *, draco: bool = False, viewer: bool = False,
                 obj=None, recipe: Optional[Dict[str, Any]] = None,
                 gltf: bool = False) -> None:  # pragma: no cover — bpy
@@ -2137,12 +2178,20 @@ def _operator_classes():  # pragma: no cover — bpy
                 # D1 · what the shown version IS: computed level, uses, measures
                 info = _version_info(context, obj)
                 if info:
-                    layout.label(text=f"Level {info.get('lod_level') or '— (master)'} · "
-                                      f"uses: {', '.join(info.get('use') or []) or '—'}",
-                                 icon="SORTSIZE")
+                    uses = ', '.join(info.get('use') or []) or '—'
+                    if _is_derived_info(context, info):
+                        # MICRO salva · a version of the recipe is not a
+                        # level of the author: it says so
+                        layout.label(text=f"Derived version · uses: {uses}",
+                                     icon="SORTSIZE")
+                    else:
+                        layout.label(text=f"Level {info.get('lod_level') or '— (master)'} · "
+                                          f"uses: {uses}", icon="SORTSIZE")
                     line = _measures_line(info.get("measures") or {})
                     if line:
                         layout.label(text=line, icon="BLANK1")
+            if obj is not None:
+                draw_families(layout, context, obj)
             # U1 · the one box of the levels, the same in RM Manager and Anastylosis
             draw_levels(layout, obj, scope="SCENE")
             # D1 · where the version shown comes from: its DTC as a card
