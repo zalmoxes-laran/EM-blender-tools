@@ -104,10 +104,15 @@ class RMCONTAINER_UL_list(UIList):
         row.label(text=f"[{ref}]")
         # Inline link/create icon — placed next to the document ref so
         # the user always sees the document-link action near the doc
-        # name. FILE_TEXT echoes the document icon used elsewhere.
+        # name. FILE_TEXT echoes the document icon used elsewhere. A
+        # container with no document gets the light warning sign instead,
+        # and the dialog proposes the document its models say.
         link_op = row.operator("rmcontainer.link_or_create_doc",
-                               text="", icon='FILE_TEXT', emboss=False)
+                               text="",
+                               icon='FILE_TEXT' if item.doc_node_id else 'INFO',
+                               emboss=False)
         link_op.container_index = index
+        link_op.propose = not item.doc_node_id
         # its alternative, at a glance (⚠ when it was confirmed anyway)
         if item.alt_asset_id:
             row.label(text="", icon='ERROR' if item.alt_note else 'MOD_ARRAY')
@@ -540,6 +545,15 @@ class VIEW3D_PT_RM_Manager(Panel):
                 #: bottone che non porta da nessuna parte è peggio di un
                 #: trattino.
                 info.label(text="—")
+                # E.D. 17 Oct 2026 · the title says «wrapped by DocumentNodes»:
+                # a container without one says so, lightly, with the cure
+                # (the document its models say is proposed in the dialog)
+                cura = cont_box.row(align=True)
+                cura.label(text="No document wraps this container", icon='INFO')
+                link = cura.operator("rmcontainer.link_or_create_doc",
+                                     text="Link to document…", icon='FILE_TEXT')
+                link.container_index = scene.rm_containers_index
+                link.propose = True
             # E.D. 17 Oct 2026 · the container's ALTERNATIVE: a tileset whose
             # hat is the container, chosen without a path written by hand
             alt = cont_box.row(align=True)

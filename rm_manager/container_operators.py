@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import bpy  # type: ignore
 from bpy.types import Operator  # type: ignore
-from bpy.props import StringProperty, IntProperty, EnumProperty  # type: ignore
+from bpy.props import StringProperty, IntProperty, EnumProperty, BoolProperty  # type: ignore
 
 from .containers import (
     active_container,
@@ -43,6 +43,10 @@ from .containers import (
     UNASSIGNED_CONTAINER_LABEL,
     unregister_container,
 )
+
+
+#: what «Link to document…» measured in invoke(), for its draw()
+_PROPOSAL: dict = {}
 
 
 def _active_graph(context):
@@ -461,6 +465,35 @@ class RMCONTAINER_OT_add_selected_meshes(Operator):
         return {'FINISHED'}
 
 
+def container_proposal(context, graph, cont) -> dict:
+    """The document a container's MODELS say (E.D. 17 Oct 2026, «Link to
+    document…»): ``propose_document`` on the RMs of its meshes. A tileset
+    object in the container (an empty with ``tileset_path``: Templu Mare's
+    XX_tileset sits among the 87 meshes of the reconstruction and its RM is
+    D.01's) is said apart, not counted; a mesh with no RM of the graph speaks
+    through the RM that has its box (``place_twins``: the same model, never
+    linked by id). → ``propose_document``'s answer plus ``twins`` and
+    ``skipped``."""
+    from .containers import resolve_rm_node_id
+    from .container_alternative import propose_document
+    from .alternative_operators import place_twins
+    ids, skipped = [], []
+    for e in cont.mesh_names:
+        obj = bpy.data.objects.get(e.name)
+        if obj is None:
+            continue
+        if obj.type not in {"MESH", "CURVE"}:
+            skipped.append(e.name)
+            continue
+        rid = resolve_rm_node_id(graph, obj, scene=context.scene, migra=False)
+        if rid and rid not in ids:
+            ids.append(rid)
+    twins = place_twins(context, graph, cont)
+    out = propose_document(graph, ids + sorted(set(twins.values())))
+    out.update(twins=twins, skipped=skipped, by_id=len(ids))
+    return out
+
+
 class RMCONTAINER_OT_link_or_create_doc(Operator):
     """Unified link/create flow: pick a DocumentNode from the graph
     via a prop_search (type-to-filter) or create a new Master
@@ -485,6 +518,9 @@ class RMCONTAINER_OT_link_or_create_doc(Operator):
                     "(type to filter)",
         default="",
     )  # type: ignore
+    #: E.D. 17 Oct 2026 · the cure of «no document»: the field starts on the
+    #: document the container's models say (``propose_document``)
+    propose: BoolProperty(default=False, options={'SKIP_SAVE'})  # type: ignore
 
     @classmethod
     def poll(cls, context):
@@ -493,6 +529,16 @@ class RMCONTAINER_OT_link_or_create_doc(Operator):
 
     def invoke(self, context, event):
         self.target_doc_name = ""
+        _PROPOSAL.clear()
+        if self.propose:
+            scene = context.scene
+            idx = (self.container_index
+                   if self.container_index >= 0 else scene.rm_containers_index)
+            graph = _active_graph(context)
+            if graph is not None and 0 <= idx < len(scene.rm_containers):
+                _PROPOSAL.update(container_proposal(context, graph, scene.rm_containers[idx]))
+                if _PROPOSAL.get("proposal"):
+                    self.target_doc_name = _PROPOSAL["name"]
         return context.window_manager.invoke_props_dialog(self, width=440)
 
     def draw(self, context):
@@ -508,6 +554,28 @@ class RMCONTAINER_OT_link_or_create_doc(Operator):
                     text=f"Currently linked to {cont.doc_name or cont.doc_node_id} "
                          "— picking another document replaces the link.",
                     icon='INFO')
+        if _PROPOSAL.get("proposal"):
+            layout.label(
+                text=f"Proposed: {_PROPOSAL['name']} — it holds "
+                     f"{_PROPOSAL['count']} of the container's "
+                     f"{_PROPOSAL['of']} model(s), and no other document does",
+                icon='LIGHT')
+            if _PROPOSAL.get("twins"):
+                layout.label(
+                    text=f"{len(_PROPOSAL['twins'])} mesh(es) found their model of the "
+                         f"graph by place (the same box): linked to it, not duplicated",
+                    icon='INFO')
+        elif _PROPOSAL.get("ranking"):
+            said = ", ".join(f"{n} ({c})" for _d, n, c in _PROPOSAL["ranking"][:4])
+            layout.label(text=f"No single document holds the models: {said}",
+                         icon='QUESTION')
+        elif self.propose:
+            layout.label(text="No document of the graph holds these models yet",
+                         icon='QUESTION')
+        if _PROPOSAL.get("skipped"):
+            layout.label(
+                text=f"Not counted, not a mesh: {', '.join(_PROPOSAL['skipped'][:3])}",
+                icon='DOT')
         layout.separator()
 
         # Shared Document picker widget (create-new + search existing).
@@ -559,6 +627,16 @@ class RMCONTAINER_OT_link_or_create_doc(Operator):
                         break
 
         from .containers import _ensure_rm_node_for_mesh, _has_edge
+        # the meshes matched by place to an RM of the graph (the proposal of
+        # this dialog) point at it before the edges are written: otherwise a
+        # second RM would be made for each
+        mine = {e.name for e in container.mesh_names}
+        for mesh_name, rm_id in (_PROPOSAL.get("twins") or {}).items():
+            mesh_obj = bpy.data.objects.get(mesh_name)
+            if mesh_name in mine and mesh_obj is not None \
+                    and graph.find_node_by_id(rm_id) is not None \
+                    and graph.find_node_by_id(str(mesh_obj.get("em_rm_node_id", ""))) is None:
+                mesh_obj["em_rm_node_id"] = rm_id
         added = 0
         for entry in container.mesh_names:
             mesh_obj = bpy.data.objects.get(entry.name)
@@ -581,6 +659,15 @@ class RMCONTAINER_OT_link_or_create_doc(Operator):
             mesh_obj["em_rm_container_doc_id"] = doc_id
         container.doc_node_id = doc_id
         container.doc_name = doc_display
+        # the group too, as for EM16-RMNG: has_representation_model
+        # document → group (the group keeps its id: it is stable)
+        if container.group_node_id:
+            from . import group_nodes as _gn
+            for e in list(graph.edges):
+                if (e.edge_type == _gn.DOC_EDGE and e.edge_target == container.group_node_id
+                        and e.edge_source != doc_id):
+                    graph.remove_edge(e.edge_id)
+            _gn.attach_document(graph, container.group_node_id, doc_id)
         self.report(
             {'INFO'},
             f"Linked container {container.label!r} to {doc_display} "
