@@ -1440,13 +1440,11 @@ def seat_representation(context, graph, obj, recipe: Dict[str, Any]
     ``transform: node`` writes the object's location, rotation and scale on
     that node (``data.transform``), which Heriverse applies — the old «Preserve
     Transforms for each RMDoc». → ``{node_id, placement}``."""
-    from .. import version_recipe as VR
+    from ..transform_export import object_transform
     category = recipe.get("category", "rm")
-    #: as the old export read it: the euler, or the quaternion as an XYZ euler
-    rotation = (obj.rotation_euler if obj.rotation_mode != "QUATERNION"
-                else obj.rotation_quaternion.to_euler("XYZ"))
-    placement = (VR.placement(obj.location, rotation, obj.scale)
-                 if recipe.get("transform") == "node" else None)
+    #: s3Dgraphy 1.6.31 · the world pose, in its Euler order, about the centre
+    #: of the mesh's box (until 17 Oct: obj.location, a non-XYZ order as XYZ)
+    placement = object_transform(obj) if recipe.get("transform") == "node" else None
     node_id = ""
     if category == "rmdoc":
         doc_id = document_of(graph, obj)
@@ -1463,7 +1461,7 @@ def seat_representation(context, graph, obj, recipe: Dict[str, Any]
             from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
             graph.add_node(RepresentationModelDocNode(
                 node_id=node_id, name=f"RM for {doc.name}", type="RM",
-                transform=VR.placement(obj.location, rotation, obj.scale),
+                transform=object_transform(obj),
                 description=f"Representation model for {doc.node_type} {doc.name}"))
             graph.add_edge(edge_id=f"{doc_id}_has_representation_model_doc_{node_id}",
                            edge_source=doc_id, edge_target=node_id,
@@ -1476,7 +1474,7 @@ def seat_representation(context, graph, obj, recipe: Dict[str, Any]
             from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
             graph.add_node(RepresentationModelSpecialFindNode(
                 node_id=node_id, name=f"RMSF for {obj.name}", type="RM",
-                transform=VR.placement(obj.location, rotation, obj.scale),
+                transform=object_transform(obj),
                 description=f"Representation model for "
                             f"{getattr(item, 'sf_node_name', '') or 'Special Find'}"))
             sf_id = str(getattr(item, "sf_node_id", "") or "")

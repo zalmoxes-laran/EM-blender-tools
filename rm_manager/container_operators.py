@@ -20,6 +20,8 @@ Exposes:
 - :class:`RMCONTAINER_OT_assign_unassigned` — adopt container-less
   RMs (which the UIList filter hides) into a container.
 - :class:`RMCONTAINER_OT_acknowledge_warnings` — clear the warnings.
+- :class:`RMCONTAINER_OT_use_as_alternative` — a tileset of the whole
+  container as its alternative: the container becomes its hat (17 Oct 2026).
 """
 
 from __future__ import annotations
@@ -916,6 +918,76 @@ class RMCONTAINER_OT_project(Operator):
         return {'FINISHED'}
 
 
+def _tileset_items(self, context):
+    from . import group_nodes as _gn
+    graph = _active_graph(context)
+    items = [(rm_id, name or rm_id, f"Representation model {rm_id}") for rm_id, name in _gn.tileset_models(graph)]
+    return items or [("", "No tileset model in the active graph", "")]
+
+
+class RMCONTAINER_OT_use_as_alternative(Operator):
+    """The tileset of the whole container as its ALTERNATIVE (E.D. 17 Oct 2026).
+
+    Two resources are alternatives if and only if they have the same hat: a
+    tileset that covers the whole container is hatted by the container, not by
+    an RM of its own — choosing it switches the members off in a viewer, and
+    the members switch it off. The write is s3Dgraphy's
+    (``resources.alternatives.declare_alternative``, through
+    ``group_nodes.declare_container_alternative``). A tileset that is one piece
+    among the others stays a member: this is not for it.
+    """
+
+    bl_idname = "rmcontainer.use_as_alternative"
+    bl_label = "Use as container alternative"
+    bl_description = (
+        "Declare a tileset model as the alternative of the active container: "
+        "the container becomes the tileset's hat (has_linked_resource), the "
+        "RM that held it loses it. A viewer then shows the tileset OR the "
+        "container's models, one at a time"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    container_index: IntProperty(default=-1)  # type: ignore
+    rm_id: EnumProperty(name="Tileset", items=_tileset_items)  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+    def execute(self, context):
+        from . import group_nodes as _gn
+        scene = context.scene
+        idx = self.container_index if self.container_index >= 0 else scene.rm_containers_index
+        if idx < 0 or idx >= len(scene.rm_containers):
+            self.report({'WARNING'}, "No active container.")
+            return {'CANCELLED'}
+        cont = scene.rm_containers[idx]
+        graph = _active_graph(context)
+        if graph is None or not self.rm_id:
+            self.report({'WARNING'}, "No active graph, or no tileset model in it.")
+            return {'CANCELLED'}
+        if not cont.group_node_id:
+            # the container has no group in the graph yet: project it first
+            reconcile_container_groups(context, create_missing=True)
+        if not cont.group_node_id:
+            self.report({'WARNING'}, f"«{cont.label}» has no group in the graph: press Project first.")
+            return {'CANCELLED'}
+        scene_rm_ids = {str(o.get("em_rm_node_id")) for o in bpy.data.objects if o.get("em_rm_node_id")}
+        try:
+            res = _gn.declare_container_alternative(graph, self.rm_id, cont.group_node_id, scene_rm_ids)
+        except ValueError as exc:
+            self.report({'WARNING'}, str(exc))
+            return {'CANCELLED'}
+        said = f"The tileset is now the alternative of «{cont.label}»"
+        if res.get("dropped_rm"):
+            said += " (its RM, which only held it, is gone)"
+        elif res.get("removed_hats"):
+            said += " (its RM stays: an object of the scene points at it)"
+        for w in res.get("warnings") or []:
+            self.report({'WARNING'}, w)
+        self.report({'INFO'}, said)
+        return {'FINISHED'}
+
+
 class RMCONTAINER_OT_bootstrap_legacy(Operator):
     """Bootstrap the automatic "Legacy RMs" container by bundling every
     existing :class:`RMItem` whose object still exists in the scene.
@@ -1059,6 +1131,7 @@ _CONTAINER_OPS = (
     RMCONTAINER_OT_bootstrap_legacy,
     RMCONTAINER_OT_assign_unassigned,
     RMCONTAINER_OT_acknowledge_warnings,
+    RMCONTAINER_OT_use_as_alternative,
 )
 
 

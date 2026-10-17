@@ -303,15 +303,11 @@ def update_representation_model_docs(graph):
         rm_doc_id = f"{doc_node_id}_rm_doc"
         rm_doc_node = graph.find_node_by_id(rm_doc_id)
 
-        # Extract transform from Blender object
-        loc = obj.location
-        rot = obj.rotation_euler
+        # Extract transform from Blender object: the new form of s3Dgraphy's
+        # node datamodel 1.6.31 (numbers, degrees, the order, the pivot)
+        from .transform_export import object_transform
         scale = obj.scale
-        transform = {
-            "position": [str(loc.x), str(loc.y), str(loc.z)],
-            "rotation": [str(rot.x), str(rot.y), str(rot.z)],
-            "scale": [str(scale.x), str(scale.y), str(scale.z)],
-        }
+        transform = object_transform(obj)
 
         # Extract quad dimensions from bounding box
         if obj.type == 'MESH' and obj.data:
@@ -361,8 +357,10 @@ def update_representation_model_docs(graph):
             graph.add_node(rm_doc_node)
             nodes_added += 1
         else:
-            # Update existing node
+            # Update existing node — data["transform"] too: until 17 Oct only the
+            # attribute changed and the em.json kept the old placement
             rm_doc_node.transform = transform
+            rm_doc_node.data['transform'] = transform
             rm_doc_node.data['quad_width'] = quad_width
             rm_doc_node.data['quad_height'] = quad_height
             rm_doc_node.data['dimensions_type'] = dimensions_type

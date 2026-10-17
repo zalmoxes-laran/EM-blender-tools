@@ -152,12 +152,31 @@ def category_of(*, doc_node_id: str = "", in_anastylosis: bool = False) -> str:
     return "rm"
 
 
-def placement(location, rotation_euler, scale) -> Dict[str, list]:
-    """The transform a representation node carries (strings, as the old export
-    and ``graph_updaters`` write it)."""
-    return {"position": [str(float(v)) for v in location],
-            "rotation": [str(float(v)) for v in rotation_euler],
-            "scale": [str(float(v)) for v in scale]}
+def placement(location, rotation_euler, scale, *, rotation_order: str = "XYZ",
+              pivot=None) -> Dict[str, Any]:
+    """The transform a representation node carries, in the form of s3Dgraphy's
+    node datamodel 1.6.31 (E.D. 16-17 Oct 2026): numbers, the rotation in
+    DEGREES with its ``rotation_order`` (Blender's: the first axis turns first),
+    ``up_axis`` Z, the ``pivot`` and the computed quaternion.
+
+    ``location``, ``rotation_euler`` (radians, as Blender gives them) and
+    ``scale`` are a Blender object's: they turn it about its ORIGIN. With
+    ``pivot`` (the centre of the mesh's box in its own frame) the same matrix is
+    written about that point — ``position`` absorbs the change
+    (``s3dgraphy.geometry.transform.rebase_pivot``), so the object lands where
+    Blender has it and a viewer turns it about itself, not about the origin of
+    the survey (494 m under Templu Mare's podium). Until 17 Oct this wrote
+    strings and radians; s3Dgraphy reads that old form and converts it."""
+    import math
+    from s3dgraphy.geometry.transform import rebase_pivot, write_form
+    t = write_form({"position": [float(v) for v in location],
+                    "rotation": [math.degrees(float(v)) for v in rotation_euler],
+                    "rotation_order": str(rotation_order or "XYZ").upper(),
+                    "scale": [float(v) for v in scale], "up_axis": "Z",
+                    "pivot": [0.0, 0.0, 0.0]})
+    if pivot is None:
+        return t
+    return rebase_pivot(t, [float(v) for v in pivot])
 
 
 def step_parameters(recipe: Dict[str, Any], *, applied: Dict[str, Any]) -> Dict[str, Any]:

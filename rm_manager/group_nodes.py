@@ -514,3 +514,58 @@ def compare_with_graph(graph, containers):
                          f"model(s)) is in the graph and in no container of "
                          f"this scene")
     return righe
+
+
+# ── the container's alternative (E.D., 17 Oct 2026, «lo stesso cappello») ───
+#
+# A tileset that covers the whole container is not a model among the others:
+# its HAT is the container (s3Dgraphy connections 1.6.41, has_linked_resource
+# from the group to the tileset's master). Choosing it switches the members off,
+# choosing the members switches it off. The rule and the write are s3Dgraphy's
+# (`resources.alternatives`): nothing of it is carried twice here.
+
+def tileset_models(graph):
+    """``[(rm_id, name)]`` of the representation models whose 3D asset is a
+    tileset (by what one of its resources declares, s3Dgraphy's
+    ``is_tileset``), sorted by name: what «Use as container alternative» offers."""
+    if graph is None:
+        return []
+    try:
+        from s3dgraphy.resources.alternatives import is_tileset
+        from s3dgraphy.resources.versions import asset_of, versions_of
+    except ImportError:                                  # pragma: no cover
+        return []
+    out = []
+    by_id = {n.node_id: n for n in graph.nodes}
+    for e in list(graph.edges):
+        if e.edge_type != "has_linked_resource":
+            continue
+        rm = by_id.get(e.edge_source)
+        res = by_id.get(e.edge_target)
+        if rm is None or res is None or getattr(rm, "node_type", "") != "representation_model" \
+                or getattr(res, "node_type", "") != "resource":
+            continue
+        try:
+            entries = versions_of(graph, asset_of(graph, res.node_id))
+        except ValueError:
+            continue
+        if any(is_tileset(getattr(by_id.get(x["id"]), "data", None) or {}) for x in entries):
+            if (rm.node_id, rm.name) not in out:
+                out.append((rm.node_id, rm.name))
+    return sorted(out, key=lambda t: (str(t[1]).lower(), t[0]))
+
+
+def declare_container_alternative(graph, rm_id, group_node_id, scene_rm_ids=()):
+    """«Use as container alternative»: the container becomes the hat of the
+    tileset's asset (s3Dgraphy ``declare_alternative``). The RM that held it is
+    removed with its edges only when no object of the scene stands for it
+    (``scene_rm_ids``, the objects' ``em_rm_node_id``): an RM a mesh points at
+    stays, without the tileset, so the scene keeps its mapping. Returns
+    s3Dgraphy's answer (``hat, assets, removed_hats, dropped_rm, warnings``)."""
+    if graph is None or not rm_id or not group_node_id:
+        raise ValueError("a graph, a model and a container's group are needed")
+    if find_group(graph, group_node_id) is None:
+        raise ValueError(f"{group_node_id!r} is not a container's group: project the container first")
+    from s3dgraphy.resources.alternatives import declare_alternative
+    return declare_alternative(graph, rm_id, group_node_id,
+                               drop_rm=rm_id not in set(scene_rm_ids or ()))

@@ -245,6 +245,18 @@ def test_un_grafo_di_prima_si_apre_e_si_salva_senza_differenze():
         for n in sec.get("nodes") or []:
             if n.get("node_type") == "geo_position":
                 assert n["data"].pop("rotation_reference") == "grid"
+    # s3Dgraphy node datamodel 1.6.31 (E.D. 16-17 Oct 2026) · and a transform
+    # in the old form (strings, radians) is written in the new one: the same
+    # placement, read by s3Dgraphy's rule — the rest says the same things
+    from s3dgraphy.geometry.transform import read_transform
+    vecchie = {n["id"]: n["data"]["transform"]
+               for sec in (prima.get("graphs") or {}).values() for n in sec.get("nodes") or []
+               if isinstance((n.get("data") or {}).get("transform"), dict)}
+    for sec in list((prima.get("graphs") or {}).values()) + list((dopo.get("graphs") or {}).values()):
+        for n in sec.get("nodes") or []:
+            if n["id"] in vecchie:
+                n["data"]["transform"] = read_transform(n["data"]["transform"])[0]
+    assert vecchie, "the fixture of before carries RM transforms in the old form"
     assert _sezione(dopo) == _sezione(prima)
     # e chi legge ricava quello che la fixture non dichiara, senza scriverlo
     master = graph.find_node_by_id("M_model_res_blend")

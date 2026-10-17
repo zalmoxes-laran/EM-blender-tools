@@ -16,18 +16,10 @@ from ..us_types import SPECIAL_FIND_TYPES
 
 
 def _build_transform(obj):
-    """Extract position/rotation/scale from a Blender object in the legacy RMSF format."""
-    transform = {
-        "position": [f"{obj.location.x}", f"{obj.location.y}", f"{obj.location.z}"],
-        "scale": [f"{obj.scale.x}", f"{obj.scale.y}", f"{obj.scale.z}"]
-    }
-    if obj.rotation_mode == 'QUATERNION':
-        quat = obj.rotation_quaternion
-        euler = quat.to_euler('XYZ')
-        transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
-    else:
-        transform["rotation"] = [f"{obj.rotation_euler.x}", f"{obj.rotation_euler.y}", f"{obj.rotation_euler.z}"]
-    return transform
+    """The RMSF's placement: the new form of s3Dgraphy's node datamodel 1.6.31
+    (numbers, degrees, the order, the pivot — ``transform_export``)."""
+    from ..transform_export import object_transform
+    return object_transform(obj)
 
 
 def _ensure_rmsf_and_link(graph, obj, item_name, sf_node, rmsf_id):

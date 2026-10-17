@@ -431,19 +431,9 @@ class ANASTYLOSIS_OT_add_selected(Operator):
                 # Check if node already exists
                 existing_node = graph.find_node_by_id(item.node_id)
                 if not existing_node:
-                    # Get object transform
-                    transform = {
-                        "position": [f"{obj.location.x}", f"{obj.location.y}", f"{obj.location.z}"],
-                        "scale": [f"{obj.scale.x}", f"{obj.scale.y}", f"{obj.scale.z}"]
-                    }
-
-                    # Handle rotation based on rotation mode
-                    if obj.rotation_mode == 'QUATERNION':
-                        quat = obj.rotation_quaternion
-                        euler = quat.to_euler('XYZ')
-                        transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
-                    else:
-                        transform["rotation"] = [f"{obj.rotation_euler.x}", f"{obj.rotation_euler.y}", f"{obj.rotation_euler.z}"]
+                    # Get object transform: the new form (s3Dgraphy 1.6.31)
+                    from ..transform_export import object_transform
+                    transform = object_transform(obj)
 
                     # Create RMSF node
                     rmsf_node = RepresentationModelSpecialFindNode(

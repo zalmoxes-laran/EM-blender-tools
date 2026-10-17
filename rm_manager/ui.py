@@ -470,6 +470,13 @@ class VIEW3D_PT_RM_Manager(Panel):
         if any(not c.group_node_id for c in scene.rm_containers):
             cmd_row.operator("rmcontainer.project",
                              text="Project", icon='NODETREE')
+        # E.D. 17 Oct 2026 · a tileset of the whole container is its
+        # ALTERNATIVE (the container is its hat), not a model among the others
+        if scene.rm_containers and 0 <= scene.rm_containers_index < len(scene.rm_containers):
+            alt_row = cont_box.row(align=True)
+            op = alt_row.operator("rmcontainer.use_as_alternative",
+                                  text="Use as container alternative…", icon='MOD_ARRAY')
+            op.container_index = scene.rm_containers_index
         # Container UIList
         row = cont_box.row()
         row.template_list(
