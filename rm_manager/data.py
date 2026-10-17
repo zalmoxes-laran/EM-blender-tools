@@ -3,6 +3,7 @@ from bpy.props import (  # type: ignore
     BoolProperty,
     CollectionProperty,
     EnumProperty,
+    FloatVectorProperty,
     IntProperty,
     PointerProperty,
     StringProperty,
@@ -216,6 +217,48 @@ class RMContainerItem(PropertyGroup):
         ),
         default="",
     )  # type: ignore
+
+    # ── the container's alternative (E.D., 17 Oct 2026) ──────────────────
+    # A COPY for the panel of what the graph says (the container is the hat of
+    # a tileset): written by the operators and on opening an em.json
+    # (`alternative_operators.refresh_from_graph`), never read as the truth.
+    alt_asset_id: StringProperty(
+        name="Alternative",
+        description="The tileset asset this container is the hat of (from the graph)",
+        default="",
+    )  # type: ignore
+    alt_name: StringProperty(name="Alternative name", default="")  # type: ignore
+    alt_uses: StringProperty(name="Alternative uses", default="")  # type: ignore
+    alt_note: StringProperty(
+        name="Coverage warning",
+        description="Left by «Confirm anyway»: what the coverage check said",
+        default="",
+    )  # type: ignore
+    alt_mode: EnumProperty(
+        name="Show",
+        description="What the scene shows of this container: its models or its tileset",
+        items=[
+            ("MODELS", "Models", "The container's models"),
+            ("TILESET", "Tileset", "The tileset (in Blender: its box) in place of the models"),
+            ("AUTO", "Automatic", "The viewer chooses by distance; in Blender, which draws "
+                                 "no tileset, it is the models"),
+        ],
+        default="MODELS",
+        update=lambda self, context: _apply_alt_view(self, context),
+    )  # type: ignore
+    alt_shown: BoolProperty(
+        name="Show the tileset's box",
+        description="The eye of the alternative: its box in the viewport",
+        default=True,
+        update=lambda self, context: _apply_alt_view(self, context),
+    )  # type: ignore
+    alt_box_min: FloatVectorProperty(size=3, default=(0.0, 0.0, 0.0))  # type: ignore
+    alt_box_max: FloatVectorProperty(size=3, default=(0.0, 0.0, 0.0))  # type: ignore
+
+
+def _apply_alt_view(container, context):
+    from .alternative_operators import apply_view
+    apply_view(container, context)
 
 
 class RMContainerWarning(PropertyGroup):

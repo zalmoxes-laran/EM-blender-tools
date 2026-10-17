@@ -108,10 +108,44 @@ class RMCONTAINER_UL_list(UIList):
         link_op = row.operator("rmcontainer.link_or_create_doc",
                                text="", icon='FILE_TEXT', emboss=False)
         link_op.container_index = index
+        # its alternative, at a glance (⚠ when it was confirmed anyway)
+        if item.alt_asset_id:
+            row.label(text="", icon='ERROR' if item.alt_note else 'MOD_ARRAY')
         row.label(text=f"({len(item.mesh_names)})")
         op = row.operator("rmcontainer.unregister", text="",
                           icon='TRASH', emboss=False)
         op.container_index = index
+
+
+def _draw_alternative_row(layout, scene, cont):
+    """The container's alternative as a row of its own above the models: the
+    sign «alternative» and its uses, its eye, Models / Tileset / Automatic,
+    and «Remove the alternative» (the resource and its file stay)."""
+    box = layout.box()
+    row = box.row(align=True)
+    icon = icons_manager.get_icon_value("tileset_select")
+    if icon:
+        row.label(text=cont.alt_name or cont.alt_asset_id, icon_value=icon)
+    else:
+        row.label(text=cont.alt_name or cont.alt_asset_id, icon='MOD_ARRAY')
+    row.prop(cont, "alt_shown", text="",
+             icon='HIDE_OFF' if cont.alt_shown else 'HIDE_ON', emboss=False)
+    rm = row.operator("rmcontainer.alt_remove", text="", icon='X', emboss=False)
+    rm.container_index = scene.rm_containers_index
+    small = box.row(align=True)
+    small.scale_y = 0.7
+    small.label(text="alternative · " + (cont.alt_uses or "no use declared"))
+    modes = box.row(align=True)
+    modes.prop(cont, "alt_mode", expand=True)
+    if cont.alt_mode == 'AUTO':
+        hint = box.row()
+        hint.scale_y = 0.7
+        hint.label(text="Automatic is Models in Blender (no distance to switch on)",
+                   icon='INFO')
+    if cont.alt_note:
+        warn = box.row()
+        warn.alert = True
+        warn.label(text=f"Coverage: {cont.alt_note}", icon='ERROR')
 
 
 class RM_UL_List(UIList):
@@ -470,13 +504,6 @@ class VIEW3D_PT_RM_Manager(Panel):
         if any(not c.group_node_id for c in scene.rm_containers):
             cmd_row.operator("rmcontainer.project",
                              text="Project", icon='NODETREE')
-        # E.D. 17 Oct 2026 · a tileset of the whole container is its
-        # ALTERNATIVE (the container is its hat), not a model among the others
-        if scene.rm_containers and 0 <= scene.rm_containers_index < len(scene.rm_containers):
-            alt_row = cont_box.row(align=True)
-            op = alt_row.operator("rmcontainer.use_as_alternative",
-                                  text="Use as container alternative…", icon='MOD_ARRAY')
-            op.container_index = scene.rm_containers_index
         # Container UIList
         row = cont_box.row()
         row.template_list(
@@ -513,6 +540,12 @@ class VIEW3D_PT_RM_Manager(Panel):
                 #: bottone che non porta da nessuna parte è peggio di un
                 #: trattino.
                 info.label(text="—")
+            # E.D. 17 Oct 2026 · the container's ALTERNATIVE: a tileset whose
+            # hat is the container, chosen without a path written by hand
+            alt = cont_box.row(align=True)
+            alt.label(text=f"Alternative: {ac.alt_name or '—'}", icon='MOD_ARRAY')
+            alt.menu("RMCONTAINER_MT_alt_choose",
+                     text="Choose…" if not ac.alt_asset_id else "Replace…")
 
         # ═══════════════════════════════════════════════════════════════
         # SECTION 2 (MIDDLE) — Mesh-level controls between the two
@@ -621,7 +654,10 @@ class VIEW3D_PT_RM_Manager(Panel):
 
         # ═══════════════════════════════════════════════════════════════
         # SECTION 3 (BOTTOM) — Mesh list, filtered by active container.
+        # The container's alternative first, as a row of its own.
         # ═══════════════════════════════════════════════════════════════
+        if ac is not None and ac.alt_asset_id:
+            _draw_alternative_row(layout, scene, ac)
         row = layout.row()
         row.template_list(
             "RM_UL_List", "rm_list",

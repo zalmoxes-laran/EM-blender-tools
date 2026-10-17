@@ -1310,6 +1310,18 @@ def check_containers_on_open(context, graphs) -> List[str]:
             viste = [_ContainerView(c, _container_model_ids(scene, graph, c))
                      for c in scene.rm_containers]
             righe.extend(_gn.compare_with_graph(graph, viste))
+    # the panel's copy of each container's alternative (the graph is the truth)
+    try:
+        from .alternative_operators import refresh_from_graph
+        for c in scene.rm_containers:
+            if not c.group_node_id:
+                continue
+            for graph in graphs:
+                if graph is not None and graph.find_node_by_id(c.group_node_id) is not None:
+                    refresh_from_graph(c, graph)
+                    break
+    except Exception as exc:  # noqa: BLE001 — opening never fails for a copy
+        _em_log(f"[RM containers] on open: alternatives not read ({exc})", "WARNING")
     for riga in righe:
         _em_log(f"[RM containers] on open: {riga}", "WARNING")
         _add_warning(scene, "em.json", riga)

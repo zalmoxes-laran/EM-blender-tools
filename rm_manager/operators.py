@@ -712,43 +712,71 @@ class RM_OT_select_from_object(Operator):
         return {'FINISHED'}
 
 class RM_OT_add_tileset(Operator):
+    """A Cesium tileset that is the alternative of nothing: an empty in the
+    current epoch. The archive is CHOSEN with Blender's file browser, as for a
+    container's alternative (E.D. 17 Oct 2026: a path written by hand was
+    «poco elegante e intuitivo»), and enters the project's storage the same
+    way (``container_alternative.storage_plan``); the name is proposed from
+    the tileset.json's ``asset``, else from the file."""
     bl_idname = "rm.add_tileset"
     bl_label = "Add Cesium Tileset"
-    bl_description = "Add an empty Cesium tileset object to the current epoch"
-    
+    bl_description = ("Add an empty Cesium tileset object to the current epoch: "
+                      "choose its .3tz or .zip; it enters the project's storage")
+
     tileset_name: StringProperty(
         name="Tileset Name",
-        description="Name of the tileset object",
-        default="Tileset"
+        description="Name of the tileset object (empty: proposed from the tileset)",
+        default=""
     ) # type: ignore
-    
+
+    #: kept for scripts that pass a path: the panel uses the file browser
     tileset_path: StringProperty(
         name="Tileset Path",
-        description="Path to the Cesium tileset archive, .zip or .3tz (relative or absolute)",
         default="",
         subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+        options={'HIDDEN', 'SKIP_SAVE'},
     ) # type: ignore
-    
+    filepath: StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})  # type: ignore
+    filter_glob: StringProperty(default="*.zip;*.3tz", options={'HIDDEN'})  # type: ignore
+
     def invoke(self, context, event):
-        # Open a dialog to get the tileset name and path
-        return context.window_manager.invoke_props_dialog(self)
-    
-    def draw(self, dialog):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def draw(self, context):
         layout = self.layout
         layout.prop(self, "tileset_name")
-        layout.prop(self, "tileset_path")
-    
+        layout.label(text="Empty: the name is proposed from the tileset", icon='INFO')
+
     def execute(self, context):
         scene = context.scene
         epochs = scene.em_tools.epochs
-        
+
         # Check if an epoch is selected
         if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
             self.report({'ERROR'}, "No active epoch selected")
             return {'CANCELLED'}
-        
+
         active_epoch = epochs.list[epochs.list_index]
+
+        chosen = bpy.path.abspath(self.filepath or self.tileset_path)
+        if chosen:
+            from . import container_alternative as _ca
+            from .alternative_operators import _emjson_dir, _project_root
+            try:
+                name = _ca.inspect_tileset(chosen)["name"]
+            except (ValueError, OSError) as exc:
+                self.report({'ERROR'}, str(exc))
+                return {'CANCELLED'}
+            try:
+                plan = _ca.apply_storage(dict(_ca.storage_plan(
+                    chosen, _project_root(context), _emjson_dir(context)), unpack=""))
+            except OSError as exc:
+                self.report({'ERROR'}, f"The tileset could not enter the storage: {exc}")
+                return {'CANCELLED'}
+            self.tileset_path = bpy.path.relpath(plan["dest"]) if bpy.data.filepath else plan["dest"]
+            if not self.tileset_name.strip():
+                self.tileset_name = name
         
         # Create an empty object
         bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))

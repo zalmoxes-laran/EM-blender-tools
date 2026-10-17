@@ -1,0 +1,139 @@
+{
+ "_note": "Templu Mare, the true boxes of the 2015 survey (17 Oct 2026): the 10 meshes of the container \u00abSurvey2015\u00bb as GreatTemple_2026_v2.blend places them (world bound_box, Blender 5.0.1, named as E.D. sees them, the _LODn suffix dropped) and OB_TEMPLUM_LOD1 (RB/LOD1, the OBJ's vertices; the same box as its web glb), which is in the graph only (SM_OB_TEMPLUM_LOD1). Metres, Z up, the survey's local frame.",
+ "members": {
+  "ME_EST_L": [
+   [
+    -2.801,
+    -29.775,
+    491.324
+   ],
+   [
+    7.634,
+    9.082,
+    493.999
+   ]
+  ],
+  "ME_EST_R": [
+   [
+    -34.584,
+    -36.688,
+    491.319
+   ],
+   [
+    -24.822,
+    1.593,
+    493.693
+   ]
+  ],
+  "ME_EST_bk": [
+   [
+    -35.0,
+    1.272,
+    490.876
+   ],
+   [
+    -0.752,
+    10.939,
+    493.293
+   ]
+  ],
+  "ME_EST_fr": [
+   [
+    -26.518,
+    -39.185,
+    492.784
+   ],
+   [
+    8.082,
+    -29.354,
+    498.334
+   ]
+  ],
+  "ME_INT_L": [
+   [
+    -28.471,
+    -30.618,
+    492.134
+   ],
+   [
+    -20.597,
+    -3.273,
+    493.689
+   ]
+  ],
+  "ME_INT_R": [
+   [
+    -6.578,
+    -26.254,
+    491.865
+   ],
+   [
+    1.488,
+    2.425,
+    493.81
+   ]
+  ],
+  "ME_INT_bk": [
+   [
+    -29.175,
+    -4.425,
+    491.922
+   ],
+   [
+    -4.401,
+    5.049,
+    493.646
+   ]
+  ],
+  "ME_INT_fr": [
+   [
+    -22.421,
+    -32.847,
+    492.544
+   ],
+   [
+    1.926,
+    -25.806,
+    493.819
+   ]
+  ],
+  "ME_PODIO": [
+   [
+    -21.109,
+    -11.018,
+    492.003
+   ],
+   [
+    -9.074,
+    -2.214,
+    494.309
+   ]
+  ],
+  "ME_PRATO": [
+   [
+    -37.817,
+    -47.084,
+    490.079
+   ],
+   [
+    11.928,
+    16.442,
+    494.729
+   ]
+  ]
+ },
+ "graph_only": {
+  "SM_OB_TEMPLUM_LOD1": [
+   [
+    -24.278,
+    -4.969,
+    490.876
+   ],
+   [
+    -10.483,
+    8.378,
+    493.652
+   ]
+  ]
+ }
+}
