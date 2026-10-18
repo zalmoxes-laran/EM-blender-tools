@@ -284,7 +284,7 @@ def test_pubblicare_una_STANTIA_non_la_fa_diventare_fresca():
     sbagliato che pubblica roba vecchia credendola fresca, che è precisamente
     ciò contro cui tutta questa catena è costruita.
 
-    Trovato misurando un giro completo contro un MinIO vero, non leggendo.
+    Trovato misurando un giro completo contro un object store S3 vero, non leggendo.
     """
     nodi, archi = un_grafo()
     #: il secondo processo, quello della pubblicazione: uscita e basta

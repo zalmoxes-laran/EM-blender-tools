@@ -119,17 +119,17 @@ def shelf_entries(graph: Any, backend, *, graph_code: Optional[str] = None
     return out
 
 
-# ── MinIO / shared object store (promote — mirrors EMStudio) ───────────────────
+# ── S3 / shared object store (promote — mirrors EMStudio) ──────────────────────
 # Resources are LinkNodes (E73). Their locator (``data.url``) may be a local path,
-# a file:// / s3:// URI, or an http(s) URL. "Promote to MinIO" uploads a LOCAL
+# a file:// / s3:// URI, or an http(s) URL. "Promote to object store" uploads a LOCAL
 # resource into the shared object store under its OWN stable ID (one ID space
-# FS↔MinIO) and repoints its locator at the returned s3:// URI.
+# FS↔S3) and repoints its locator at the returned s3:// URI.
 # NIGHT-RES/R6 · `"resource"`, non `"link"`.
 #
 # MIG1 (06-08-2026) ha rinominato LinkNode → ResourceNode e con esso il
 # `node_type`. Questa costante è rimasta al nome vecchio, quindi
 # `list_link_resources` non trovava **nessuna** risorsa e
-# `promote_resource_to_minio` rifiutava tutto con «is not a resource
+# `promote_resource_to_s3` rifiutava tutto con «is not a resource
 # (LinkNode)». Il pannello mostrava una lista vuota, che è il sintomo di un
 # progetto senza risorse e non quello di un confronto con una stringa morta.
 #
@@ -159,16 +159,16 @@ def _locator_kind(url: str) -> str:
     return "local_path"
 
 
-def minio_supported() -> bool:
-    """True if promote is possible: the active s3dgraphy exposes the MinIO api op
-    AND the optional ``minio`` SDK is installed. False → the button degrades with
+def s3_supported() -> bool:
+    """True if promote is possible: the active s3dgraphy exposes the S3 api op
+    AND the optional ``s3`` extra (boto3) is installed. False → the button degrades with
     a clear message (like the FS resource-layer blocker)."""
     try:
         import importlib.util
         from s3dgraphy import api
-        if not hasattr(api, "ingest_minio_resource"):
+        if not hasattr(api, "ingest_s3_resource"):
             return False
-        return importlib.util.find_spec("minio") is not None
+        return importlib.util.find_spec("boto3") is not None
     except Exception:
         return False
 
@@ -190,14 +190,14 @@ def list_link_resources(graph: Any) -> List[Dict[str, Any]]:
     return out
 
 
-def promote_resource_to_minio(graph: Any, resource_id: str,
-                              percorso: Optional[str] = None) -> Dict[str, Any]:
-    """Upload a LOCAL resource's bytes into the shared MinIO under its OWN stable
-    ID (in-process s3dgraphy; api.ingest_minio_resource reads S3_* from env), then
+def promote_resource_to_s3(graph: Any, resource_id: str,
+                           percorso: Optional[str] = None) -> Dict[str, Any]:
+    """Upload a LOCAL resource's bytes into the shared S3 store under its OWN stable
+    ID (in-process s3dgraphy; api.ingest_s3_resource reads S3_* from env), then
     repoint its LinkNode locator to the returned ``s3_uri``. The stable ID and every
-    graph reference are unchanged (one ID space FS↔MinIO). Returns
+    graph reference are unchanged (one ID space FS↔S3). Returns
     ``{id, object_key, s3_uri}``. Raises ``ValueError`` for a non-local / non-link
-    resource, or ``MissingDependency`` if the ``minio`` extra is absent."""
+    resource, or ``MissingDependency`` if the ``s3`` extra is absent."""
     from s3dgraphy import api
     node = graph.find_node_by_id(resource_id)
     if node is None or getattr(node, "node_type", None) not in _TIPI_RISORSA:
@@ -211,7 +211,7 @@ def promote_resource_to_minio(graph: Any, resource_id: str,
     # «quello che il locator dice» significherebbe non caricare nulla. Il
     # locator nel grafo resta quello che è: qui cambia solo da dove si leggono
     # i byte.
-    res = api.ingest_minio_resource(percorso or url, resource_id=resource_id)
+    res = api.ingest_s3_resource(percorso or url, resource_id=resource_id)
     # repoint the locator at the shared-store URI (id + refs unchanged)
     d = getattr(node, "data", None)
     if not isinstance(d, dict):

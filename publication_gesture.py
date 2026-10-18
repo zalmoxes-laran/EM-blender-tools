@@ -6,7 +6,7 @@ produceva nessun gesto: l'export scrive distribuzioni con un url relativo e si
 ferma lì. «Pubblicata» non è un tier: è lo stato di una distribution il cui
 locator risolve a qualcosa di raggiungibile e che porta un checksum.
 
-Mezzo pezzo esisteva già — la promozione a MinIO di `resources_tab` — e
+Mezzo pezzo esisteva già — la promozione all'object store S3 di `resources_tab` — e
 l'altro mezzo è `s3Dgraphy/publication.py::promote_resource`, che sa già
 scrivere locator, checksum e l'evento D7. Qui non si riscrive né l'uno né
 l'altro: si dice **quali** distribuzioni sono pubblicabili e perché le altre no.

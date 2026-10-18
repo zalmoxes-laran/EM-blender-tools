@@ -2,8 +2,8 @@
 Room) — the face of the shared Resource layer.
 
 F1 (MICRO-DOVE-LAVORI, 5 Oct 2026): Set DosCo folder, Scan, New EM project and
-Reorder are one menu, «Project folder…»; «Promote to MinIO» went (the upload is
-one: Upload, per file — the operator is in `_dead_code/resources_tab/`); the
+Reorder are one menu, «Project folder…»; «Promote to object store» went (the
+upload is one: Upload, per file — the old operator was deleted on 18 Oct 2026); the
 outer «DTC» box that only wrapped the DTC section went, the DTC consultation
 itself stays (B6 took it out of the EM Data Tree: this is the one place EM Tools
 draws it).
@@ -21,8 +21,8 @@ Sections now:
     graph of the storage, not of the interpretation: authoring moved to EM
     Studio, and Blender registers what it consumes. A line in the section says
     so, and the same section no longer appears in the EM Data Tree.
-  * **Object store (MinIO)** — the graph's local resources with a **Promote to
-    MinIO** action (in-process s3dgraphy; keeps the stable ID; repoints locator).
+  * **Object store (S3)** — the graph's local resources with a **Promote to
+    object store** action (in-process s3dgraphy; keeps the stable ID; repoints locator).
 
 And the **Shelf** is now a CHILD PANEL (`shelf_tool/ui.py`), absorbed from the
 former `EM Shelf` tab, because its UIList with the built-in name filter is the

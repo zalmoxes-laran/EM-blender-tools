@@ -7,7 +7,7 @@ esistenti e provati:
    l'export Heriverse non c'è più (`_dead_code/export_operators/heriverse/`),
    e se qui ricomparisse la logica dell'export vorrebbe dire essersi persi;
 2. la registrazione è `publication.promote_resource`, in s3Dgraphy;
-3. la pubblicazione è `em.publish_distribution`, provata contro un MinIO vero
+3. la pubblicazione è `em.publish_distribution`, provata contro un object store S3 vero
    la notte scorsa.
 
 Il deck li **mette in fila** su una selezione e riporta cosa è successo a
@@ -345,10 +345,10 @@ def _pubblica_molti(operatore, context, righe):
     # non è un resoconto, è rumore — e nasconde che il problema è UNO e non
     # dieci.
     from ..resources_tab import resource_backend
-    if not resource_backend.minio_supported():
+    if not resource_backend.s3_supported():
         operatore.report({'ERROR'},
                          "The object store is unavailable: needs the dev "
-                         "s3dgraphy (./em.sh s3d) and the 'minio' extra. "
+                         "s3dgraphy (./em.sh s3d) and the 's3' extra. "
                          "Nothing was published.")
         return {'CANCELLED'}
 

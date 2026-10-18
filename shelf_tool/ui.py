@@ -32,7 +32,7 @@ class SHELF_UL_resources(bpy.types.UIList):
 
     #: WHERE the bytes are → the icon that says it at a glance. Data, not an
     #: if-chain, and keyed by the library's own values (`RESIDENCE`).
-    RESIDENCE_ICONS = {"disk": 'FILE_FOLDER', "minio": 'URL', "uri": 'WORLD'}
+    RESIDENCE_ICONS = {"disk": 'FILE_FOLDER', "s3": 'URL', "uri": 'WORLD'}
     #: …and whether it is already part of the study. `used_in_graph` is the one
     #: worth a solid mark: it is the answer to "have I already brought this in?"
     MODE_ICONS = {"used_in_graph": 'LINKED', "only_shelf": 'UNLINKED'}

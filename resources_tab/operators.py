@@ -2,7 +2,7 @@
 
 Scan the DosCo / library folder into the R1 FS-index backend (stable IDs), set the
 DosCo folder via a folder picker, "hat" a Shelf orphan into a Master Document that
-ADOPTS the FS stable ID as its node_id, and "Promote to MinIO" a local resource
+ADOPTS the FS stable ID as its node_id, and "Promote to object store" a local resource
 (in-process s3dgraphy, preserving the stable ID). All graph writes go through the
 s3dgraphy graph (em.json = truth) and persist through the existing GraphML
 round-trip. Nothing here is a 3D object.
@@ -187,7 +187,7 @@ class EM_OT_publish_distribution(Operator):
     nessuno: l'export scrive un url relativo e si ferma.
 
     Qui non si costruisce niente di nuovo. I byte li carica la promozione a
-    MinIO che c'era già; locator, checksum ed evento D7 li scrive
+    S3 che c'era già; locator, checksum ed evento D7 li scrive
     `s3Dgraphy/publication.py::promote_resource`, che sa già farlo. Questo
     operatore è la cucitura fra i due, e l'unica cosa che decide è **quando
     rifiutare**, che è la parte che `publication_gesture` tiene fuori da
@@ -234,10 +234,10 @@ class EM_OT_publish_distribution(Operator):
             # da un guasto
             self.report({'WARNING'}, f"{self.resource_id}: {esito['perche']}")
             return {'CANCELLED'}
-        if not resource_backend.minio_supported():
+        if not resource_backend.s3_supported():
             self.report({'ERROR'},
                         "The object store is unavailable: needs the dev "
-                        "s3dgraphy (./em.sh s3d) AND the 'minio' extra.")
+                        "s3dgraphy (./em.sh s3d) AND the 's3' extra.")
             return {'CANCELLED'}
 
         dati = getattr(nodo, "data", None) or {}
@@ -278,7 +278,7 @@ class EM_OT_publish_distribution(Operator):
                             f"citations stay on the old one (Resources → Revisions)")
                 self.resource_id = esito["new_resource_id"]
         try:
-            caricato = resource_backend.promote_resource_to_minio(
+            caricato = resource_backend.promote_resource_to_s3(
                 graph, self.resource_id, percorso=percorso)
         except Exception as exc:                       # noqa: BLE001
             self.report({'ERROR'}, f"Upload failed: {exc}")

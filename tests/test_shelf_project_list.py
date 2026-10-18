@@ -84,7 +84,7 @@ def a_project():
         shelf, "s3://em-assets/aabbcc", name="tempio (mio)",
         checksum="sha256:aabbcc", scope="own-study", residency="resident",
         role="comparandum", media_type="model/gltf-binary", size=104857,
-        origin={"repo": "minio"})
+        origin={"repo": "s3"})
     theirs = api.add_to_shelf(
         shelf, "https://zenodo.org/records/12345/files/t.glb",
         name="tempio (altrove)", scope="other-HDT", role="internal_source",
@@ -131,7 +131,7 @@ def test_the_cards_carry_residence_role_and_mode_from_the_library():
     study, _shelf, mine, theirs = a_project()
     backend.adopt_project_shelf()
     cards = {c["name"]: c for c in backend.refresh(study)}
-    assert cards["tempio (mio)"]["residence"] == "minio"
+    assert cards["tempio (mio)"]["residence"] == "s3"
     assert cards["tempio (mio)"]["role"] == "comparandum"
     assert cards["tempio (altrove)"]["residence"] == "uri"
     assert cards["tempio (altrove)"]["role"] == "internal_source"

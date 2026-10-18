@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — The object store is S3 (RustFS); MinIO is gone (18 October 2026)
+- The shared object store is any S3-compatible server (RustFS in the EM
+  ecosystem); the MinIO community edition is deprecated and every trace of it
+  left the add-on. EM Tools now calls s3Dgraphy's `api.ingest_s3_resource`
+  (was `ingest_minio_resource`) and needs its optional `s3` extra (boto3)
+  instead of the `minio` one. Needs the s3Dgraphy release that carries the new
+  names.
+- Renamed: `resource_backend.minio_supported` → `s3_supported`,
+  `resource_backend.promote_resource_to_minio` → `promote_resource_to_s3`;
+  the Files section expander `EM_ResourcesProps.show_minio` → `show_s3`
+  («Object store (S3)»). The Shelf's residence kind is `s3` (was `minio`), as
+  s3Dgraphy reports it; its icon is unchanged.
+- The unused per-file promote operator kept in `_dead_code/resources_tab/` was
+  deleted.
+
 ### Changed — Files and «Bring into a room» call the engine (MICRO-BRING-CHIAMA-IL-MOTORE, 15 October 2026)
 - **One engine, three doors** (E.D.: «un motore, tre porte»): «Bring into a
   room…» is now the dialog around s3Dgraphy's room importer

@@ -79,9 +79,11 @@ From MICRO-DOVE-LAVORI-E-LA-STANZA-COLLABORATIVA (5 October 2026), **D1**:
   EM ▸ Export (`export_manager/dialogs.py`).
 - `em_statistics/ui.py` — the «Export statistics» panel, now the dialog
   EM ▸ Export ▸ Export statistics… (`em.export_statistics_dialog`).
-- `resources_tab/promote_minio.py` — **F1**, `em.resources_promote_minio`,
-  «Promote to MinIO» in Files: a second upload beside Upload, called by nothing
-  else. The promotion function stays (the Publication Deck publishes with it).
+- **F1**, the per-file «Promote to object store» operator in Files: a second
+  upload beside Upload, called by nothing else. Kept here until 18 October
+  2026, then deleted when the object store moved to S3 (RustFS). The promotion
+  function stays (`resource_backend.promote_resource_to_s3`: the Publication
+  Deck publishes with it).
 
 From MICRO-IL-PANNELLO-DICE-IL-VERO (5 October 2026), **Q5**:
 

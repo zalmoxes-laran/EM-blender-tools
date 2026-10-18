@@ -550,11 +550,9 @@ def test_B7_E_IL_ROSSO_E_UN_ARGOMENTO_non_un_default():
     helpers = (_REPO / "ui_helpers.py").read_text()
     assert "alert=True" in helpers
     # F1 (5 ott 2026) · l'unico chiamante col ramo non-rosso era la sezione
-    # MinIO di Files, andata in `_dead_code/`: il ramo resta nell'helper, e
-    # il chiamante che lo usava è ancora leggibile lì
-    dead = (_REPO / "_dead_code" / "resources_tab" / "promote_minio.py").read_text()
+    # object store di Files, andata in `_dead_code/` e poi cancellata (18 ott
+    # 2026, l'object store è S3): il ramo resta nell'helper
     assert "def draw_s3dgraphy_too_old" in helpers and "alert" in helpers
-    assert "Promote to MinIO" in dead
 
 
 # ═══ C · IL MENU EM IN TESTATA ═══════════════════════════════════════════════

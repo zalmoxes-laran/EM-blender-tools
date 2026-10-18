@@ -251,8 +251,8 @@ def run():
         check("F1: the project folder is a menu, in Project storage",
               any(r.get("id") == "EM_MT_project_folder" for r in project)
               and not any(r.get("id") == "EM_MT_project_folder" for r in files))
-        check("F1: no Promote to MinIO, no MinIO section",
-              not any("MinIO" in str(r.get("text")) or "minio" in str(r.get("id")) for r in files))
+        check("F1: no Promote to object store, no object-store section",
+              not any("Object store" in str(r.get("text")) or "resources_promote" in str(r.get("id")) for r in files))
         check("F1: no «EM Setup» left in its words",
               not any("EM Setup" in str(r.get("text")) for r in files))
         versions = draw_with(bpy.types.VIEW3D_PT_em_asset_versions)

@@ -34,7 +34,7 @@ class EM_ShelfItem(PropertyGroup):
     # `role` is what the resource is FOR — comparandum / internal_source —
     # orthogonal to the fence and never derived from it. `mode` is
     # only_shelf / used_in_graph, the hatting reference-check. `residence` is
-    # disk / minio / uri. None of the three is computed on this side.
+    # disk / s3 / uri. None of the three is computed on this side.
     role: StringProperty(default="")  # type: ignore
     mode: StringProperty(default="")  # type: ignore
     residence: StringProperty(default="")  # type: ignore

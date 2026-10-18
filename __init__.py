@@ -695,7 +695,7 @@ def _core_independent_modules():
         scene_spaces,
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
-        resources_tab,  # EM Scene tab (Shelf/RM/DTC/MinIO over FS backend; Documents → Document Manager)
+        resources_tab,  # EM Scene tab (Shelf/RM/DTC/object store over FS backend; Documents → Document Manager)
         provenance_card,  # D1: the card «Where it comes from» and its operator
         # NIGHT-DECK · il Publication Deck. In FASE 1 perché non dipende da
         # nessun altro pannello: legge il grafo attivo e una property di scena
