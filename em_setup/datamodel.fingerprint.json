@@ -1,26 +1,26 @@
 {
-  "digest": "sha256:d9cd01c057242eb8ee842bd0620acd99a795ff1baa9c15de826758831c1902f4",
+  "digest": "sha256:6f15dcc599fa570def2814c27062b3c225da1cf988ddf64d2fb1cbee01f70f09",
   "versions": {
-    "nodes": "1.6.31",
+    "nodes": "1.6.32",
     "node_registry": "1.6.26",
-    "connections": "1.6.41",
-    "visual_rules": "1.6.37",
+    "connections": "1.6.42",
+    "visual_rules": "1.6.38",
     "qualia": "1.6.9",
     "translations": "1.11"
   },
   "digests": {
-    "nodes": "sha256:f75749a1a2f1e05ad71df96160cfd899dbab237ec4c64ab11e160cdfcc71a631",
+    "nodes": "sha256:d459139a96b06f3146c96513b9d3faa53b3d3afe55279b14abf98b8dcfe5f4d1",
     "node_registry": "sha256:f8d33c7643d3909254412a33a3622560cec44d8c158e0de7826d5f3466267a93",
-    "connections": "sha256:497a1e408ae1975b9f57840925b97614585e34a23e3075c9c972ffff59a5aa51",
-    "visual_rules": "sha256:a2d311c791db51d2f833523e2559ef3b78ab652ebc85dfc5c42b79e2c179d380",
+    "connections": "sha256:ca22c680374a6161f650555822c6cd69a09a8a66a457f95f33f4a1d2d6b721cc",
+    "visual_rules": "sha256:6b7604c1b741af2e6ba7f6f5ad5cfeb3825dc78e98afff6a7d1326c8c68d7b46",
     "qualia": "sha256:1f83bb41e0e610f572c25f24dfe4fae2730ec15c973c6e1864794c147bb03d81",
-    "translations": "sha256:1c29a0669b91775fa0cd6a779a8c903a650ce44f93cc9a8121487014c0a6fa83"
+    "translations": "sha256:b0e44fd290e84cf50a7507eb7df711bcdcc3d24a089f90885ea1a85678e9628b"
   },
   "files": {
     "nodes": {
       "file": "s3Dgraphy_node_datamodel.json",
-      "digest": "sha256:f75749a1a2f1e05ad71df96160cfd899dbab237ec4c64ab11e160cdfcc71a631",
-      "version": "1.6.31"
+      "digest": "sha256:d459139a96b06f3146c96513b9d3faa53b3d3afe55279b14abf98b8dcfe5f4d1",
+      "version": "1.6.32"
     },
     "node_registry": {
       "file": "node_registry.generated.json",
@@ -29,13 +29,13 @@
     },
     "connections": {
       "file": "s3Dgraphy_connections_datamodel.json",
-      "digest": "sha256:497a1e408ae1975b9f57840925b97614585e34a23e3075c9c972ffff59a5aa51",
-      "version": "1.6.41"
+      "digest": "sha256:ca22c680374a6161f650555822c6cd69a09a8a66a457f95f33f4a1d2d6b721cc",
+      "version": "1.6.42"
     },
     "visual_rules": {
       "file": "em_visual_rules.json",
-      "digest": "sha256:a2d311c791db51d2f833523e2559ef3b78ab652ebc85dfc5c42b79e2c179d380",
-      "version": "1.6.37"
+      "digest": "sha256:6b7604c1b741af2e6ba7f6f5ad5cfeb3825dc78e98afff6a7d1326c8c68d7b46",
+      "version": "1.6.38"
     },
     "qualia": {
       "file": "em_qualia_types.json",
@@ -44,10 +44,10 @@
     },
     "translations": {
       "file": "datamodel_translations.json",
-      "digest": "sha256:1c29a0669b91775fa0cd6a779a8c903a650ce44f93cc9a8121487014c0a6fa83",
+      "digest": "sha256:b0e44fd290e84cf50a7507eb7df711bcdcc3d24a089f90885ea1a85678e9628b",
       "version": "1.11"
     }
   },
-  "s3dgraphy": "1.6.0.dev59",
+  "s3dgraphy": "1.6.0.dev60",
   "_note": "the datamodel the pinned s3dgraphy wheel carries; written by scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup by em_setup/version_banner.check_datamodel. Never edit by hand."
 }
