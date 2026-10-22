@@ -1287,6 +1287,126 @@ def draw_families(layout, context, obj) -> None:  # pragma: no cover — bpy
         line = col.row()
         line.separator(factor=1.5)
         line.label(text=text + ("  ◂ shown" if vid and vid == shown else ""), icon=icon)
+        if vid:
+            # E.D. 22 Oct 2026 · each version can go, after a confirmation
+            op = line.operator("em.asset_remove_versions", text="", icon="X", emboss=False)
+            op.mode, op.version_id, op.object_name = "ONE", vid, obj.name
+
+
+# ── «Remove versions…» (E.D., 22 Oct 2026) ───────────────────────────────────
+
+def removal_plan_here(graph, version_ids) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """``version_removal.removal_plan`` with this .blend's cache and stamps."""
+    from .. import version_removal as VRM
+    from .. import resource_seal
+    root = cache_folder()
+    return VRM.removal_plan(graph, list(version_ids),
+                            cache_root=os.path.join(root, CACHE_DIR), base=root,
+                            stamp_path_for=resource_seal.stamp_path_for)
+
+
+def drop_from_library(path: str, levels) -> int:  # pragma: no cover — bpy
+    """The asset's library at ``path`` without the meshes of ``levels``:
+    rewritten with the others, or deleted when none is left. No object may
+    show a dropped mesh (``step_back`` first). → how many meshes went."""
+    bpy = _bpy()
+    current = linked_meshes(path)
+    drop = [m for lv, m in current.items() if lv in levels]
+    if not drop:
+        return 0
+    still = [o.name for o in bpy.data.objects if o.data in drop]
+    if still:
+        raise RuntimeError(f"{', '.join(still[:3])} still show(s) a level being removed")
+    keep = []
+    for lv, mesh in current.items():
+        if lv in levels:
+            continue
+        clone = mesh.copy()
+        clone.name = mesh.name
+        keep.append(clone)
+    if keep:
+        bpy.data.libraries.write(path, set(keep), fake_user=True, path_remap="ABSOLUTE")
+        for clone in keep:
+            bpy.data.meshes.remove(clone)
+    for mesh in drop:
+        try:
+            bpy.data.meshes.remove(mesh)
+        except Exception:  # noqa: BLE001 — the reload drops it anyway
+            pass
+    lib = _library_block(path)
+    if keep:
+        if lib is not None:
+            lib.reload()
+    else:
+        if lib is not None:
+            bpy.data.libraries.remove(lib)
+        os.remove(path)
+    _LIBRARY_NAMES.pop(path, None)
+    return len(drop)
+
+
+def step_back(asset_id: str, levels, gone_ids) -> List[str]:  # pragma: no cover — bpy
+    """Every object of ``asset_id`` that shows one of ``levels`` (or a removed
+    version) goes back to its master — or to the heaviest level left.
+    → the warnings (an object with nothing left to show)."""
+    bpy = _bpy()
+    warnings = []
+    for obj in [o for o in bpy.data.objects if str(o.get(PROP_ASSET) or "") == asset_id]:
+        mesh = getattr(obj, "data", None)
+        shown = str((mesh.get(PROP_VERSION) if mesh is not None else "") or "")
+        now = current_level(obj)
+        if now not in levels and shown not in gone_ids:
+            continue
+        have = levels_of(obj)
+        left = [lv for lv in have if lv not in levels]
+        master = str(obj.get(PROP_MASTER_LEVEL) or "") or next(
+            (lv for lv, m in have.items() if str(m.get(PROP_VERSION) or "") == asset_id), "")
+        target = master if master in left else (sorted(left, key=level_key)[0] if left else "")
+        if not target or not set_level(obj, target, have):
+            warnings.append(f"{obj.name}: no other level to show — it keeps the removed mesh")
+            continue
+        if obj.get(PROP_VERSION) in gone_ids:
+            del obj[PROP_VERSION]
+    return warnings
+
+
+def remove_versions(context, graph, version_ids, *, delete: bool = True,
+                    outside: bool = False) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The gesture behind «Remove versions…»: the objects step back, the
+    libraries drop the levels, the graph drops the versions (with the ones
+    made from them), the disk their files and dtcstamps.
+    → ``{plan, nodes, deleted, failed, warnings}``."""
+    from s3dgraphy import api
+    from .. import version_removal as VRM
+    plan = removal_plan_here(graph, version_ids)
+    gone = set(plan["resources"])
+    warnings = [f"not removed: {r['id']} — {r['why']}" for r in plan["refused"]]
+    by_asset: Dict[str, set] = {}
+    for v in plan["versions"]:
+        try:
+            asset = api.asset_of(graph, v["id"])
+        except Exception:  # noqa: BLE001
+            continue
+        if v.get("level"):
+            by_asset.setdefault(asset, set()).add(v["level"])
+    room = _room_id()
+    for asset, levels in by_asset.items():
+        warnings += step_back(asset, levels, gone)
+        for r in ([room, None] if room else [None]):
+            path = library_abspath(asset, r)
+            if os.path.isfile(path):
+                try:
+                    drop_from_library(path, levels)
+                except Exception as exc:  # noqa: BLE001 — the graph still goes
+                    warnings.append(f"library of {asset}: {exc}")
+    nodes = VRM.remove_from_graph(graph, plan)
+    files = (VRM.delete_files(VRM.paths_to_delete(plan, outside=outside)) if delete
+             else {"deleted": [], "failed": []})
+    if PREPARED.get("version_id") in gone:
+        PREPARED.clear()
+    gid = str(getattr(graph, "graph_id", "") or "")
+    UNSAVED.setdefault(gid, []).extend(f"removed {v['name']}" for v in plan["versions"])
+    return {"plan": plan, "nodes": nodes, **files, "warnings": warnings}
 
 
 def _export_glb(mesh, path: str, *, draco: bool = False, viewer: bool = False,
@@ -1584,37 +1704,80 @@ def _operator_classes():  # pragma: no cover — bpy
         ok, graph = is_graph_available(context)
         return graph if ok else None
 
+    def _selected_meshes(context):
+        """E.D. 22 Oct 2026 · the operators act on every selected mesh, the
+        active first (or the active alone when nothing is selected)."""
+        act = context.active_object
+        objs = [o for o in (getattr(context, "selected_objects", None) or [])
+                if o is not None and o.type == "MESH"]
+        if act is not None and act.type == "MESH":
+            objs = [act] + [o for o in objs if o != act]
+        return objs
+
+    def _computed_for(context, graph, obj) -> str:
+        """The level the chain gives a new version of what ``obj`` shows."""
+        if graph is None:
+            return ""
+        try:
+            from s3dgraphy.resources.versions import lod_steps
+            src = _shown_version(obj) or master_of(graph, obj, context.scene)
+            #: D1 · a model with no version yet: its first is lod0
+            return f"lod{lod_steps(graph, src)}" if src else "lod0"
+        except Exception:  # noqa: BLE001 — the dialog opens anyway
+            return ""
+
+    def _versions_folder():
+        room = _room_id()
+        folder = os.path.join(cache_folder(), CACHE_DIR, safe(room or "local"), "versions")
+        os.makedirs(folder, exist_ok=True)
+        return room, folder
+
+    #: where the geometry of an author's level comes from (the keys stay:
+    #: scripts and smoke tests call ``source="DECIMATE"``)
+    ADD_SOURCES = [
+        ("SELECTED", "Another object",
+         "The mesh of another object of the scene becomes this level of the "
+         "active object; that object then leaves the scene"),
+        ("FILE", "A file",
+         "An OBJ / glTF / PLY with this level's geometry, placed in the "
+         "active object's frame"),
+        ("DECIMATE", "Decimate here",
+         "A lighter copy of what each selected object shows, made now"),
+    ]
+
     class EM_OT_asset_add_version(bpy.types.Operator):
-        """Add a version of the selected master: a child resource made from it
-        (lod_generation) with a level and a purpose. Its mesh goes into the
-        asset's library and the object stays one"""
+        """Add one of the AUTHOR'S levels of detail to the asset of the selected
+        object(s): a geometry you made (another object, a file) or a decimation
+        done here. It becomes a version in the graph, made from what the object
+        shows, and its mesh goes into the asset's library: the object stays one
+        and «LOD ▸» walks the levels"""
 
         bl_idname = "em.asset_add_version"
-        bl_label = "Add version…"
+        bl_label = "Add a level of detail…"
         bl_options = {"REGISTER", "UNDO"}
 
         level: bpy.props.StringProperty(  # type: ignore
             name="Name", default="",
-            description=("The version's name. Empty: the level the chain gives "
+            description=("The level's name. Empty: the level the chain gives "
                          "(lod0 from the master, lod1 from lod0…)"))
         use: bpy.props.EnumProperty(  # type: ignore
             name="Uses", options={"ENUM_FLAG"}, default={"web"},
-            description="What this version is for — one or more",
+            description="What this level is for — one or more",
             items=[(k, label, tip) for k, label, tip in USES])
         master_level: bpy.props.StringProperty(  # type: ignore
             name="Master is", default="",
             description="Legacy: the master has no level (D1)")
         computed: bpy.props.StringProperty(default="")  # type: ignore
         source: bpy.props.EnumProperty(  # type: ignore
-            name="Geometry from", default="SELECTED",
-            items=[("SELECTED", "The other selected object",
-                    "Its mesh becomes the version; the object goes away"),
-                   ("FILE", "A file", "An OBJ / glTF / PLY of this level"),
-                   ("DECIMATE", "Decimate the master", "Made here, now")])
+            name="Geometry from", default="SELECTED", items=ADD_SOURCES)
+        source_name: bpy.props.StringProperty(  # type: ignore
+            name="Object", default="",
+            description="The object whose mesh becomes the new level")
         filepath: bpy.props.StringProperty(  # type: ignore
             name="File", subtype="FILE_PATH", default="")
         ratio: bpy.props.FloatProperty(  # type: ignore
-            name="Ratio", default=0.25, min=0.001, max=1.0)
+            name="Keep", default=0.25, min=0.001, max=1.0,
+            description="The share of the triangles kept")
 
         @classmethod
         def poll(cls, context):
@@ -1622,37 +1785,93 @@ def _operator_classes():  # pragma: no cover — bpy
             return obj is not None and obj.type == "MESH"
 
         def invoke(self, context, event):
-            obj = context.active_object
+            objs = _selected_meshes(context)
             self.level = ""
-            self.computed = ""
-            graph = _graph(context)
-            made_from = _shown_version(obj)
-            if graph is not None:
-                try:
-                    from s3dgraphy.resources.versions import lod_steps
-                    src = made_from or master_of(graph, obj, context.scene)
-                    if src:
-                        self.computed = f"lod{lod_steps(graph, src)}"
-                except Exception:  # noqa: BLE001 — the dialog opens anyway
-                    pass
-            if len([o for o in context.selected_objects if o.type == "MESH"]) < 2:
-                self.source = "FILE"
-            return context.window_manager.invoke_props_dialog(self, width=420)
+            self.computed = _computed_for(context, _graph(context), objs[0]) if objs else ""
+            self.source_name = objs[1].name if len(objs) == 2 else ""
+            self.source = ("SELECTED" if len(objs) == 2
+                           else "DECIMATE" if len(objs) > 2 else "FILE")
+            return context.window_manager.invoke_props_dialog(self, width=460)
 
         def draw(self, context):
+            objs = _selected_meshes(context)
             col = self.layout.column()
             col.label(text=f"Level: {self.computed or 'computed from the chain'} "
                            f"(made from what the object shows)", icon="SORTSIZE")
             col.prop(self, "level")
             col.label(text="Uses")
             col.prop(self, "use")
-            col.prop(self, "source")
-            if self.source == "FILE":
-                col.prop(self, "filepath")
-            elif self.source == "DECIMATE":
-                col.prop(self, "ratio")
+            col.separator()
+            col.label(text="Where the geometry of the new level comes from:")
+            col.row().prop(self, "source", expand=True)
+            box = col.box()
+            active = objs[0].name if objs else "?"
+            if self.source == "SELECTED":
+                box.prop_search(self, "source_name", bpy.data, "objects", text="Object")
+                box.label(text=f"Its mesh becomes a level of {active}; "
+                               f"that object leaves the scene", icon="INFO")
+            elif self.source == "FILE":
+                box.prop(self, "filepath")
+                box.label(text=f"A level of {active}, placed in its frame", icon="INFO")
+            else:
+                box.prop(self, "ratio")
+                box.label(text=f"For {len(objs)} selected object(s), each from "
+                               f"what it shows", icon="INFO")
             col.label(text="Measures (tris/m², texel side, atlases, UV) are taken "
-                           "from the mesh.", icon="INFO")
+                           "from the mesh.", icon="BLANK1")
+
+        def _add_one(self, context, graph, obj, room, folder):
+            computed = (self.computed if obj == context.active_object and self.computed
+                        else _computed_for(context, graph, obj))
+            technique, parameters, other = "", {}, None
+            if self.source == "FILE":
+                path = bpy.path.abspath(self.filepath)
+                if not os.path.isfile(path):
+                    raise RuntimeError(f"no file at {path}")
+                mesh = mesh_from_file(path, frame=obj.matrix_world.copy())
+                #: R4 · the file as the stamp measures it: an .obj with its
+                #: .mtl and textures is one resource of several files
+                files = files_of_entry(path)["files"]
+            else:
+                if self.source == "SELECTED":
+                    other = bpy.data.objects.get(self.source_name) if self.source_name else None
+                    if other is None:
+                        other = next((o for o in context.selected_objects
+                                      if o != obj and o.type == "MESH"), None)
+                    if other is None or other == obj or other.type != "MESH":
+                        raise RuntimeError("choose the object whose mesh becomes the "
+                                           "level (a mesh, not the object itself)")
+                    mesh = other.data.copy()
+                    mesh.transform(obj.matrix_world.inverted() @ other.matrix_world)
+                else:
+                    mod = obj.modifiers.new("_em_decimate", "DECIMATE")
+                    mod.ratio = self.ratio
+                    deps = context.evaluated_depsgraph_get()
+                    mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(deps))
+                    obj.modifiers.remove(mod)
+                    technique = "decimation"
+                    parameters = {"ratio": self.ratio}
+                path = os.path.join(folder, f"{safe(obj.name)}{SEP}"
+                                            f"{safe(self.level or computed or 'version')}.glb")
+                _export_glb(mesh, path)
+                files = [{"path": os.path.basename(path), "url": path,
+                          "checksum": _digest(sha256_of_file(path)),
+                          "size_bytes": os.path.getsize(path)}]
+            if mesh is None:
+                raise RuntimeError("no geometry in that file")
+            parameters = dict(parameters, source=self.source.lower(),
+                              tool="EM Tools · Add version")
+            out = add_version_from_mesh(
+                graph, obj, mesh, level=self.level.strip(),
+                master_level=self.master_level, files=files, room=room,
+                technique=technique, parameters=parameters,
+                use=sorted(self.use), made_from=_shown_version(obj),
+                packaging="file_set" if len(files) > 1 else None,
+                stamp=_stamper(graph, obj, files, technique, parameters,
+                               label=f"{obj.name} {self.level.strip() or computed}"))
+            if other is not None:
+                bpy.data.objects.remove(other)
+            return out
 
         def execute(self, context):
             graph = _graph(context)
@@ -1660,73 +1879,37 @@ def _operator_classes():  # pragma: no cover — bpy
                 self.report({"ERROR"}, "no graph loaded: a version is written "
                                        "into the graph of its asset")
                 return {"CANCELLED"}
-            obj = context.active_object
-            room = _room_id()
-            folder = os.path.join(cache_folder(), CACHE_DIR, safe(room or "local"),
-                                  "versions")
-            os.makedirs(folder, exist_ok=True)
-            technique, parameters = "", {}
-            try:
-                if self.source == "FILE":
-                    path = bpy.path.abspath(self.filepath)
-                    if not os.path.isfile(path):
-                        self.report({"ERROR"}, f"no file at {path}")
-                        return {"CANCELLED"}
-                    mesh = mesh_from_file(path, frame=obj.matrix_world.copy())
-                    other = None
-                    #: R4 · the file as the stamp measures it: an .obj with its
-                    #: .mtl and textures is one resource of several files
-                    files = files_of_entry(path)["files"]
-                else:
-                    if self.source == "SELECTED":
-                        other = next((o for o in context.selected_objects
-                                      if o != obj and o.type == "MESH"), None)
-                        if other is None:
-                            self.report({"ERROR"}, "select the version's object "
-                                                   "too, with the master active")
-                            return {"CANCELLED"}
-                        mesh = other.data.copy()
-                        mesh.transform(obj.matrix_world.inverted() @ other.matrix_world)
-                    else:
-                        mod = obj.modifiers.new("_em_decimate", "DECIMATE")
-                        mod.ratio = self.ratio
-                        deps = context.evaluated_depsgraph_get()
-                        mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(deps))
-                        obj.modifiers.remove(mod)
-                        other = None
-                        technique = "decimation"
-                        parameters = {"ratio": self.ratio}
-                    path = os.path.join(folder, f"{safe(obj.name)}{SEP}"
-                                                f"{safe(self.level or self.computed or 'version')}.glb")
-                    _export_glb(mesh, path)
-                    files = [{"path": os.path.basename(path), "url": path,
-                              "checksum": _digest(sha256_of_file(path)),
-                              "size_bytes": os.path.getsize(path)}]
-                if mesh is None:
-                    self.report({"ERROR"}, "no geometry in that file")
-                    return {"CANCELLED"}
-                parameters = dict(parameters, source=self.source.lower(),
-                                  tool="EM Tools · Add version")
-                out = add_version_from_mesh(
-                    graph, obj, mesh, level=self.level.strip(),
-                    master_level=self.master_level, files=files, room=room,
-                    technique=technique, parameters=parameters,
-                    use=sorted(self.use), made_from=_shown_version(obj),
-                    packaging="file_set" if len(files) > 1 else None,
-                    stamp=_stamper(graph, obj, files, technique, parameters,
-                                   label=f"{obj.name} {self.level.strip() or self.computed}"))
-            except Exception as exc:  # noqa: BLE001 — the reason is the user's
-                self.report({"ERROR"}, f"could not add the version: {exc}")
+            objs = _selected_meshes(context)
+            #: one geometry (an object, a file) is one object's level; a
+            #: decimation is made for each selected object
+            targets = objs if self.source == "DECIMATE" else objs[:1]
+            if self.source == "SELECTED" and self.source_name:
+                targets = [o for o in targets if o.name != self.source_name]
+            if not targets:
+                self.report({"ERROR"}, "select the object that gets the new level")
                 return {"CANCELLED"}
-            if self.source == "SELECTED" and other is not None:
-                bpy.data.objects.remove(other)
-            for w in out["warnings"]:
-                self.report({"WARNING"}, w)
-            self.report({"INFO"}, f"{obj.name}: version {out['level']} "
-                                  f"= {out.get('lod_level') or '?'} "
-                                  f"({', '.join(out.get('use') or []) or 'no use'}); "
-                                  f"{_measures_line(out.get('measures') or {})}; levels "
-                                  f"{', '.join(out['levels'])}")
+            room, folder = _versions_folder()
+            made, failed = [], []
+            for obj in targets:
+                try:
+                    out = self._add_one(context, graph, obj, room, folder)
+                except Exception as exc:  # noqa: BLE001 — the reason is the user's
+                    failed.append(f"{obj.name}: {exc}")
+                    continue
+                made.append(obj.name)
+                for w in out["warnings"]:
+                    self.report({"WARNING"}, w)
+                self.report({"INFO"}, f"{obj.name}: level {out['level']} "
+                                      f"= {out.get('lod_level') or '?'} "
+                                      f"({', '.join(out.get('use') or []) or 'no use'}); "
+                                      f"{_measures_line(out.get('measures') or {})}; levels "
+                                      f"{', '.join(out['levels'])}")
+            for f in failed:
+                self.report({"ERROR"}, f"could not add the level: {f}")
+            if not made:
+                return {"CANCELLED"}
+            if len(targets) > 1:
+                self.report({"INFO"}, f"level added to {len(made)} of {len(targets)} objects")
             return {"FINISHED"}
 
     def _recipe_defaults(op, context):
@@ -1765,16 +1948,21 @@ def _operator_classes():  # pragma: no cover — bpy
 
     from .. import version_recipe as _VR
 
+    #: the recipe's fields as `version_recipe.defaults` names them
+    _FIELDS = ("format", "transform", "max_texture_px", "jpeg_quality",
+               "animations", "frame_range", "draco", "ratio")
+
     class EM_OT_asset_prepare_for_use(bpy.types.Operator):
-        """Prepare a version of what the object shows for a use (web,
-        realtime, Heriverse, ATON…): a distribution version with its use, its
-        computed level, the numbers measured, and its RECIPE — how its bytes
-        were written, preset by the object's category (RM, RMDoc, RMSF) —
-        recorded in the DTC step and in the version's dtcstamp. For Heriverse
-        and ATON it is a glTF with its textures, as the old exporter wrote it"""
+        """Export a DERIVED version of what each selected object shows, for a
+        use (web, real time, Heriverse, ATON…): a file written with a recipe —
+        format, decimation, texture size, Draco — preset by the object's
+        category (RM, RMDoc, RMSF). It becomes a version in the graph with its
+        use, its computed level and its numbers, and the recipe is recorded in
+        the DTC step and in the version's dtcstamp. For Heriverse and ATON it
+        is a glTF with its textures, as the old exporter wrote it"""
 
         bl_idname = "em.asset_prepare_for_use"
-        bl_label = "Prepare for a use…"
+        bl_label = "Export a version for a use…"
         bl_options = {"REGISTER", "UNDO"}
 
         use: bpy.props.EnumProperty(  # type: ignore
@@ -1827,18 +2015,22 @@ def _operator_classes():  # pragma: no cover — bpy
             default=False, options={"HIDDEN", "SKIP_SAVE"})
         computed: bpy.props.StringProperty(  # type: ignore
             default="", options={"HIDDEN", "SKIP_SAVE"})
+        #: the category read from the active object: a selection of several
+        #: objects reads each one's when the dialog's is still this one
+        category_auto: bpy.props.StringProperty(  # type: ignore
+            default="", options={"HIDDEN", "SKIP_SAVE"})
 
         @classmethod
         def poll(cls, context):
             obj = context.active_object
             return obj is not None and obj.type == "MESH"
 
-        def _level_and_revise(self, context, graph, obj):
+        def _level_and_revise(self, context, graph, obj, computed=""):
             """The level this version takes and whether it revises the one
             there: same use → a revision (the recipe changed), other uses →
             the level named after the uses (``lod0-aton-heriverse``)."""
             from s3dgraphy import api
-            lvl = self.level.strip() or self.computed or ""
+            lvl = self.level.strip() or computed or self.computed or ""
             src = _shown_version(obj) or master_of(graph, obj, context.scene)
             if not lvl or not src:
                 return lvl, False
@@ -1858,24 +2050,22 @@ def _operator_classes():  # pragma: no cover — bpy
 
         def invoke(self, context, event):
             obj = context.active_object
-            graph = _graph(context)
-            self.computed = ""
-            if graph is not None:
-                try:
-                    from s3dgraphy.resources.versions import lod_steps
-                    src = _shown_version(obj) or master_of(graph, obj, context.scene)
-                    #: D1 · a model with no version yet: its first is lod0
-                    self.computed = f"lod{lod_steps(graph, src)}" if src else "lod0"
-                except Exception:  # noqa: BLE001
-                    pass
+            self.computed = _computed_for(context, _graph(context), obj)
             self.category = self._category_of(context, obj)
+            self.category_auto = self.category
             _recipe_defaults(self, context)
-            return context.window_manager.invoke_props_dialog(self, width=440)
+            return context.window_manager.invoke_props_dialog(self, width=460)
 
         def draw(self, context):
+            objs = _selected_meshes(context)
             col = self.layout.column()
-            col.label(text=f"Level: {self.computed or 'computed from the chain'}, "
-                           f"from what the object shows", icon="SORTSIZE")
+            if len(objs) > 1:
+                col.label(text=f"For {len(objs)} selected objects, each from what "
+                               f"it shows (level and category read per object)",
+                          icon="SORTSIZE")
+            else:
+                col.label(text=f"Level: {self.computed or 'computed from the chain'}, "
+                               f"from what the object shows", icon="SORTSIZE")
             col.label(text="For")
             col.prop(self, "use")
             box = col.box()
@@ -1901,54 +2091,40 @@ def _operator_classes():  # pragma: no cover — bpy
                 box.label(text="Heriverse/ATON: the model as it is, no Draco (Q5)",
                           icon="INFO")
 
-        def recipe(self):
-            return _VR.checked({"category": self.category, "format": self.format,
-                                "transform": self.transform,
-                                "max_texture_px": self.max_texture,
-                                "jpeg_quality": self.jpeg_quality,
-                                "animations": self.animations,
-                                "frame_range": self.frame_range,
-                                "draco": self.draco, "ratio": self.ratio}, self.use)
+        def _fields(self):
+            return {"format": self.format, "transform": self.transform,
+                    "max_texture_px": self.max_texture,
+                    "jpeg_quality": self.jpeg_quality,
+                    "animations": self.animations, "frame_range": self.frame_range,
+                    "draco": self.draco, "ratio": self.ratio}
 
-        def execute(self, context):
-            graph = _graph(context)
-            if graph is None:
-                self.report({"ERROR"}, "no graph loaded: a version is written "
-                                       "into the graph of its asset")
-                return {"CANCELLED"}
-            if not self.use:
-                self.report({"ERROR"}, "say what the version is for")
-                return {"CANCELLED"}
-            obj = context.active_object
-            if not self.recipe_ready:      # run without its dialog (a script, the Deck)
-                if not self.category_known:
-                    self.category = self._category_of(context, obj)
-                _recipe_defaults(self, context)
-            try:
-                recipe = self.recipe()
-            except ValueError as exc:
-                self.report({"ERROR"}, str(exc))
-                return {"CANCELLED"}
+        def recipe(self):
+            return _VR.checked(dict(self._fields(), category=self.category), self.use)
+
+        def _recipe_for(self, context, obj, several):
+            """The dialog's recipe for the active object; for another one of a
+            selection: its own category when the dialog's is still the one
+            read from the active, and its category's preset when the fields
+            are still the active's preset."""
+            if not several or obj == context.active_object:
+                return self.recipe()
+            auto = self.category_auto or self.category
+            cat = self.category if self.category != auto else self._category_of(context, obj)
+            fields = self._fields()
+            preset = _VR.defaults(auto, self.use, _VR.scene_values(context.scene))
+            touched = any(fields[k] != preset.get(k) for k in _FIELDS)
+            if cat != self.category and not touched:
+                own = _VR.defaults(cat, self.use, _VR.scene_values(context.scene))
+                fields = {k: own[k] for k in _FIELDS}
+            return _VR.checked(dict(fields, category=cat), self.use)
+
+        def _prepare_one(self, context, graph, obj, recipe, room, folder):
             viewer = _VR.is_viewer(self.use)
-            recipe["viewer"] = viewer
-            try:
-                #: first: an RMDoc / RMSF finds its node, and its level after it
-                seated = seat_representation(context, graph, obj, recipe)
-            except Exception as exc:  # noqa: BLE001 — the reason is the user's
-                self.report({"ERROR"}, f"could not prepare the version: {exc}")
-                return {"CANCELLED"}
-            if not self.computed:          # run without its dialog (a script)
-                try:
-                    from s3dgraphy.resources.versions import lod_steps
-                    src = _shown_version(obj) or master_of(graph, obj, context.scene)
-                    #: D1 · a model with no version yet: its first is lod0
-                    self.computed = f"lod{lod_steps(graph, src)}" if src else "lod0"
-                except Exception:  # noqa: BLE001
-                    pass
-            room = _room_id()
-            folder = os.path.join(cache_folder(), CACHE_DIR, safe(room or "local"),
-                                  "versions")
-            os.makedirs(folder, exist_ok=True)
+            recipe = dict(recipe, viewer=viewer)
+            #: first: an RMDoc / RMSF finds its node, and its level after it
+            seated = seat_representation(context, graph, obj, recipe)
+            computed = (self.computed if obj == context.active_object and self.computed
+                        else _computed_for(context, graph, obj))
             made = []          # the copies made here, removed if it fails
             try:
                 deps = context.evaluated_depsgraph_get()
@@ -1984,8 +2160,8 @@ def _operator_classes():  # pragma: no cover — bpy
                             resized += 1
                         mesh.materials[i] = copy
                 tag = "-".join(sorted(self.use))
-                level, revise = self._level_and_revise(context, graph, obj)
-                base = f"{safe(obj.name)}{SEP}{safe(level or self.computed or 'version')}"
+                level, revise = self._level_and_revise(context, graph, obj, computed)
+                base = f"{safe(obj.name)}{SEP}{safe(level or computed or 'version')}"
                 if tag not in base:
                     base = f"{base}-{safe(tag)}"
                 written = write_version(obj, mesh, recipe, folder, base)
@@ -2004,28 +2180,220 @@ def _operator_classes():  # pragma: no cover — bpy
                     packaging=written["packaging"], level=level, revise=revise,
                     stamp=_stamper(graph, obj, files, technique, params,
                                    label=f"{obj.name} for {', '.join(sorted(self.use))}"))
-            except Exception as exc:  # noqa: BLE001 — the reason is the user's
+            except Exception:
                 for block in made:
                     try:
                         (bpy.data.images if hasattr(block, "pixels")
                          else bpy.data.materials).remove(block)
                     except Exception:  # noqa: BLE001
                         pass
-                self.report({"ERROR"}, f"could not prepare the version: {exc}")
+                raise
+            return {**out, "step": {"technique": technique, "parameters": params},
+                    "glb": written["entry"], "entry": written["entry"], "files": files,
+                    "recipe": recipe, "seated": seated,
+                    "size": applied.get("size_bytes", 0)}
+
+        def execute(self, context):
+            graph = _graph(context)
+            if graph is None:
+                self.report({"ERROR"}, "no graph loaded: a version is written "
+                                       "into the graph of its asset")
                 return {"CANCELLED"}
-            size = applied.get("size_bytes", 0)
-            step = {"technique": technique, "parameters": params}
+            if not self.use:
+                self.report({"ERROR"}, "say what the version is for")
+                return {"CANCELLED"}
+            objs = _selected_meshes(context)
+            if not objs:
+                self.report({"ERROR"}, "select the object(s) to export")
+                return {"CANCELLED"}
+            if not self.recipe_ready:      # run without its dialog (a script, the Deck)
+                if not self.category_known:
+                    self.category = self._category_of(context, objs[0])
+                self.category_auto = self.category
+                _recipe_defaults(self, context)
+            several = len(objs) > 1
+            room, folder = _versions_folder()
+            made, failed = [], []
             PREPARED.clear()
-            PREPARED.update({**out, "step": step, "glb": written["entry"],
-                             "entry": written["entry"], "files": files,
-                             "recipe": recipe, "seated": seated})
+            for obj in objs:
+                try:
+                    recipe = self._recipe_for(context, obj, several)
+                    out = self._prepare_one(context, graph, obj, recipe, room, folder)
+                except Exception as exc:  # noqa: BLE001 — the reason is the user's
+                    failed.append(f"{obj.name}: {exc}")
+                    continue
+                made.append(obj.name)
+                if not PREPARED:
+                    #: U1 · what callers read: the active object's version
+                    PREPARED.update(out)
+                for w in out["warnings"]:
+                    self.report({"WARNING"}, w)
+                self.report({"INFO"}, f"{obj.name}: {out['level']} = "
+                                      f"{out.get('lod_level') or '?'} for "
+                                      f"{', '.join(out.get('use') or [])} · "
+                                      f"{_VR.said(out['recipe'])} · "
+                                      f"{out['step']['technique']} · "
+                                      f"{len(out['files'])} file(s), "
+                                      f"{out['size'] // 1024} kB · stamped · "
+                                      f"{_measures_line(out.get('measures') or {})}")
+            for f in failed:
+                self.report({"ERROR"}, f"could not export the version: {f}")
+            if not made:
+                return {"CANCELLED"}
+            if several:
+                self.report({"INFO"}, f"exported for {', '.join(sorted(self.use))}: "
+                                      f"{len(made)} of {len(objs)} objects")
+            return {"FINISHED"}
+
+    #: what «Remove versions…» takes from each selected object's asset
+    REMOVE_MODES = [
+        ("SHOWN", "The version shown",
+         "The version each selected object shows now (the object goes back to "
+         "its master)"),
+        ("DERIVED", "Derived versions",
+         "Every version exported for a use (the recipe's) of each selected "
+         "object's asset"),
+        ("ALL", "All versions",
+         "Every version of each selected object's asset; the master stays"),
+        ("ONE", "This version", "One version, chosen in the list"),
+    ]
+
+    def _remove_ids(context, graph, op):
+        """The versions the operator is about to remove, and the objects it
+        reads them from."""
+        if op.mode == "ONE":
+            obj = bpy.data.objects.get(op.object_name)
+            return ([op.version_id] if op.version_id else []), ([obj] if obj else [])
+        objs = _selected_meshes(context)
+        ids: List[str] = []
+        for obj in objs:
+            if op.mode == "SHOWN":
+                vid = _shown_version(obj)
+                if vid:
+                    ids.append(vid)
+                continue
+            asset = master_of(graph, obj, context.scene)
+            if not asset:
+                continue
+            if op.mode == "DERIVED":
+                from ..version_families import families
+                ids += [e["id"] for e in families(graph, asset)["derived"]]
+            else:
+                from s3dgraphy import api
+                ids += [e["id"] for e in api.versions_of(graph, asset) if not e["master"]]
+        return list(dict.fromkeys(ids)), objs
+
+    class EM_OT_asset_remove_versions(bpy.types.Operator):
+        """Remove versions of the selected objects' assets: from the graph
+        (the version, its step, the versions made from it), from the asset's
+        library (the object goes back to its master when it showed one), and
+        from the disk (its files and its dtcstamp), after a confirmation.
+        The master is never removed"""
+
+        bl_idname = "em.asset_remove_versions"
+        bl_label = "Remove versions…"
+        bl_options = {"REGISTER"}   # the graph and the disk do not undo
+
+        mode: bpy.props.EnumProperty(  # type: ignore
+            name="Remove", default="SHOWN", items=REMOVE_MODES)
+        version_id: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})  # type: ignore
+        object_name: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})  # type: ignore
+        delete_files: bpy.props.BoolProperty(  # type: ignore
+            name="Delete their files and dtcstamps from disk", default=True,
+            description="The files EM Tools wrote in its cache (em_cache) and "
+                        "the stamps beside them")
+        delete_outside: bpy.props.BoolProperty(  # type: ignore
+            name="Also the files outside the cache", default=False,
+            options={"SKIP_SAVE"},
+            description="Files the graph names elsewhere, e.g. an OBJ imported "
+                        "with «Add a level of detail…»: they may be your originals")
+
+        def _plan(self, context):
+            graph = _graph(context)
+            if graph is None:
+                return None, [], []
+            ids, objs = _remove_ids(context, graph, self)
+            return removal_plan_here(graph, ids), ids, objs
+
+        def invoke(self, context, event):
+            plan, ids, _objs = self._plan(context)
+            if plan is None:
+                self.report({"ERROR"}, "no graph loaded")
+                return {"CANCELLED"}
+            return context.window_manager.invoke_props_dialog(
+                self, width=500, title="Remove versions", confirm_text="Remove")
+
+        def draw(self, context):
+            from .. import version_removal as VRM
+            col = self.layout.column()
+            if self.mode != "ONE":
+                row = col.row(align=True)
+                for key in ("SHOWN", "DERIVED", "ALL"):
+                    row.prop_enum(self, "mode", key)
+            plan, ids, objs = self._plan(context)
+            if not plan or not plan.get("versions"):
+                col.label(text={"SHOWN": "The selected objects show their master: "
+                                         "nothing to remove",
+                                "DERIVED": "No derived version on the selected objects",
+                                "ALL": "The selected objects have no versions",
+                                }.get(self.mode, "That version is not in the graph"),
+                          icon="INFO")
+                return
+            box = col.box()
+            box.label(text=f"{len(plan['versions'])} version(s) go"
+                           + (f" ({len(objs)} object(s))" if self.mode != "ONE" else ""),
+                      icon="TRASH")
+            for line in VRM.summary_lines(plan, with_files=False):
+                box.label(text=line, icon="BLANK1")
+            col.prop(self, "delete_files")
+            if self.delete_files:
+                sub = col.box()
+                nc = len(plan.get("files_cache") or [])
+                ns = len(plan.get("stamps_cache") or [])
+                sub.label(text=f"{nc} file(s) in the cache, {ns} dtcstamp(s)",
+                          icon="FILE")
+                no = len(plan.get("files_outside") or [])
+                if no:
+                    sub.prop(self, "delete_outside",
+                             text=f"Also {no} file(s) outside the cache")
+                    for p in (plan.get("files_outside") or [])[:3]:
+                        sub.label(text=os.path.basename(p), icon="BLANK1")
+                if plan.get("kept_shared"):
+                    sub.label(text=f"{len(plan['kept_shared'])} file(s) stay: other "
+                                   f"resources name them", icon="INFO")
+            if plan.get("cited_by"):
+                names = sorted({c["name"] for c in plan["cited_by"]})
+                col.label(text="Cited by " + ", ".join(names[:3])
+                               + ("…" if len(names) > 3 else "")
+                               + ": those links go too", icon="ERROR")
+            col.label(text="This cannot be undone. Save the graph afterwards.",
+                      icon="ERROR")
+
+        def execute(self, context):
+            graph = _graph(context)
+            if graph is None:
+                self.report({"ERROR"}, "no graph loaded")
+                return {"CANCELLED"}
+            ids, _objs = _remove_ids(context, graph, self)
+            if not ids:
+                self.report({"WARNING"}, "no version to remove: the master is never "
+                                         "removed")
+                return {"CANCELLED"}
+            try:
+                out = remove_versions(context, graph, ids, delete=self.delete_files,
+                                      outside=self.delete_outside)
+            except Exception as exc:  # noqa: BLE001 — the reason is the user's
+                self.report({"ERROR"}, f"could not remove the versions: {exc}")
+                return {"CANCELLED"}
             for w in out["warnings"]:
                 self.report({"WARNING"}, w)
-            self.report({"INFO"}, f"{obj.name}: {out['level']} = {out.get('lod_level') or '?'} "
-                                  f"for {', '.join(out.get('use') or [])} · "
-                                  f"{_VR.said(recipe)} · {technique} · {len(files)} file(s), "
-                                  f"{size // 1024} kB · stamped · "
-                                  f"{_measures_line(out.get('measures') or {})}")
+            for f in out["failed"][:4]:
+                self.report({"WARNING"}, f"not deleted: {f}")
+            self.report({"INFO"}, f"removed {len(out['plan']['versions'])} version(s): "
+                                  f"{', '.join(v['name'] for v in out['plan']['versions'][:4])}"
+                                  f" · {len(out['deleted'])} file(s) deleted · save the graph")
+            for area in context.screen.areas if context.screen else []:
+                area.tag_redraw()
             return {"FINISHED"}
 
     #: U1 · where a change of level applies: one object (a list's row), the
@@ -2170,10 +2538,18 @@ def _operator_classes():  # pragma: no cover — bpy
         def draw(self, context):
             layout = self.layout
             obj = context.active_object
-            row = layout.row(align=True)
-            row.operator("em.asset_add_version", icon="ADD")
-            # U1 · beside it: a version prepared for a use (web, realtime…)
-            row.operator("em.asset_prepare_for_use", icon="MOD_DECIM")
+            # E.D. 22 Oct 2026 · the two ways a version is born, named for what
+            # they do, and the way it goes — all on the selected objects
+            n = len([o for o in context.selected_objects if o.type == "MESH"])
+            on = f" ({n} objects)" if n > 1 else ""
+            col = layout.column(align=True)
+            col.operator("em.asset_add_version", icon="ADD",
+                         text="Add a level of detail…" + on)
+            col.operator("em.asset_prepare_for_use", icon="EXPORT",
+                         text="Export a version for a use…" + on)
+            op = col.operator("em.asset_remove_versions", icon="TRASH",
+                              text="Remove versions…" + on)
+            op.mode = "SHOWN"
             if obj is not None and obj.get(PROP_ASSET):
                 # D1 · what the shown version IS: computed level, uses, measures
                 info = _version_info(context, obj)
@@ -2209,7 +2585,8 @@ def _operator_classes():  # pragma: no cover — bpy
             # F1 · the starting package is in «The .blend in the room…», with
             # the snapshots (Project storage)
 
-    return (EM_OT_asset_add_version, EM_OT_asset_prepare_for_use, EM_OT_asset_lod_step, EM_OT_asset_set_level,
+    return (EM_OT_asset_add_version, EM_OT_asset_prepare_for_use,
+            EM_OT_asset_remove_versions, EM_OT_asset_lod_step, EM_OT_asset_set_level,
             EM_OT_asset_level_menu, EM_MT_asset_levels_selected, VIEW3D_PT_em_asset_versions)
 
 

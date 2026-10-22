@@ -542,7 +542,7 @@ class EM_OT_deck_rebake(Operator):
 
     bl_idname = "em.deck_rebake"
     bl_label = "Re-bake stale"
-    bl_description = ("Make the stale version again: «Prepare for a use…» on "
+    bl_description = ("Make the stale version again: «Export a version for a use…» on "
                       "the object that shows it")
 
     @classmethod
@@ -585,9 +585,9 @@ class EM_OT_deck_rebake(Operator):
                 o.select_set(False)
             obj.select_set(True)
             context.view_layer.objects.active = obj
-            self.report({'INFO'}, f"{riga.name}: stale — «Prepare for a use…» on {obj.name}")
+            self.report({'INFO'}, f"{riga.name}: stale — «Export a version for a use…» on {obj.name}")
             return bpy.ops.em.asset_prepare_for_use('INVOKE_DEFAULT')
-        self.report({'WARNING'}, "A stale version is made again with «Prepare for a "
+        self.report({'WARNING'}, "A stale version is made again with «Export a version for a "
                                  "use…» on the object that shows it: no stale row "
                                  "has an object in this scene")
         return {'CANCELLED'}
