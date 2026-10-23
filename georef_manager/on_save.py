@@ -118,18 +118,17 @@ def tail(plan: Optional[dict]) -> str:
 def draw_choice(layout, op, plan: dict) -> None:
     '''The question of a save in front of an unresolved discrepancy: the
     differences field by field and the three choices.'''
-    from .panel import _FIELD_LABEL, _fmt, _wrap
+    from .i18n import tr
+    from .panel import _FIELD_LABEL, _fmt, _say
     box = layout.box()
     box.alert = True
-    box.label(text="The scene's georeferencing and the graph's differ",
-              icon='ERROR')
+    _say(box, "The scene's georeferencing and the graph's differ", 'ERROR')
     col = box.column(align=True)
     for key, sv, gv in plan.get('differences') or []:
-        col.label(text=f"{_FIELD_LABEL[key]}: scene {_fmt(key, sv)} · "
-                       f"graph {_fmt(key, gv)}")
-    for line in _wrap("The scene was never aligned to these values of the "
-                      "graph. Choose before saving:", 60):
-        box.label(text=line)
+        col.label(text=tr(f"{_FIELD_LABEL[key]}: scene {_fmt(key, sv)} · "
+                          f"graph {_fmt(key, gv)}"), translate=False)
+    _say(box, "The scene was never aligned to these values of the graph. "
+              "Choose before saving:")
     col = layout.column(align=True)
     for key in ('PUSH', 'PULL', 'KEEP'):
         col.prop_enum(op, "georef", key)

@@ -27,6 +27,7 @@ from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 
 from . import bgis_adapter, crs_check, dsc_adapter, graph_sync, propagation, shift_io
+from .i18n import tr
 
 
 def _em_log(msg, level="INFO"):
@@ -289,21 +290,24 @@ class EM_OT_georef_convert_epsg(Operator):
         try:
             g, src, dst, (x, y, z), conv, before = self._plan(context)
         except Exception as exc:  # noqa: BLE001
-            layout.label(text=f"Cannot plan the conversion: {exc}", icon='ERROR')
+            layout.label(text=tr(f"Cannot plan the conversion: {exc}"), icon='ERROR',
+                         translate=False)
             return
         repl = (before.get('replacement') or {})
-        for line in _wrap(before.get('reason', ''), 70):
-            layout.label(text=line)
+        for line in _wrap(tr(before.get('reason', '')), 70):
+            layout.label(text=line, translate=False)
         after = crs_check.accuracy_words(repl.get('to_wgs84')) \
             if repl.get('epsg') == dst else '?'
-        layout.label(text=f"Accuracy to WGS 84: {before.get('accuracy', '?')} → {after}")
+        layout.label(text=tr(f"Accuracy to WGS 84: {before.get('accuracy', '?')} → {after}"),
+                     translate=False)
         if conv.get('ok') and conv.get('same_grid'):
-            layout.label(text=f"Same grid: only the code changes, shift stays "
-                              f"({x:.3f}, {y:.3f})", icon='CHECKMARK')
+            layout.label(text=tr(f"Same grid: only the code changes, shift stays "
+                                 f"({x:.3f}, {y:.3f})"), icon='CHECKMARK', translate=False)
         elif conv.get('ok'):
-            layout.label(text=f"Another grid: shift reprojected to "
-                              f"({conv['x']:.3f}, {conv['y']:.3f}), "
-                              f"{crs_check.accuracy_words(conv.get('op'))}", icon='ERROR')
+            layout.label(text=tr(f"Another grid: shift reprojected to "
+                                 f"({conv['x']:.3f}, {conv['y']:.3f}), "
+                                 f"{crs_check.accuracy_words(conv.get('op'))}"),
+                         icon='ERROR', translate=False)
             layout.label(text="Models with absolute plan coordinates must be treated too")
         else:
             layout.label(text=conv.get('error', 'no operation'), icon='ERROR')

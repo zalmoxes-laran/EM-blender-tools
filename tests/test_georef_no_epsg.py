@@ -232,7 +232,7 @@ class _Layout:
 
     column = row = box = _child
 
-    def label(self, text="", icon='NONE'):
+    def label(self, text="", icon='NONE', translate=True):
         self._labels.append(text)
 
     def prop(self, *a, **k):

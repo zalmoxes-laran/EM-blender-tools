@@ -21,6 +21,7 @@ import bpy
 from bpy.types import Panel
 
 from . import bgis_adapter, crs_check, dsc_adapter, graph_sync, propagation
+from .i18n import tr
 
 
 # Tolleranza numerica per considerare "uguali" due valori di shift.
@@ -120,9 +121,10 @@ class EM_PT_georef(Panel):
         # --- Editable fields ---
         col = layout.column(align=True)
         col.prop(g, "epsg", text="EPSG")
-        col.prop(g, "shift_x", text="Shift X")
-        col.prop(g, "shift_y", text="Shift Y")
-        col.prop(g, "shift_z", text="Shift Z")
+        # through our catalogue: «Shift X» is also Blender's Shift key
+        col.prop(g, "shift_x", text=tr("Shift X"), translate=False)
+        col.prop(g, "shift_y", text=tr("Shift Y"), translate=False)
+        col.prop(g, "shift_z", text=tr("Shift Z"), translate=False)
         # The azimuth sits slightly apart from the shift: the shift is WHERE the
         # scene origin is, the azimuth is WHICH WAY the scene faces, and the two
         # are read by different consumers (BGIS/3DSC take the shift only).
@@ -133,13 +135,14 @@ class EM_PT_georef(Panel):
         z_note = propagation.shift_z_note(sz)
         if z_note:
             zbox = layout.box()
-            for i, line in enumerate(_wrap(z_note, 60)):
-                zbox.label(text=line, icon='ERROR' if i == 0 else 'BLANK1')
+            for i, line in enumerate(_wrap(tr(z_note), 60)):
+                zbox.label(text=line, icon='ERROR' if i == 0 else 'BLANK1',
+                           translate=False)
         # the fields are 32-bit floats: the exact shift, when it differs, is said
         if (sx, sy, sz) != (g.shift_x, g.shift_y, g.shift_z):
-            layout.label(text=f"Exact shift: {sx:.3f}, {sy:.3f}, {sz:.3f} "
-                              f"(the fields show Blender's 32-bit floats)",
-                         icon='INFO')
+            layout.label(text=tr(f"Exact shift: {sx:.3f}, {sy:.3f}, {sz:.3f} "
+                                 f"(the fields show Blender's 32-bit floats)"),
+                         icon='INFO', translate=False)
 
         # Without an EPSG the scene is not georeferenced, and the panel says
         # so: no CRS is passed to BlenderGIS or 3DSC (never 4326 by default).
@@ -281,47 +284,40 @@ def _draw_crs_box(layout, g, sx, sy):
         return
     box = layout.box()
     if prop and prop.get('unavailable'):
-        box.label(text="PROJ (pyproj) not available here: deprecated codes and",
-                  icon='INFO')
-        box.label(text="transformation accuracy cannot be checked", icon='BLANK1')
+        _say(box, "PROJ (pyproj) not available here: deprecated codes and "
+                  "transformation accuracy cannot be checked", 'INFO')
     elif prop:
         info = prop.get('info') or {}
         if info.get('ok'):
             box.label(text=f"EPSG:{info['epsg']} · {info['name']}", icon='WORLD')
         if prop.get('operation'):
-            for i, line in enumerate(_wrap(f"To WGS 84: {prop['operation']}", 60)):
-                box.label(text=line, icon='BLANK1')
-        box.label(text=f"Accuracy: {prop.get('accuracy', 'unknown')}", icon='BLANK1')
+            _say(box, f"To WGS 84: {prop['operation']}", 'BLANK1')
+        _say(box, f"Accuracy: {prop.get('accuracy', 'unknown')}", 'BLANK1')
         if prop.get('warn'):
             warn = box.box()
             warn.alert = True
-            for i, line in enumerate(_wrap(prop.get('reason', ''), 60)):
-                warn.label(text=line, icon='ERROR' if i == 0 else 'BLANK1')
+            _say(warn, prop.get('reason', ''), 'ERROR')
             repl = prop.get('replacement')
             if repl:
                 after = crs_check.accuracy_words(repl.get('to_wgs84'))
-                warn.label(text=f"Proposed: EPSG:{repl['epsg']} ({repl['name']})",
-                           icon='LIGHT')
+                _say(warn, f"Proposed: EPSG:{repl['epsg']} ({repl['name']})", 'LIGHT')
                 if repl['same_grid']:
-                    warn.label(text="Same grid: only the code changes, the shift stays",
-                               icon='BLANK1')
+                    _say(warn, "Same grid: only the code changes, the shift stays",
+                         'BLANK1')
                 else:
-                    warn.label(text="Another grid: the shift is reprojected; models",
-                               icon='BLANK1')
-                    warn.label(text="with absolute plan coordinates need it too",
-                               icon='BLANK1')
-                warn.label(text=f"Accuracy: {prop.get('accuracy')} → {after}",
-                           icon='BLANK1')
+                    _say(warn, "Another grid: the shift is reprojected; models "
+                               "with absolute plan coordinates need it too", 'BLANK1')
+                _say(warn, f"Accuracy: {prop.get('accuracy')} → {after}", 'BLANK1')
                 warn.operator("em.georef_convert_epsg",
-                              text=f"Convert to EPSG:{repl['epsg']}",
-                              icon='FILE_REFRESH').epsg_to = str(repl['epsg'])
+                              text=tr(f"Convert to EPSG:{repl['epsg']}"),
+                              icon='FILE_REFRESH',
+                              translate=False).epsg_to = str(repl['epsg'])
             else:
-                warn.label(text="PROJ's database gives no replacement code",
-                           icon='BLANK1')
+                _say(warn, "PROJ's database gives no replacement code", 'BLANK1')
     if undo:
         box.operator("em.georef_undo_conversion",
-                     text=f"Undo the conversion (back to EPSG:{undo.get('epsg')})",
-                     icon='LOOP_BACK')
+                     text=tr(f"Undo the conversion (back to EPSG:{undo.get('epsg')})"),
+                     icon='LOOP_BACK', translate=False)
 
 
 def _fmt(key, value):
@@ -352,15 +348,14 @@ def _draw_graph_box(layout, g, graph):
         return diff
     box = layout.box()
     if note:
-        for i, line in enumerate(_wrap(note, 60)):
-            box.label(text=line, icon='INFO' if i == 0 else 'BLANK1')
+        _say(box, note, 'INFO')
     if diff:
         box.alert = True
-        box.label(text="Scene and graph differ (nothing overwritten):", icon='ERROR')
+        _say(box, "Scene and graph differ (nothing overwritten):", 'ERROR')
         col = box.column(align=True)
         for key, sv, gv in diff:
-            col.label(text=f"{_FIELD_LABEL[key]}: scene {_fmt(key, sv)} · "
-                           f"graph {_fmt(key, gv)}")
+            col.label(text=tr(f"{_FIELD_LABEL[key]}: scene {_fmt(key, sv)} · "
+                              f"graph {_fmt(key, gv)}"), translate=False)
         # MICRO georef al salvataggio · what the next save does with it
         if graph_sync.scene_graph_id(bpy.context.scene) == graph.graph_id:
             plan = graph_sync.save_plan(g, graph)
@@ -372,8 +367,8 @@ def _draw_graph_box(layout, g, graph):
                         "the next save writes it into the graph")
             else:
                 text = ""
-            for i, line in enumerate(_wrap(text, 60) if text else []):
-                box.label(text=line, icon='FILE_TICK' if i == 0 else 'BLANK1')
+            if text:
+                _say(box, text, 'FILE_TICK')
     return diff
 
 
@@ -417,3 +412,10 @@ def unregister():
 def _wrap(text, width):
     import textwrap
     return textwrap.wrap(text, width) or [""]
+
+
+def _say(layout, text, icon='NONE', width=60):
+    """A sentence in the interface's language (``i18n.tr``), wrapped: the icon
+    on the first line, the others indented."""
+    for i, line in enumerate(_wrap(tr(text), width)):
+        layout.label(text=line, icon=icon if i == 0 else 'BLANK1', translate=False)
