@@ -114,6 +114,18 @@ class EMGeorefProperties(PropertyGroup):
         default="",
     )  # type: ignore
 
+    # The shift.txt last imported: «Convert to EPSG:NNNN» can rewrite it
+    # (keeping shift.old.txt beside it) when asked.
+    shift_txt_path: StringProperty(
+        name="shift.txt",
+        default="",
+        subtype='FILE_PATH',
+    )  # type: ignore
+
+    # The values before the last «Convert to EPSG:NNNN» (JSON), for «Undo the
+    # conversion»: Ctrl+Z restores the scene but not the graph's node.
+    last_conversion: StringProperty(default="")  # type: ignore
+
     # The shift in double precision (JSON [x, y, z]): the three fields above
     # are Blender's 32-bit floats — 448682.65 is stored as 448682.65625 and a
     # UTM northing moves by up to 0.25 m. Written by graph_sync.set_shift,

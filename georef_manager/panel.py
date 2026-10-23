@@ -20,7 +20,7 @@ from __future__ import annotations
 import bpy
 from bpy.types import Panel
 
-from . import bgis_adapter, dsc_adapter, graph_sync, propagation
+from . import bgis_adapter, crs_check, dsc_adapter, graph_sync, propagation
 
 
 # Tolleranza numerica per considerare "uguali" due valori di shift.
@@ -159,6 +159,7 @@ class EM_PT_georef(Panel):
                 if said[0]:
                     box.operator("em.georef_use_projected", text=f"Use EPSG {said[0]}",
                                  icon='CHECKMARK').epsg = str(said[0])
+            _draw_crs_box(layout, g, sx, sy)
 
         # --- Active graph indicator ---
         graph = graph_sync.get_active_graph()
@@ -262,6 +263,65 @@ class EM_PT_georef(Panel):
             box.label(text="Advanced:")
             box.prop(g, "move_objects_on_change")
             box.prop(g, "sync_lat_lon")
+
+
+def _draw_crs_box(layout, g, sx, sy):
+    """The CRS as PROJ's database knows it: the transformation to WGS 84 used
+    at the shift and its accuracy, always; a deprecated code or a «ballpark»
+    transformation as a clear warning with the replacement the database gives
+    and «Convert to EPSG:NNNN» — never a silent substitution."""
+    import json
+    prop = crs_check.proposal(g.epsg, sx, sy)
+    undo = None
+    try:
+        undo = json.loads(getattr(g, 'last_conversion', '') or 'null')
+    except ValueError:
+        undo = None
+    if prop is None and not undo:
+        return
+    box = layout.box()
+    if prop and prop.get('unavailable'):
+        box.label(text="PROJ (pyproj) not available here: deprecated codes and",
+                  icon='INFO')
+        box.label(text="transformation accuracy cannot be checked", icon='BLANK1')
+    elif prop:
+        info = prop.get('info') or {}
+        if info.get('ok'):
+            box.label(text=f"EPSG:{info['epsg']} · {info['name']}", icon='WORLD')
+        if prop.get('operation'):
+            for i, line in enumerate(_wrap(f"To WGS 84: {prop['operation']}", 60)):
+                box.label(text=line, icon='BLANK1')
+        box.label(text=f"Accuracy: {prop.get('accuracy', 'unknown')}", icon='BLANK1')
+        if prop.get('warn'):
+            warn = box.box()
+            warn.alert = True
+            for i, line in enumerate(_wrap(prop.get('reason', ''), 60)):
+                warn.label(text=line, icon='ERROR' if i == 0 else 'BLANK1')
+            repl = prop.get('replacement')
+            if repl:
+                after = crs_check.accuracy_words(repl.get('to_wgs84'))
+                warn.label(text=f"Proposed: EPSG:{repl['epsg']} ({repl['name']})",
+                           icon='LIGHT')
+                if repl['same_grid']:
+                    warn.label(text="Same grid: only the code changes, the shift stays",
+                               icon='BLANK1')
+                else:
+                    warn.label(text="Another grid: the shift is reprojected; models",
+                               icon='BLANK1')
+                    warn.label(text="with absolute plan coordinates need it too",
+                               icon='BLANK1')
+                warn.label(text=f"Accuracy: {prop.get('accuracy')} → {after}",
+                           icon='BLANK1')
+                warn.operator("em.georef_convert_epsg",
+                              text=f"Convert to EPSG:{repl['epsg']}",
+                              icon='FILE_REFRESH').epsg_to = str(repl['epsg'])
+            else:
+                warn.label(text="PROJ's database gives no replacement code",
+                           icon='BLANK1')
+    if undo:
+        box.operator("em.georef_undo_conversion",
+                     text=f"Undo the conversion (back to EPSG:{undo.get('epsg')})",
+                     icon='LOOP_BACK')
 
 
 def _fmt(key, value):

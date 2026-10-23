@@ -233,5 +233,99 @@ z_lines = [l for l in labels(draw_panel()) if l.startswith("Shift Z =")]
 check("Z 500 is said as an explicit choice", bool(z_lines), str(z_lines))
 gs.set_shift(g, GT16[1], GT16[2], 0.0)
 
+# ── (5) EPSG:31700 (deprecated, ballpark): the proposal and the conversion ──
+with open(EMJSON, encoding="utf-8") as f:
+    doc = json.load(f)
+for gd in doc["graphs"].values():
+    for n in gd["nodes"]:
+        if n.get("node_type") == "geo_position" and n["data"].get("epsg") == 3844:
+            n["data"]["epsg"] = 31700
+with open(EMJSON_31700, "w", encoding="utf-8") as f:
+    json.dump(doc, f)
+cc = importlib.import_module(PKG + ".georef_manager.crs_check")
+print("[SMOKE] pyproj available:", cc.available())
+g.epsg = ""
+gs.set_shift(g, 0.0, 0.0, 0.0)
+g.graph_note = ""
+g.last_conversion = ""
+scene.em_tools.graphml_files.clear()
+scene.em_tools.active_file_index = -1
+g.reference_graph = ""
+r = getattr(bpy.ops, "import").em_emjson(filepath=EMJSON_31700)
+check("31700 graph loaded into an empty scene", r == {"FINISHED"}
+      and scene_tuple() == ("31700",) + GT16[1:], str(scene_tuple()))
+lines = labels(draw_panel())
+print("[SMOKE] CRS lines:", [l for l in lines if "EPSG" in l or "ccuracy" in l
+                             or "WGS" in l or "grid" in l or "deprecated" in l])
+check("deprecated / ballpark said", any("deprecated" in l for l in lines)
+      and any("ballpark" in l for l in lines))
+check("accuracy before → after", "Accuracy: unknown (ballpark) → ±3 m" in lines)
+check("same grid said", "Same grid: only the code changes, the shift stays" in lines)
+calls = draw_panel()
+check("Convert to EPSG:3844 offered", ("operator", "em.georef_convert_epsg",
+                                        "Convert to EPSG:3844") in calls)
+check("nothing substituted silently", g.epsg == "31700")
+
+# a fresh folder per run: a shift.old.txt of a previous run is never removed
+import tempfile  # noqa: E402
+stdir = tempfile.mkdtemp(prefix="shift31700-", dir=DIR)
+st = os.path.join(stdir, "shift.txt")
+with open(st, "w") as f:
+    f.write("EPSG::31700 327372.56 448682.65 0\n")
+r = bpy.ops.em.georef_import_shift_txt(filepath=st)
+check("shift.txt in 31700 imported, its path kept", r == {"FINISHED"}
+      and g.shift_txt_path == st, g.shift_txt_path)
+
+graph = gs.get_active_graph()
+r = bpy.ops.em.georef_convert_epsg(epsg_to="3844", rewrite_shift_txt=True)
+check("Convert to EPSG:3844", r == {"FINISHED"}, str(r))
+check("same grid: code changed, shift kept", scene_tuple() == GT16, str(scene_tuple()))
+gv = gs.pull_from_geonode(graph)
+check("the graph's node follows", gv["epsg"] == "3844"
+      and gv["shift_x"] == GT16[1] and gv["shift_y"] == GT16[2], str(gv))
+if bgis.is_available():
+    check("BlenderGIS follows", bgis.read_state(scene)["epsg"] == "3844",
+          str(bgis.read_state(scene)))
+if dsc.is_available():
+    check("3DSC follows", dsc.read_state(scene)["epsg"] == "3844", str(dsc.read_state(scene)))
+with open(st) as f:
+    new_txt = f.read()
+with open(os.path.join(stdir, "shift.old.txt")) as f:
+    old_txt = f.read()
+check("shift.txt rewritten", new_txt.startswith("EPSG::3844 327372.56 448682.65"), repr(new_txt))
+check("shift.old.txt kept beside it", old_txt.startswith("EPSG::31700"), repr(old_txt))
+calls = draw_panel()
+lines = labels(calls)
+check("no warning after the conversion", not any("deprecated" in l for l in lines))
+check("the accuracy now", "Accuracy: ±3 m" in lines, str([l for l in lines if "ccuracy" in l]))
+check("Undo the conversion offered", ("operator", "em.georef_undo_conversion",
+                                       "Undo the conversion (back to EPSG:31700)") in calls)
+r = bpy.ops.em.georef_undo_conversion()
+check("Undo the conversion", r == {"FINISHED"} and scene_tuple() == ("31700",) + GT16[1:],
+      f"{r} {scene_tuple()}")
+check("graph restored", gs.pull_from_geonode(graph)["epsg"] == "31700")
+with open(st) as f:
+    check("shift.txt restored", f.read().startswith("EPSG::31700"))
+
+# another grid: 3844 → UTM 34N, the shift reprojected
+g.epsg = "3844"
+g.last_conversion = ""
+r = bpy.ops.em.georef_convert_epsg(epsg_to="32634")
+x, y, z = gs.exact_shift(g)
+check("another grid: the shift reprojected", r == {"FINISHED"} and g.epsg == "32634"
+      and abs(x - 639685.86) < 0.05 and abs(y - 5041873.94) < 0.05, f"{x:.3f} {y:.3f}")
+r = bpy.ops.em.georef_undo_conversion()
+check("and undone", scene_tuple() == ("3844",) + GT16[1:], str(scene_tuple()))
+
+# the ~127 m of the ballpark, measured
+try:
+    from pyproj import Transformer, Geod
+    a = Transformer.from_crs(31700, 4326, always_xy=True).transform(*GT16[1:3])
+    b = Transformer.from_crs(3844, 4326, always_xy=True).transform(*GT16[1:3])
+    d = Geod(ellps="WGS84").inv(a[0], a[1], b[0], b[1])[2]
+    print(f"[SMOKE] same numbers read in 31700 (ballpark) and 3844 (19): {d:.1f} m apart")
+except Exception as exc:  # noqa: BLE001
+    print("[SMOKE] ballpark distance not measured:", exc)
+
 print(f"[SMOKE] {'OK' if not FAILURES else 'FAILED: ' + ', '.join(FAILURES)}")
 sys.exit(1 if FAILURES else 0)
