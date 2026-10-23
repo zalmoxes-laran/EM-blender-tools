@@ -220,5 +220,18 @@ try:
 except Exception as exc:  # noqa: BLE001
     check("Save em.json", False, repr(exc))
 
+# ── (4b) the rule on heights: shift Z 0, another value said ─────────────────
+noz = os.path.join(DIR, "shift_noz.txt")
+with open(noz, "w") as f:
+    f.write("EPSG::3844 327372.56 448682.65\n")
+r = bpy.ops.em.georef_import_shift_txt(filepath=noz)
+check("a shift.txt without z imports with Z 0", r == {"FINISHED"}
+      and scene_tuple() == GT16, f"{r} {scene_tuple()}")
+check("no Z note with Z 0", not any(l.startswith("Shift Z =") for l in labels(draw_panel())))
+g.shift_z = 500.0
+z_lines = [l for l in labels(draw_panel()) if l.startswith("Shift Z =")]
+check("Z 500 is said as an explicit choice", bool(z_lines), str(z_lines))
+gs.set_shift(g, GT16[1], GT16[2], 0.0)
+
 print(f"[SMOKE] {'OK' if not FAILURES else 'FAILED: ' + ', '.join(FAILURES)}")
 sys.exit(1 if FAILURES else 0)

@@ -75,3 +75,25 @@ def push_to_addons(scene, g, bgis_adapter, dsc_adapter, *, log) -> List[Tuple[st
         log(f"[georef] 3DSC push: {msg}", "DEBUG" if ok else "WARNING")
 
     return results
+
+
+def shift_z_note(shift_z) -> Optional[str]:
+    '''Regola di E.D. (23 ott 2026): lo shift Z è 0 per progetto — le quote
+    assolute stanno nei vertici dei modelli. Uno shift Z diverso da 0 resta
+    possibile, ma il pannello lo dice come scelta esplicita. None con Z 0.
+
+    Cosa fa EM Tools con lo shift Z (misurato nel codice, 23 ott): non lo
+    applica MAI all'apertura di un grafo né ai modelli già in scena; lo passa a
+    3DSC (``BL_z_shift``; BlenderGIS non ha una quota); lo sottrae alle quote
+    delle geometrie importate da pyArchInit (``geom_blender_io``: z − shift_z);
+    fra due grafi applica la differenza degli shift_z (``graph_align``). Una
+    sola sottrazione, quindi: niente somma doppia.'''
+    try:
+        z = float(shift_z or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if abs(z) < 1e-9:
+        return None
+    return (f"Shift Z = {z:.3f}: an explicit choice. The project rule is 0 "
+            f"(absolute heights in the models' vertices); with {z:.3f} the "
+            f"scene heights are the real ones minus {z:.3f}")

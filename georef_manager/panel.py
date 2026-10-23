@@ -128,6 +128,13 @@ class EM_PT_georef(Panel):
         # are read by different consumers (BGIS/3DSC take the shift only).
         col.separator(factor=0.4)
         col.prop(g, "rotation", text="Azimuth °")
+        # E.D.'s rule (23 Oct): shift Z is 0 for a project; another value is
+        # said as a choice, never left silent
+        z_note = propagation.shift_z_note(sz)
+        if z_note:
+            zbox = layout.box()
+            for i, line in enumerate(_wrap(z_note, 60)):
+                zbox.label(text=line, icon='ERROR' if i == 0 else 'BLANK1')
         # the fields are 32-bit floats: the exact shift, when it differs, is said
         if (sx, sy, sz) != (g.shift_x, g.shift_y, g.shift_z):
             layout.label(text=f"Exact shift: {sx:.3f}, {sy:.3f}, {sz:.3f} "
