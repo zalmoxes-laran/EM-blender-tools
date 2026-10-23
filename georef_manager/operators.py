@@ -10,8 +10,10 @@ Operatori del pannello Georeferencing.
 - EM_OT_georef_pull: legge dallo stato di BGIS o 3DSC e aggiorna
   scene.em_georef. Dialog con scelta della fonte quando divergono.
 - EM_OT_georef_push_geonode: scrive i valori correnti sul
-  GeoPositionNode del grafo attivo (chiamato automaticamente al save
-  del blend / Heriverse export, disponibile anche manualmente).
+  GeoPositionNode del grafo attivo e lo collega al gruppo «Graph paradata».
+- EM_OT_georef_pull_graph: l'inverso — i valori del GeoPositionNode del
+  grafo attivo in scene.em_georef (e da lì a BGIS/3DSC). Esplicito, con
+  conferma: si usa quando scena e grafo differiscono.
 '''
 
 from __future__ import annotations
@@ -53,10 +55,8 @@ class EM_OT_georef_import_shift_txt(Operator, ImportHelper):
         # L'assegnazione dei 4 campi triggera 4 volte il callback update;
         # è accettabile (ogni propagazione è idempotente). In futuro si
         # può aggiungere un batch-mode con notify disabilitato.
+        graph_sync.set_shift(g, rec.x, rec.y, rec.z)
         g.epsg = rec.epsg
-        g.shift_x = rec.x
-        g.shift_y = rec.y
-        g.shift_z = rec.z
 
         self.report({'INFO'}, f"Loaded shift: EPSG:{rec.epsg} ({rec.x}, {rec.y}, {rec.z})")
         return {'FINISHED'}
@@ -79,7 +79,7 @@ class EM_OT_georef_export_shift_txt(Operator, ExportHelper):
             shift_io.write_shift_file(
                 self.filepath,
                 shift_io.ShiftRecord(
-                    epsg=g.epsg, x=g.shift_x, y=g.shift_y, z=g.shift_z,
+                    g.epsg, *graph_sync.exact_shift(g),
                 ),
             )
         except Exception as e:
@@ -143,12 +143,11 @@ class EM_OT_georef_pull(Operator):
         g = scene.em_georef
         if state.get('epsg'):
             g.epsg = str(state['epsg'])
-        if state.get('shift_x') is not None:
-            g.shift_x = float(state['shift_x'])
-        if state.get('shift_y') is not None:
-            g.shift_y = float(state['shift_y'])
-        if state.get('shift_z') is not None:
-            g.shift_z = float(state['shift_z'])
+        cur = graph_sync.exact_shift(g)
+        graph_sync.set_shift(
+            g,
+            *(float(state[k]) if state.get(k) is not None else c
+              for k, c in zip(('shift_x', 'shift_y', 'shift_z'), cur)))
 
         self.report({'INFO'}, f"Pulled georef from {src}")
         return {'FINISHED'}
@@ -178,13 +177,52 @@ class EM_OT_georef_push_geonode(Operator):
                         f"graphs to the scene» to place it")
             return {'CANCELLED'}
         ok = graph_sync.push_to_geonode(
-            graph, g.epsg or None, g.shift_x, g.shift_y, g.shift_z,
-            g.rotation,
+            graph, g.epsg or None, *graph_sync.exact_shift(g), g.rotation,
         )
         if not ok:
             self.report({'WARNING'}, "Could not write GeoPositionNode on active graph")
             return {'CANCELLED'}
         self.report({'INFO'}, f"GeoPositionNode updated on graph {graph.graph_id}")
+        return {'FINISHED'}
+
+
+class EM_OT_georef_pull_graph(Operator):
+    bl_idname = "em.georef_pull_graph"
+    bl_label = "Pull from graph"
+    bl_description = (
+        "Read EPSG, shift and azimuth from the active graph's GeoPositionNode "
+        "and overwrite the scene's values (then BlenderGIS and 3DSC through the "
+        "usual propagation). Objects are not moved")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+    def execute(self, context):
+        graph = graph_sync.get_active_graph()
+        if graph is None:
+            self.report({'WARNING'}, "No active graph — load a graph first")
+            return {'CANCELLED'}
+        g = context.scene.em_georef
+        # G1 · the scene's georeferencing is the REFERENCE graph's (as for Push)
+        rows = list(getattr(context.scene.em_tools, 'graphml_files', ()) or ())
+        ref = getattr(g, 'reference_graph', '') or ''
+        if len(rows) > 1 and ref and graph.graph_id != ref:
+            self.report({'WARNING'},
+                        f"{graph.graph_id} is not the scene's reference graph "
+                        f"({ref}): the scene keeps the reference graph's "
+                        f"georeferencing")
+            return {'CANCELLED'}
+        values = graph_sync.pull_from_geonode(graph)
+        if not graph_sync.is_georeferenced(values):
+            self.report({'WARNING'},
+                        f"Graph {graph.graph_id} declares no georeferencing")
+            return {'CANCELLED'}
+        graph_sync.write_scene(g, values)
+        g.graph_note = (f"Georeferencing pulled from graph {graph.graph_id}: "
+                        f"EPSG:{values['epsg'] or '—'} · {values['shift_x']:.3f}, "
+                        f"{values['shift_y']:.3f}, {values['shift_z']:.3f}")
+        self.report({'INFO'}, g.graph_note)
         return {'FINISHED'}
 
 
@@ -194,6 +232,7 @@ CLASSES = (
     EM_OT_georef_sync_all,
     EM_OT_georef_pull,
     EM_OT_georef_push_geonode,
+    EM_OT_georef_pull_graph,
 )
 
 

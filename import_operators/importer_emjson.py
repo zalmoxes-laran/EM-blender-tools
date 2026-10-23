@@ -266,6 +266,16 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         except Exception as exc:  # noqa: BLE001 — the load succeeded anyway
             print(f"[em.json import] WARN RM containers check: {exc}")
 
+        # MICRO georiferimento dal grafo · the graph's GeoPositionNode into
+        # the scene when the scene is not georeferenced; a difference is shown,
+        # never overwritten (georef_manager/graph_sync.on_graph_opened)
+        try:
+            from ..georef_manager.graph_sync import on_graph_opened
+            from ..functions import em_log as _em_log
+            on_graph_opened(scene, graph, log=_em_log)
+        except Exception as exc:  # noqa: BLE001 — the load succeeded anyway
+            print(f"[em.json import] WARN georeferencing from the graph: {exc}")
+
         # B1 · chi aspettava un grafo dal ponte (EMStudio in Sidecar) lo riceve
         # adesso, senza doversi riconnettere.
         try:

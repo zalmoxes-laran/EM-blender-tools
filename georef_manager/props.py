@@ -106,6 +106,20 @@ class EMGeorefProperties(PropertyGroup):
         default="",
     )  # type: ignore
 
+    # MICRO georiferimento dal grafo · what happened at the last opening of a
+    # graph (read into the scene, agrees, differs, not the reference): the
+    # panel's line. Written by graph_sync.on_graph_opened.
+    graph_note: StringProperty(
+        name="Georeferencing from the graph",
+        default="",
+    )  # type: ignore
+
+    # The shift in double precision (JSON [x, y, z]): the three fields above
+    # are Blender's 32-bit floats — 448682.65 is stored as 448682.65625 and a
+    # UTM northing moves by up to 0.25 m. Written by graph_sync.set_shift,
+    # read by graph_sync.exact_shift (the field wins once edited by hand).
+    shift_exact: StringProperty(default="")  # type: ignore
+
     # Toggle avanzati (default conservativi)
 
     move_objects_on_change: BoolProperty(

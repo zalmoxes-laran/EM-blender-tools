@@ -337,6 +337,14 @@ class EM_import_GraphML(bpy.types.Operator):
                     self.report({'WARNING'},
                                 f"GraphML loaded but not saved as em.json: {e}")
 
+                # MICRO georiferimento dal grafo · as for an em.json
+                try:
+                    from ..georef_manager.graph_sync import on_graph_opened
+                    from ..functions import em_log as _em_log
+                    on_graph_opened(scene, graph_instance, log=_em_log)
+                except Exception as e:  # noqa: BLE001 — loaded anyway
+                    print(f"[GraphML Import] georeferencing from the graph: {e}")
+
                 # B1 · chi aspettava un grafo dal ponte (EMStudio in Sidecar) lo
                 # riceve adesso, senza doversi riconnettere.
                 try:

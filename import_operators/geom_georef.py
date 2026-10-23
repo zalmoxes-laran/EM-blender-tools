@@ -85,4 +85,10 @@ def resolve_georef_anchor(context, polygons, db_srid):
     if db_srid and g.epsg.strip() != str(db_srid):
         # Non-blocking warning is surfaced by the orchestrator.
         pass
-    return (g.shift_x, g.shift_y, g.shift_z), g.epsg
+    # the shift in double precision: the fields are 32-bit floats (a UTM
+    # northing moves by up to 0.25 m) — georef_manager.graph_sync.exact_shift
+    try:
+        from ..georef_manager.graph_sync import exact_shift
+        return exact_shift(g), g.epsg
+    except Exception:  # noqa: BLE001 — loaded on its own (the suite)
+        return (g.shift_x, g.shift_y, g.shift_z), g.epsg

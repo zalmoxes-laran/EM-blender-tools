@@ -46,6 +46,13 @@ def push_to_addons(scene, g, bgis_adapter, dsc_adapter, *, log) -> List[Tuple[st
     '''
     epsg = epsg_or_none(g.epsg)
     results = []
+    # the shift in double precision (graph_sync.exact_shift): the fields are
+    # 32-bit floats
+    try:
+        from .graph_sync import exact_shift
+        sx, sy, sz = exact_shift(g)
+    except Exception:  # noqa: BLE001 — loaded on its own (the suite)
+        sx, sy, sz = g.shift_x, g.shift_y, g.shift_z
 
     if bgis_adapter.is_available():
         if epsg is None:
@@ -53,7 +60,7 @@ def push_to_addons(scene, g, bgis_adapter, dsc_adapter, *, log) -> List[Tuple[st
             log(f"[georef] BGIS push: {BGIS_SKIPPED}", "DEBUG")
         else:
             ok, msg = bgis_adapter.write_state(
-                scene, epsg, g.shift_x, g.shift_y,
+                scene, epsg, sx, sy,
                 move_objects=bool(g.move_objects_on_change),
                 sync_lat_lon=bool(g.sync_lat_lon),
             )
@@ -62,7 +69,7 @@ def push_to_addons(scene, g, bgis_adapter, dsc_adapter, *, log) -> List[Tuple[st
 
     if dsc_adapter.is_available():
         ok, msg = dsc_adapter.write_state(
-            scene, epsg, g.shift_x, g.shift_y, g.shift_z,
+            scene, epsg, sx, sy, sz,
         )
         results.append(('3DSC', 'ok' if ok else 'fail', msg))
         log(f"[georef] 3DSC push: {msg}", "DEBUG" if ok else "WARNING")

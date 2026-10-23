@@ -61,7 +61,9 @@ def _compare_state(ref: dict, state: dict | None) -> str:
         s = state.get(key)
         if r is None or s is None:
             continue
-        if abs(float(r) - float(s)) > _SHIFT_TOLERANCE:
+        # 3DSC keeps the shift in 32-bit floats: equal at that precision is equal
+        if abs(float(r) - float(s)) > _SHIFT_TOLERANCE \
+                and graph_sync._f32(r) != graph_sync._f32(s):
             return 'red'
 
     return 'green'
@@ -101,11 +103,12 @@ class EM_PT_georef(Panel):
         scene = context.scene
         g = scene.em_georef
 
+        sx, sy, sz = graph_sync.exact_shift(g)
         ref = {
             'epsg': g.epsg,
-            'shift_x': g.shift_x,
-            'shift_y': g.shift_y,
-            'shift_z': g.shift_z,
+            'shift_x': sx,
+            'shift_y': sy,
+            'shift_z': sz,
         }
 
         bgis_state = bgis_adapter.read_state(scene) if bgis_adapter.is_available() else None
@@ -125,6 +128,11 @@ class EM_PT_georef(Panel):
         # are read by different consumers (BGIS/3DSC take the shift only).
         col.separator(factor=0.4)
         col.prop(g, "rotation", text="Azimuth °")
+        # the fields are 32-bit floats: the exact shift, when it differs, is said
+        if (sx, sy, sz) != (g.shift_x, g.shift_y, g.shift_z):
+            layout.label(text=f"Exact shift: {sx:.3f}, {sy:.3f}, {sz:.3f} "
+                              f"(the fields show Blender's 32-bit floats)",
+                         icon='INFO')
 
         # Without an EPSG the scene is not georeferenced, and the panel says
         # so: no CRS is passed to BlenderGIS or 3DSC (never 4326 by default).
@@ -152,6 +160,7 @@ class EM_PT_georef(Panel):
             row.label(text=f"Active graph: {graph.graph_id}", icon='NODETREE')
         else:
             row.label(text="No active graph", icon='DOT')
+        diff = _draw_graph_box(layout, g, graph)
 
         # --- Sync status (lights) ---
         box = layout.box()
@@ -221,9 +230,14 @@ class EM_PT_georef(Panel):
         op = sub.operator("em.georef_pull", text="Pull from 3DSC", icon='TRIA_DOWN_BAR')
         op.source = 'dsc'
 
-        row = layout.row()
+        # Push and Pull with the graph side by side: the scene → the node, the
+        # node → the scene. Pull is the explicit choice when the two differ.
+        row = layout.row(align=True)
         row.enabled = graph is not None
         row.operator("em.georef_push_geonode", text="Push to GeoNode", icon='WORLD')
+        sub = row.row(align=True)
+        sub.alert = bool(diff)
+        sub.operator("em.georef_pull_graph", text="Pull from graph", icon='IMPORT')
 
         # --- G1 · graphs of this scene ---
         _draw_graphs_box(layout, context)
@@ -241,6 +255,46 @@ class EM_PT_georef(Panel):
             box.label(text="Advanced:")
             box.prop(g, "move_objects_on_change")
             box.prop(g, "sync_lat_lon")
+
+
+def _fmt(key, value):
+    if value is None or value == '':
+        return '—'
+    if key == 'epsg':
+        return f"EPSG:{value}"
+    if key == 'rotation':
+        return f"{float(value):.2f}°"
+    return f"{float(value):.3f}"
+
+
+_FIELD_LABEL = {'epsg': 'EPSG', 'shift_x': 'Shift X', 'shift_y': 'Shift Y',
+                'shift_z': 'Shift Z', 'rotation': 'Azimuth'}
+
+
+def _draw_graph_box(layout, g, graph):
+    """What the active graph's GeoPositionNode says against the scene: the
+    line of the last opening (read into the scene, agrees, differs) and, when
+    the two differ, field by field — scene vs graph. Nothing is overwritten
+    here: «Pull from graph» and «Push to GeoNode» are the two choices."""
+    note = getattr(g, 'graph_note', '') or ''
+    values = graph_sync.pull_from_geonode(graph) if graph is not None else None
+    diff = []
+    if values and graph_sync.is_georeferenced(values):
+        diff = graph_sync.differences(graph_sync.scene_values(g), values)
+    if not note and not diff:
+        return diff
+    box = layout.box()
+    if note:
+        for i, line in enumerate(_wrap(note, 60)):
+            box.label(text=line, icon='INFO' if i == 0 else 'BLANK1')
+    if diff:
+        box.alert = True
+        box.label(text="Scene and graph differ (nothing overwritten):", icon='ERROR')
+        col = box.column(align=True)
+        for key, sv, gv in diff:
+            col.label(text=f"{_FIELD_LABEL[key]}: scene {_fmt(key, sv)} · "
+                           f"graph {_fmt(key, gv)}")
+    return diff
 
 
 def _draw_graphs_box(layout, context):

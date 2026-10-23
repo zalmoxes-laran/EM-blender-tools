@@ -39,9 +39,10 @@ def anchor_of_graph(graph) -> graph_align.Anchor:
 
 def scene_anchor(scene) -> graph_align.Anchor:
     g = scene.em_georef
+    x, y, z = graph_sync.exact_shift(g)      # not the 32-bit fields
     return graph_align.anchor_from_data({
-        'epsg': g.epsg, 'shift_x': g.shift_x, 'shift_y': g.shift_y,
-        'shift_z': g.shift_z, 'rotation': g.rotation})
+        'epsg': g.epsg, 'shift_x': x, 'shift_y': y,
+        'shift_z': z, 'rotation': g.rotation})
 
 
 def reference_row(em_tools, georef):
@@ -228,11 +229,12 @@ class EM_OT_georef_use_projected(bpy.types.Operator):
                                    f"the shift in EPSG {target} by hand")
             return {'CANCELLED'}
         try:
-            (x, y), = run([(g.shift_x, g.shift_y)], source, target)
+            sx, sy, sz = graph_sync.exact_shift(g)
+            (x, y), = run([(sx, sy)], source, target)
         except Exception as exc:  # noqa: BLE001
             self.report({'ERROR'}, f"reprojection {source} → {target} failed: {exc}")
             return {'CANCELLED'}
-        g.shift_x, g.shift_y = x, y
+        graph_sync.set_shift(g, x, y, sz)
         g.epsg = str(target)
         self.report({'INFO'}, f"scene CRS EPSG {target}, origin ({x:.3f}, {y:.3f}) "
                               f"m, reprojected via {via}")
