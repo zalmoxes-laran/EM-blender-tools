@@ -499,10 +499,19 @@ class EM_OT_deck_heriverse_write_disk(bpy.types.Operator):
             except Exception:  # noqa: BLE001 — no room: the disk only
                 fetch = None
         drop = [x for g in graphs.values() for x in unpublished(context, g)]
-        #: the georeferencing travels as the study holds it (its GeoPositionNode).
-        #: The old JSON writer first pushed the scene's `em_georef` onto it
-        #: (DP-56): measured on Templu Mare v2 that would write shift 0, 0, 0
-        #: over the em.json's 327300, 448370, 500 — not carried over
+        #: the georeferencing travels as the study holds it (its GeoPositionNode),
+        #: with the scene's written into it first as at every save (MICRO georef
+        #: al salvataggio, E.D. 24 Oct 2026). The old JSON writer (DP-56) pushed
+        #: the scene's `em_georef` blindly — on Templu Mare v2 it wrote shift
+        #: 0, 0, 0 over the em.json's 327300, 448370, 500: now a scene that is
+        #: not georeferenced leaves the node alone, and a scene the graph was
+        #: never aligned to stops the package until Push or Pull is chosen
+        from ..georef_manager import on_save
+        plan = on_save.before_write(context, list(graphs), "ASK")
+        if plan and plan["outcome"] == "conflict":
+            self.report({"ERROR"}, f"{plan['sentence']} (Georeferencing panel: "
+                                   f"«Push to GeoNode» or «Pull from graph»)")
+            return {"CANCELLED"}
         doc = PH.heriverse_document(graphs, active=next(iter(graphs)), unpublished=drop)
         extras = extras_for(context, graphs, proxies=self.export_proxies,
                             dosco=self.export_dosco, panorama=self.export_panorama)

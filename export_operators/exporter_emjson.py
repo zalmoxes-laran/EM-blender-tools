@@ -17,10 +17,37 @@ from bpy_extras.io_utils import ExportHelper  # type: ignore
 
 from ..functions import is_graph_available, show_popup_message
 from ..emjson_support import export_container_to_emjson, export_graph_to_emjson
+from ..georef_manager import on_save
 
 
-def _save_as_origin(context, graph, out_path: str) -> str:
-    """Write the active graph's origin group into `out_path` (a new file)."""
+class GeorefConflict(Exception):
+    """MICRO georef al salvataggio · scene and graph differ and nobody chose."""
+
+
+def _save_as_members(context) -> tuple:
+    """What «Save As…» writes: `(graph_ids, is_room)`."""
+    from .. import graph_origins
+
+    em_tools = context.scene.em_tools
+    rows = list(em_tools.graphml_files)
+    index = em_tools.active_file_index
+    if not (0 <= index < len(rows)):
+        from s3dgraphy.multigraph.multigraph import multi_graph_manager
+        return list(multi_graph_manager.graphs), False
+    origin = graph_origins.origin_of(rows[index], abspath=bpy.path.abspath)
+    if origin.is_emjson:
+        return graph_origins.members_of(rows, origin, abspath=bpy.path.abspath), False
+    return [rows[index].name], origin.is_room
+
+
+def _save_as_origin(context, graph, out_path: str, georef: str = "ASK") -> tuple:
+    """Write the active graph's origin group into `out_path` (a new file).
+    → `(path, georef plan)`; raises `GeorefConflict` when scene and graph
+    differ, the scene was never aligned to the graph and `georef` is ASK.
+
+    MICRO georef al salvataggio · the scene's georeferencing goes into the
+    scene's graph first; for a room's graph through the room, as operations
+    (the node is the study's, not the copy's)."""
     from s3dgraphy import get_graph
     from .. import graph_origins
 
@@ -30,24 +57,26 @@ def _save_as_origin(context, graph, out_path: str) -> str:
     rows = list(em_tools.graphml_files)
     index = em_tools.active_file_index
     gid = getattr(graph, "graph_id", None)
+    members, room = _save_as_members(context)
+    plan = on_save.before_write(context, members, georef, room=room)
+    if plan and plan["outcome"] == "conflict":
+        raise GeorefConflict(plan["sentence"])
     if not (0 <= index < len(rows)):
-        from s3dgraphy.multigraph.multigraph import multi_graph_manager
-        project_containers_before_save(context, list(multi_graph_manager.graphs))
-        return export_container_to_emjson(out_path, active_graph_id=gid)
+        project_containers_before_save(context, members)
+        return export_container_to_emjson(out_path, active_graph_id=gid), plan
     origin = graph_origins.origin_of(rows[index], abspath=bpy.path.abspath)
     if origin.is_emjson:
-        members = graph_origins.members_of(rows, origin, abspath=bpy.path.abspath)
         base = graph_origins.remembered(origin.path)
         project_containers_before_save(context, members)
         return graph_origins.save_file(out_path, members, get_graph,
-                                       active_graph_id=gid, base=base).path
+                                       active_graph_id=gid, base=base).path, plan
     # a GraphML, a room's graph, a graph with no file: this graph alone. A
     # room's graph is not reconciled here: what changes in it goes to the room
     # as operations, and a Save As is a copy, not an edit of the room.
     if not origin.is_room:
         project_containers_before_save(context, [gid])
     return graph_origins.save_file(out_path, [gid], get_graph,
-                                   active_graph_id=gid).path
+                                   active_graph_id=gid).path, plan
 
 
 def _rebind_origin(context, out: str) -> None:
@@ -97,6 +126,10 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
         default="EMJSON",
     )  # type: ignore
 
+    #: MICRO georef al salvataggio · what to do when scene and graph differ
+    georef: EnumProperty(name="Georeferencing", items=on_save.GEOREF_ITEMS,
+                         default="ASK", options={"SKIP_SAVE"})  # type: ignore
+
     @classmethod
     def poll(cls, context):
         ok, _ = is_graph_available(context)
@@ -126,8 +159,13 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
 
     def draw(self, context):
         self.layout.label(text="em.json — the full graph", icon="FILE")
+        plan = on_save.conflict(context, _save_as_members(context)[0])
+        if plan:
+            on_save.draw_choice(self.layout, self, plan)
 
     def invoke(self, context, event):
+        if on_save.conflict(context, _save_as_members(context)[0]):
+            self.georef = "KEEP"
         em_tools = context.scene.em_tools
         if not self.filepath and em_tools.graphml_files and em_tools.active_file_index >= 0:
             base = em_tools.graphml_files[em_tools.active_file_index].name or "graph"
@@ -147,7 +185,10 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
             # the graphs not open here), not every graph of the scene: a
             # scene holding two files must not fuse them into one. A graph
             # with no file, or from a room, is written alone.
-            out = _save_as_origin(context, graph, out_path)
+            out, plan = _save_as_origin(context, graph, out_path, self.georef)
+        except GeorefConflict as exc:
+            self.report({"WARNING"}, f"Not saved: {exc}")
+            return {"CANCELLED"}
         except Exception as exc:  # noqa: BLE001 — surface any exporter error to the UI
             self.report({"ERROR"}, f"Save failed: {exc}")
             show_popup_message(context, "Export Error", str(exc), "ERROR")
@@ -169,7 +210,8 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
         except Exception as exc:  # noqa: BLE001 — the file is written anyway
             print(f"[em.json save] unsaved mark skipped: {exc}")
 
-        self.report({"INFO"}, f"Saved em.json → {out}")
+        extra = on_save.tail(plan)
+        self.report({"INFO"}, f"Saved em.json → {out}" + (f" · {extra}" if extra else ""))
         return {"FINISHED"}
 
 
@@ -179,7 +221,14 @@ class EM_export_save(bpy.types.Operator):
     bl_description = ("Save the active graph to its .em.json file in place, its "
                       "RM containers included; the first save of the session "
                       "keeps the previous file beside it (.bak-<date-time>). "
-                      "Falls back to Save As… when there is no em.json target")
+                      "Falls back to Save As… when there is no em.json target. "
+                      "The scene's georeferencing goes into the graph's "
+                      "GeoPositionNode; when the two differ and the scene was "
+                      "never aligned to the graph, it asks first")
+
+    #: MICRO georef al salvataggio · what to do when scene and graph differ
+    georef: EnumProperty(name="Georeferencing", items=on_save.GEOREF_ITEMS,
+                         default="ASK", options={"SKIP_SAVE"})  # type: ignore
 
     @classmethod
     def poll(cls, context):
@@ -194,6 +243,21 @@ class EM_export_save(bpy.types.Operator):
                 "No graph loaded — add a graph, set its Path, then Load")
         return ok
 
+    def invoke(self, context, event):
+        from ..em_setup.graph_tree import georef_conflict
+        self._conflict = georef_conflict(context, context.scene.em_tools.active_file_index)
+        if self._conflict is None:
+            return self.execute(context)
+        self.georef = "KEEP"
+        return context.window_manager.invoke_props_dialog(self, width=460)
+
+    def draw(self, context):
+        from ..em_setup.graph_tree import georef_conflict
+        plan = getattr(self, "_conflict", None) or georef_conflict(
+            context, context.scene.em_tools.active_file_index)
+        if plan:
+            on_save.draw_choice(self.layout, self, plan)
+
     def execute(self, context):
         ok, graph = is_graph_available(context)
         if not ok or graph is None:
@@ -206,13 +270,14 @@ class EM_export_save(bpy.types.Operator):
         from ..em_setup.graph_tree import save_origin
         em_tools = context.scene.em_tools
         try:
-            ok, message, save_as = save_origin(context, em_tools.active_file_index)
+            ok, message, save_as = save_origin(context, em_tools.active_file_index,
+                                               self.georef)
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"Save failed: {exc}")
             show_popup_message(context, "Save Error", str(exc), "ERROR")
             return {"CANCELLED"}
         if save_as:
-            return bpy.ops.export.em_saveas("INVOKE_DEFAULT")
+            return bpy.ops.export.em_saveas("INVOKE_DEFAULT", georef=self.georef)
         self.report({"INFO"} if ok else {"WARNING"}, message)
         return {"FINISHED"} if ok else {"CANCELLED"}
 

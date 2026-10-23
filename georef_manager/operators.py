@@ -196,6 +196,7 @@ class EM_OT_georef_push_geonode(Operator):
         if not ok:
             self.report({'WARNING'}, "Could not write GeoPositionNode on active graph")
             return {'CANCELLED'}
+        graph_sync.remember_agreement(g, graph)
         self.report({'INFO'}, f"GeoPositionNode updated on graph {graph.graph_id}")
         return {'FINISHED'}
 
@@ -233,6 +234,7 @@ class EM_OT_georef_pull_graph(Operator):
                         f"Graph {graph.graph_id} declares no georeferencing")
             return {'CANCELLED'}
         graph_sync.write_scene(g, values)
+        graph_sync.remember_agreement(g, graph)
         g.graph_note = (f"Georeferencing pulled from graph {graph.graph_id}: "
                         f"EPSG:{values['epsg'] or '—'} · {values['shift_x']:.3f}, "
                         f"{values['shift_y']:.3f}, {values['shift_z']:.3f}")
@@ -343,6 +345,7 @@ class EM_OT_georef_convert_epsg(Operator):
         g.epsg = str(dst)                     # last: the propagation carries both
         if write_graph:
             graph_sync.push_to_geonode(graph, str(dst), nx, ny, z, g.rotation)
+            graph_sync.remember_agreement(g, graph)
             undo['graph'] = {'graph_id': graph.graph_id, **before_graph}
 
         said = []
@@ -409,6 +412,7 @@ class EM_OT_georef_undo_conversion(Operator):
                 graph_sync.push_to_geonode(graph, gb['epsg'], gb['shift_x'],
                                            gb['shift_y'], gb['shift_z'],
                                            gb.get('rotation', 0.0))
+                graph_sync.remember_agreement(g, graph)
                 said.append(f"graph {gb['graph_id']} restored")
         st = undo.get('shift_txt')
         if st:

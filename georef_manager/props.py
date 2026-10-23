@@ -132,6 +132,13 @@ class EMGeorefProperties(PropertyGroup):
     # read by graph_sync.exact_shift (the field wins once edited by hand).
     shift_exact: StringProperty(default="")  # type: ignore
 
+    # MICRO georef al salvataggio · what each graph's GeoPositionNode said the
+    # last time scene and graph agreed (JSON {graph_id: values}): a save writes
+    # the scene into a graph that still says that, and asks (Push / Pull / Keep)
+    # when the graph says something the scene was never aligned to.
+    # Written by graph_sync.remember_agreement.
+    graph_agreed: StringProperty(default="")  # type: ignore
+
     # Toggle avanzati (default conservativi)
 
     move_objects_on_change: BoolProperty(

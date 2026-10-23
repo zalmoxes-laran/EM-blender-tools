@@ -2,9 +2,13 @@
 Sync tra stato Blender (scene props / BGIS / 3DSC) e GeoPositionNode
 del grafo attivo nel multigrafo.
 
-Il GeoPositionNode si scrive con «Push to GeoNode» (misurato il 23 ott 2026:
-nessun salvataggio lo chiama più da sé — l'unica chiamata automatica stava
-nell'export Heriverse ora in ``_dead_code``) e si legge all'apertura del grafo.
+Il GeoPositionNode si legge all'apertura del grafo e si scrive **a ogni
+salvataggio** (decisione E.D. del 24 ott 2026, :func:`write_on_save`), oltre che
+con «Push to GeoNode». Misurato il 24 ott: la scrittura automatica si era persa
+il 5 ott 2026 con il commit ``43cfb52`` (H4), quando l'export Heriverse
+(``EXPORT_OT_heriverse.execute``, il mirror DP-56 di ``json_export.py``) è
+andato in ``_dead_code``; né «Save em.json» né «Save As…» l'avevano mai
+chiamata.
 
 **Dove vivono i valori, e perché conta (C1).** In s3Dgraphy il
 GeoPositionNode tiene epsg / shift_x / shift_y / shift_z / rotation
@@ -397,6 +401,8 @@ def on_graph_opened(scene, graph, log=None) -> Optional[dict]:
                             f"the scene")}
     else:
         res = adopt_on_open(g, graph)
+        if res['outcome'] in ('adopted', 'same'):
+            remember_agreement(g, graph)
     try:
         g.graph_note = res['sentence']
     except Exception:  # noqa: BLE001 — una scena senza la proprietà nuova
@@ -419,3 +425,179 @@ def on_graph_opened(scene, graph, log=None) -> Optional[dict]:
             log(f"[georef] {prop['reason']}{tail}", "WARNING")
             res['proposal'] = prop
     return res
+
+
+# ── al salvataggio (MICRO georef al salvataggio, decisione E.D. 24 ott 2026) ─
+#
+# A ogni salvataggio dell'em.json (Save, Save As, «Save this file», «Save all»,
+# il salvataggio dopo una creazione), nella stanza (come operazioni) e nel
+# pacchetto Heriverse, i valori di ``scene.em_georef`` vanno nel GeoPositionNode
+# del grafo della scena, collegato a «Graph paradata». Le regole:
+#
+# - scena non georiferita (EPSG vuoto e shift 0) → il nodo resta com'è;
+# - scena e grafo d'accordo → i valori del nodo restano (sono già quelli; lo
+#   shift del grafo non si riscrive con un float32), si assicura il gruppo;
+# - grafo non georiferito, o grafo che dice ancora quello su cui scena e grafo
+#   si erano accordati l'ultima volta (la scena è cambiata dopo) → si scrive;
+# - altrimenti la discrepanza non è risolta (la scena non si è mai allineata a
+#   QUESTI valori del grafo): niente scrittura senza una scelta — Push (la
+#   scena nel grafo), Pull (il grafo nella scena) o Keep (il grafo com'è).
+#
+# «Accordati» = l'ultima volta che scena e grafo hanno detto la stessa cosa:
+# all'apertura (letto o uguale), con Push, Pull, la conversione EPSG, un
+# salvataggio. I valori del grafo di quel momento stanno in
+# ``em_georef.graph_agreed`` (JSON ``{graph_id: valori}``).
+
+CHOICES = ('ASK', 'PUSH', 'PULL', 'KEEP')
+
+
+def scene_graph_id(scene) -> Optional[str]:
+    '''Il grafo il cui georiferimento è quello della scena (G1): il grafo di
+    riferimento con più grafi, l'unico con uno solo, se no il grafo attivo —
+    la stessa regola di «Push to GeoNode».'''
+    g = getattr(scene, 'em_georef', None)
+    em_tools = getattr(scene, 'em_tools', None)
+    rows = list(getattr(em_tools, 'graphml_files', ()) or ())
+    ref = getattr(g, 'reference_graph', '') or ''
+    if len(rows) > 1 and ref:
+        return ref
+    if len(rows) == 1:
+        return rows[0].name
+    idx = getattr(em_tools, 'active_file_index', -1)
+    if idx is not None and 0 <= idx < len(rows):
+        return rows[idx].name
+    return None
+
+
+def _agreed(g) -> dict:
+    try:
+        out = json.loads(getattr(g, 'graph_agreed', '') or '{}')
+    except Exception:  # noqa: BLE001
+        out = {}
+    return out if isinstance(out, dict) else {}
+
+
+def remember_agreement(g, graph) -> None:
+    '''Scena e grafo ``graph`` dicono adesso la stessa cosa: si ricorda che
+    cosa diceva il grafo.'''
+    gv = pull_from_geonode(graph)
+    if gv is None:
+        return
+    agreed = _agreed(g)
+    agreed[graph.graph_id] = gv
+    try:
+        g.graph_agreed = json.dumps(agreed, sort_keys=True)
+    except Exception:  # noqa: BLE001 — una scena senza la proprietà
+        pass
+
+
+def save_plan(g, graph) -> dict:
+    '''Che cosa farà un salvataggio con il nodo di ``graph`` (il grafo della
+    scena). ``{"outcome", "differences", "sentence"}``, ``outcome`` in
+    ``scene-empty`` · ``same`` · ``write`` · ``conflict``.'''
+    gid = getattr(graph, 'graph_id', '?')
+    sv = scene_values(g)
+    if not is_georeferenced(sv):
+        return {'outcome': 'scene-empty', 'differences': [],
+                'sentence': (f"The scene is not georeferenced: the "
+                             f"GeoPositionNode of {gid} is left as it is")}
+    gv = pull_from_geonode(graph)
+    if not is_georeferenced(gv):
+        return {'outcome': 'write', 'differences': [],
+                'sentence': f"The scene's georeferencing is written into graph {gid}"}
+    diff = differences(sv, gv)
+    if not diff:
+        return {'outcome': 'same', 'differences': [],
+                'sentence': f"Scene and graph {gid} agree on the georeferencing"}
+    base = _agreed(g).get(gid)
+    if base and not differences(base, gv):
+        return {'outcome': 'write', 'differences': diff,
+                'sentence': (f"The scene's georeferencing changed since it agreed "
+                             f"with graph {gid}: written into the graph")}
+    return {'outcome': 'conflict', 'differences': diff,
+            'sentence': (f"Scene and graph {gid} differ on "
+                         f"{', '.join(d[0] for d in diff)} and the scene was never "
+                         f"aligned to the graph: choose Push or Pull before saving")}
+
+
+def save_conflict(scene, graph_ids, live) -> Optional[dict]:
+    '''Il piano del grafo della scena se è fra ``graph_ids`` ed è in
+    discrepanza non risolta, altrimenti None. ``live(graph_id)`` → il grafo.'''
+    gid = scene_graph_id(scene)
+    g = getattr(scene, 'em_georef', None)
+    if g is None or not gid or gid not in list(graph_ids):
+        return None
+    graph = live(gid)
+    if graph is None or get_geo_node(graph) is None:
+        return None
+    plan = save_plan(g, graph)
+    if plan['outcome'] != 'conflict':
+        return None
+    plan['graph_id'] = gid
+    return plan
+
+
+def write_on_save(scene, graph_ids, live, choice: str = 'ASK',
+                  log=None) -> Optional[dict]:
+    '''Prima di scrivere i grafi ``graph_ids``: il georiferimento della scena
+    nel nodo del grafo della scena, secondo le regole sopra. Un altro grafo
+    (allineato, non di riferimento) non si tocca mai.
+
+    ``choice`` dice che cosa fare di una discrepanza non risolta: ``PUSH``,
+    ``PULL``, ``KEEP``; con ``ASK`` non si scrive niente e l'esito è
+    ``conflict`` (il chiamante non salva e chiede). → il piano con l'esito
+    finale (``written`` · ``pushed`` · ``pulled`` · ``kept`` · ``same`` ·
+    ``scene-empty`` · ``conflict``) e ``graph_id``, None se nessuno dei grafi è
+    quello della scena.'''
+    log = log or (lambda msg, level="INFO": print(f"[georef] {msg}"))
+    gid = scene_graph_id(scene)
+    g = getattr(scene, 'em_georef', None)
+    if g is None or not gid or gid not in list(graph_ids):
+        return None
+    graph = live(gid)
+    if graph is None or get_geo_node(graph) is None:
+        return None
+    plan = save_plan(g, graph)
+    plan['graph_id'] = gid
+    outcome = plan['outcome']
+    choice = (choice or 'ASK').upper()
+    if outcome == 'scene-empty':
+        return plan
+    if outcome == 'same':
+        try:
+            ensure_in_graph_paradata(graph)
+        except Exception as exc:  # noqa: BLE001
+            log(f"GeoPositionNode not linked to Graph paradata: {exc}", "WARNING")
+        remember_agreement(g, graph)
+        return plan
+    if outcome == 'conflict':
+        if choice == 'PULL':
+            write_scene(g, pull_from_geonode(graph))
+            remember_agreement(g, graph)
+            plan['outcome'] = 'pulled'
+            plan['sentence'] = (f"Georeferencing pulled from graph {gid} before "
+                                f"saving: the scene takes the graph's values")
+        elif choice == 'KEEP':
+            plan['outcome'] = 'kept'
+            plan['sentence'] = (f"Scene and graph {gid} differ on "
+                                f"{', '.join(d[0] for d in plan['differences'])}: "
+                                f"the graph's georeferencing is kept, the scene's "
+                                f"is not written")
+        elif choice != 'PUSH':
+            log(plan['sentence'], "WARNING")
+            return plan
+        if choice != 'PUSH':
+            log(plan['sentence'], "WARNING" if choice == 'KEEP' else "INFO")
+            return plan
+    push_to_geonode(graph, g.epsg or None, *exact_shift(g), g.rotation)
+    remember_agreement(g, graph)
+    plan['outcome'] = 'pushed' if outcome == 'conflict' else 'written'
+    if outcome == 'conflict':
+        plan['sentence'] = (f"The scene's georeferencing pushed into graph {gid} "
+                            f"before saving (it said "
+                            f"{', '.join(d[0] for d in plan['differences'])} "
+                            f"otherwise)")
+    sv = scene_values(g)
+    log(f"{plan['sentence']}: EPSG:{sv['epsg'] or '—'} · {sv['shift_x']:.3f}, "
+        f"{sv['shift_y']:.3f}, {sv['shift_z']:.3f}")
+    return plan

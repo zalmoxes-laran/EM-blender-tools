@@ -17,6 +17,7 @@ import bpy  # type: ignore
 from bpy.props import IntProperty  # type: ignore
 
 from .. import graph_origins
+from ..georef_manager.on_save import GEOREF_ITEMS
 
 
 def _rows(em_tools):
@@ -136,9 +137,38 @@ def cited_of(origin) -> list:
     return []
 
 
-def save_origin(context, index: int) -> tuple:
-    """Save the origin of row `index`. → `(ok, message, needs_save_as)`."""
+def origin_members(context, index: int) -> tuple:
+    """What a save of row `index` writes: `(graph_ids, is_room)`; `([], False)`
+    when it writes nothing (no file yet, a GraphML)."""
+    rows = _rows(context.scene.em_tools)
+    if not (0 <= index < len(rows)):
+        return [], False
+    origin = graph_origins.origin_of(rows[index], abspath=_abspath)
+    if origin.is_room:
+        return [rows[index].name], True
+    if not origin.is_file or not origin.is_emjson:
+        return [], False
+    return graph_origins.members_of(rows, origin, abspath=_abspath), False
+
+
+def georef_conflict(context, index: int):
+    """MICRO georef al salvataggio · the discrepancy scene/graph a save of row
+    `index` would stop on (see `georef_manager.on_save`), or None."""
+    from ..georef_manager import on_save
+    members, _room = origin_members(context, index)
+    return on_save.conflict(context, members) if members else None
+
+
+def save_origin(context, index: int, georef: str = "ASK") -> tuple:
+    """Save the origin of row `index`. → `(ok, message, needs_save_as)`.
+
+    MICRO georef al salvataggio · the scene's georeferencing goes into the
+    scene's graph first (`georef_manager.on_save.before_write`); `georef` says
+    what to do when the two differ and the scene was never aligned to the graph
+    (PUSH / PULL / KEEP) — with ASK nothing is written and the message says so.
+    """
     from s3dgraphy import get_graph
+    from ..georef_manager import on_save
 
     em_tools = context.scene.em_tools
     rows = _rows(em_tools)
@@ -146,10 +176,15 @@ def save_origin(context, index: int) -> tuple:
         return False, "no graph selected", False
     origin = graph_origins.origin_of(rows[index], abspath=_abspath)
     if origin.is_room:
+        plan = on_save.before_write(context, [rows[index].name], georef, room=True)
+        if plan and plan["outcome"] == "conflict":
+            return False, plan["sentence"], False
         state, _icon = room_state(origin)
-        return (True, f"{rows[index].name} lives in the {origin.label}: every "
-                      f"edit goes to the room as it is made, there is no file "
-                      f"to write ({state})", False)
+        said = (f"{rows[index].name} lives in the {origin.label}: every "
+                f"edit goes to the room as it is made, there is no file "
+                f"to write ({state})")
+        extra = on_save.tail(plan)
+        return True, f"{said} · {extra}" if extra else said, False
     if not origin.is_file:
         return False, "this graph has no file yet", True
     if not origin.is_emjson:
@@ -157,6 +192,9 @@ def save_origin(context, index: int) -> tuple:
                        f"graph as em.json", True)
     members = graph_origins.members_of(rows, origin, abspath=_abspath)
     active_gid = rows[index].name
+    plan = on_save.before_write(context, members, georef)
+    if plan and plan["outcome"] == "conflict":
+        return False, f"not saved: {plan['sentence']}", False
     # MICRO-EMTOOLS-CONTENITORI · the RM containers into the graphs first
     from ..rm_manager.containers import project_containers_before_save
     project_containers_before_save(context, members)
@@ -164,14 +202,20 @@ def save_origin(context, index: int) -> tuple:
                                      active_graph_id=active_gid)
     from .unsaved import mark
     mark(context, origin.path)
-    return True, result.sentence(), False
+    extra = on_save.tail(plan)
+    return True, (f"{result.sentence()} · {extra}" if extra
+                  else result.sentence()), False
 
 
 def persist_active(context) -> tuple:
     """G1 · the «salvataggio virtuoso» after a creation: the ACTIVE graph to its
     origin — its em.json, or nothing to write in a room. Never a GraphML: a
-    graph that has no em.json yet is said, not saved. → `(ok, message)`."""
-    ok, message, save_as = save_origin(context, context.scene.em_tools.active_file_index)
+    graph that has no em.json yet is said, not saved. → `(ok, message)`.
+
+    Nobody is asked here (it follows a creation): a discrepancy scene/graph
+    keeps the graph's georeferencing (KEEP) and the message says it."""
+    ok, message, save_as = save_origin(
+        context, context.scene.em_tools.active_file_index, georef="KEEP")
     if save_as:
         return False, ("not saved: this graph has no em.json yet — Save As… "
                        "writes one")
@@ -233,10 +277,26 @@ class EM_OT_graph_origin_save(bpy.types.Operator):
                       "files of the scene are not touched")
 
     index: IntProperty(default=-1, options={"SKIP_SAVE"})  # type: ignore
+    georef: bpy.props.EnumProperty(  # type: ignore
+        name="Georeferencing", items=GEOREF_ITEMS, default="ASK",
+        options={"SKIP_SAVE"})
+
+    def invoke(self, context, event):
+        self._conflict = georef_conflict(context, self.index)
+        if self._conflict is None:
+            return self.execute(context)
+        self.georef = "KEEP"
+        return context.window_manager.invoke_props_dialog(self, width=460)
+
+    def draw(self, context):
+        from ..georef_manager import on_save
+        plan = getattr(self, "_conflict", None) or georef_conflict(context, self.index)
+        if plan:
+            on_save.draw_choice(self.layout, self, plan)
 
     def execute(self, context):
         try:
-            ok, message, save_as = save_origin(context, self.index)
+            ok, message, save_as = save_origin(context, self.index, self.georef)
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"Save failed: {exc}")
             return {"CANCELLED"}

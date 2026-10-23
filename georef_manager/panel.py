@@ -361,6 +361,19 @@ def _draw_graph_box(layout, g, graph):
         for key, sv, gv in diff:
             col.label(text=f"{_FIELD_LABEL[key]}: scene {_fmt(key, sv)} · "
                            f"graph {_fmt(key, gv)}")
+        # MICRO georef al salvataggio · what the next save does with it
+        if graph_sync.scene_graph_id(bpy.context.scene) == graph.graph_id:
+            plan = graph_sync.save_plan(g, graph)
+            if plan['outcome'] == 'conflict':
+                text = ("Never aligned to these values: a save asks first "
+                        "(Push, Pull or Keep)")
+            elif plan['outcome'] == 'write':
+                text = ("The scene changed since it agreed with the graph: "
+                        "the next save writes it into the graph")
+            else:
+                text = ""
+            for i, line in enumerate(_wrap(text, 60) if text else []):
+                box.label(text=line, icon='FILE_TICK' if i == 0 else 'BLANK1')
     return diff
 
 
