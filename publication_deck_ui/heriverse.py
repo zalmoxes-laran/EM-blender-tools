@@ -270,7 +270,7 @@ def _select_only(context, obj) -> None:
 
 
 class EM_OT_deck_heriverse_prepare(bpy.types.Operator):
-    """«Prepare for a use…» on this model, for Heriverse"""
+    """«Export a version for a use…» on this model, for Heriverse"""
 
     bl_idname = "em.deck_heriverse_prepare"
     bl_label = "Prepare for Heriverse…"
@@ -290,7 +290,7 @@ class EM_OT_deck_heriverse_prepare(bpy.types.Operator):
 
 class EM_OT_deck_heriverse_make_missing(bpy.types.Operator):
     """For each published model (RM, RMDoc, RMSF) without a version for a
-    viewer: «Prepare for a use…» with the use heriverse/aton and the recipe of
+    viewer: «Export a version for a use…» with the use heriverse/aton and the recipe of
     its category (`version_recipe`): a glTF with its textures, the model as it
     is (no decimation, no Draco — Q5), an RMDoc at the origin with its
     placement on its node and its textures capped and re-encoded as the old

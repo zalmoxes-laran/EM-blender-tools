@@ -167,23 +167,26 @@ def test_RENAME_cambia_il_nome_e_NON_l_id():
     assert gn.rename_group(g, "D01_rmgroup", "Rilievo 2015") is False
 
 
-def test_UN_MODELLO_STA_IN_UN_SOLO_GRUPPO_e_si_RIFIUTA_di_spostarlo():
-    """1:1, e imposto RIFIUTANDO e non spostando.
-
-    Ri-alloggiarlo in silenzio farebbe disaccordare il grafo con `mesh_names`,
-    che è autoritativo — e `add_mesh_to_container` rifiuta già lo stesso caso
-    lato Blender, con una ragione che l'utente legge.
-    """
+def test_UN_MODELLO_STA_IN_PIU_GRUPPI_e_nessuno_lo_sposta():
+    """Dal 23-10-2026 (E.D.) una mesh può stare in più container: «Survey
+    2015» e «Reconstruction, 2nd century AD» possono condividerla. Aggiungerla
+    a un secondo gruppo non la toglie dal primo; riaggiungerla dove già sta
+    non è un errore ma non è un lavoro."""
     g = _scena()
     gn.ensure_group(g, "A", "Survey")
     gn.ensure_group(g, "B", "Reconstruction")
     assert gn.add_member(g, "A", "rm1") is True
-    assert gn.add_member(g, "B", "rm1") is False, "l'ha spostato"
+    assert gn.add_member(g, "B", "rm1") is True, "non l'ha aggiunto al secondo"
+    assert gn.groups_of_member(g, "rm1") == ["A", "B"]
+    #: il singolare resta, per chi chiede solo «è in un gruppo?»: il primo
     assert gn.group_of_member(g, "rm1") == "A"
-    assert gn.members_of(g, "B") == []
-    #: …e riaggiungerlo dove già sta non è un errore ma non è un lavoro
+    assert gn.members_of(g, "A") == ["rm1"] and gn.members_of(g, "B") == ["rm1"]
     assert gn.add_member(g, "A", "rm1") is False
+    assert gn.add_member(g, "B", "rm1") is False
     assert gn.members_of(g, "A") == ["rm1"]
+    #: togliere da uno non tocca l'altro
+    assert gn.remove_member(g, "A", "rm1") is True
+    assert gn.groups_of_member(g, "rm1") == ["B"]
 
 
 def test_NON_SI_TAGGA_in_un_gruppo_che_non_esiste():
@@ -315,19 +318,24 @@ def test_RECONCILE_aggiunge_cio_che_manca_e_toglie_cio_che_non_c_e_piu():
     assert sorted(gn.members_of(g, "D01_rmgroup")) == ["rm2", "rm3"]
 
 
-def test_RECONCILE_RIPORTA_e_non_risolve_una_divergenza():
-    """Un modello che il grafo dice in un ALTRO gruppo: si segnala, non si
-    sposta. Risolverlo vorrebbe dire scegliere quale delle due intenzioni
-    dell'utente buttare."""
+def test_RECONCILE_aggiunge_un_modello_che_sta_ANCHE_in_un_altro_gruppo():
+    """Un modello che il grafo dice in un ALTRO gruppo entra anche in questo, e
+    resta nell'altro: più container possono condividere una mesh (E.D.,
+    23-10-2026). `refused` resta nel rapporto, vuoto."""
     g = _scena()
     gn.ensure_group(g, "ALTRO", "Reconstruction")
     gn.add_member(g, "ALTRO", "rm1")
     r = gn.reconcile_container(g, "D01_rmgroup", "Survey 2015",
                                ["rm1", "rm2"], doc_node_id="D01")
-    assert r["refused"] == ["rm1"], r
-    assert r["added"] == ["rm2"]
-    #: e rm1 è rimasto dov'era
-    assert gn.group_of_member(g, "rm1") == "ALTRO"
+    assert r["refused"] == [], r
+    assert sorted(r["added"]) == ["rm1", "rm2"]
+    #: e rm1 è rimasto anche dov'era
+    assert gn.groups_of_member(g, "rm1") == ["ALTRO", "D01_rmgroup"]
+    #: lo specchio di un container non toglie il modello dall'altro gruppo
+    r2 = gn.reconcile_container(g, "D01_rmgroup", "Survey 2015", ["rm2"],
+                                doc_node_id="D01")
+    assert r2["removed"] == ["rm1"]
+    assert gn.groups_of_member(g, "rm1") == ["ALTRO"]
 
 
 def test_RECONCILE_non_tocca_gli_archi_d_epoca():
@@ -378,6 +386,22 @@ def test_DUE_CONTAINER_INSIEME_non_hanno_una_risposta_sola():
     gn.add_member(g, "A", "rm1")
     gn.add_member(g, "B", "rm2")
     assert gn.common_group_of(g, ["rm1", "rm2"]) is None
+
+
+def test_MODELLI_IN_PIU_GRUPPI_danno_l_UNICO_che_condividono():
+    """Con l'appartenenza multipla «lo stesso container» è l'INTERSEZIONE dei
+    loro gruppi: uno solo in comune → quello; due in comune → nessuna
+    risposta inventata."""
+    g = _scena()
+    for gid in ("A", "B", "C"):
+        gn.ensure_group(g, gid, gid)
+    gn.add_member(g, "A", "rm1")
+    gn.add_member(g, "B", "rm1")
+    gn.add_member(g, "B", "rm2")
+    gn.add_member(g, "C", "rm2")
+    assert gn.common_group_of(g, ["rm1", "rm2"]) == "B"
+    gn.add_member(g, "A", "rm2")
+    assert gn.common_group_of(g, ["rm1", "rm2"]) is None   # A e B in comune
 
 
 def test_E_MODELLI_SENZA_GRUPPO_non_ne_inventano_uno():

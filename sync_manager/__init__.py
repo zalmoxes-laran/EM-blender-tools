@@ -31,6 +31,9 @@ Modules:
 - asset_versions: A1–A3 · an asset and its versions: one library .blend per
                 asset, ONE object whose mesh changes («LOD ▸»), the cache checked
                 mesh by mesh
+- project_files: the proxies and the models as files of the EM project
+                (EM/proxies, RM/<container>), so the graph names them outside
+                Blender (23 Oct 2026)
 - scene_package: B1 · the .blend as a starter package, a room attachment
 - backups     : the `.blend` safety archive — opaque snapshots into the room's
                 store, on demand (NOT versioning of the shared data, which is
@@ -41,7 +44,8 @@ from __future__ import annotations
 
 from . import (asset_versions, backups, bring, entry, file_states, files_list, materialise, node_choice,
                open_in_emstudio, signin_ui,
-               operators, panel, proxy_hook, room, rooms_ui, scene_check, scene_package, windows)
+               operators, panel, project_files, proxy_hook, room, rooms_ui, scene_check,
+               scene_package, windows)
 
 
 def register():
@@ -53,6 +57,7 @@ def register():
     rooms_ui.register()
     bring.register()
     asset_versions.register()
+    project_files.register()
     file_states.register()
     files_list.register()
     proxy_hook.register()
@@ -76,6 +81,7 @@ def unregister():
     proxy_hook.unregister()
     files_list.unregister()
     file_states.unregister()
+    project_files.unregister()
     asset_versions.unregister()
     bring.unregister()
     rooms_ui.unregister()

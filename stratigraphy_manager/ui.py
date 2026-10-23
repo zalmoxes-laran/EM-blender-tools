@@ -445,6 +445,10 @@ class EM_ToolsPanel:
         toolbar = layout.row(align=True)
         toolbar.enabled = context.scene.em_tools.active_file_index >= 0
         draw_add_us_button(toolbar, text="Add US")
+        # E.D. 23 Oct 2026 · the proxies as files of the EM project
+        # (EM/proxies/<unit>.glb), so the graph names them outside Blender
+        toolbar.operator("em.proxies_write_files", text="Write proxy files…",
+                         icon='EXPORT')
         
         # ==================
         # SELECTED ITEM DETAILS

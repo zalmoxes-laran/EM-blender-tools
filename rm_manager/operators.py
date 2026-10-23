@@ -1079,9 +1079,9 @@ class RM_OT_demote_from_rm_list(Operator):
         # demoting a mesh leaves a ghost entry that only the manual
         # Sync button can clean up (DP-47 extension).
         try:
-            from .containers import find_container_for_mesh
-            container_idx = find_container_for_mesh(scene, rm_item.name)
-            if container_idx is not None:
+            from .containers import containers_of_mesh
+            # a mesh may be in several containers: out of every one
+            for container_idx in containers_of_mesh(scene, rm_item.name):
                 container = scene.rm_containers[container_idx]
                 for i, entry in enumerate(container.mesh_names):
                     if entry.name == rm_item.name:
@@ -1554,6 +1554,91 @@ class RM_OT_show_mismatch_details(Operator):
         
         return {'FINISHED'}
 
+#: E.D. 23 Oct 2026 · the sentence that says why «+» waits for a container
+NEED_CONTAINER = ("Representation models live in containers: create one "
+                  "(«New container…», e.g. «Survey 2015» or «Reconstruction, "
+                  "2nd century AD») or select one in the list above, then "
+                  "add the meshes to the epoch")
+
+
+def active_graph_of(context):
+    """The active graph, or None (the epoch writers work without one)."""
+    try:
+        em = context.scene.em_tools
+        if 0 <= em.active_file_index < len(em.graphml_files):
+            return get_graph(em.graphml_files[em.active_file_index].name)
+    except Exception as e:                              # noqa: BLE001
+        print(f"Warning: Could not retrieve graph: {e}")
+    return None
+
+
+def assign_epochs(context, objects, epoch_names, graph=None, *, report=None):
+    """THE way an RM gets epochs (E.D. 23 Oct 2026: one writer for «+ to the
+    active epoch», a container's «Apply to its meshes» and a mesh joining a
+    container). ``epoch_names`` are ADDED to each object's epochs, in order,
+    after the ones it has — never removed: the first of the list is its
+    ``has_first_epoch``, the others ``survive_in_epoch``. With a graph, the
+    model node and its internal resource are made when missing
+    (``ensure_rm_and_internal_resource``) and its epoch edges rewritten to
+    mirror the object. ``report(text)`` receives the one-line notes.
+    → how many objects changed."""
+    scene = context.scene
+    wanted = [e for e in (epoch_names or []) if e and e != "no_epoch"]
+    if graph is None:
+        graph = active_graph_of(context)
+    changed = 0
+    for obj in objects:
+        existing_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
+        sorted_epochs = list(dict.fromkeys(existing_epochs))
+        for name in wanted:
+            if name not in sorted_epochs:
+                sorted_epochs.append(name)
+        if sorted_epochs != existing_epochs or any(
+                ep.epoch == "no_epoch" for ep in obj.EM_ep_belong_ob):
+            changed += 1
+        obj.EM_ep_belong_ob.clear()
+        for epoch_name in sorted_epochs:
+            ep_item = obj.EM_ep_belong_ob.add()
+            ep_item.epoch = epoch_name
+        if not graph:
+            continue
+        try:
+            # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome è
+            # un'etichetta (resolver: property, `rm_list`, eredità
+            # `f"{nome}_model"`). NIGHT-RIM2/B2 · la promozione CREA il nodo RM
+            # e la sua risorsa interna (idempotente: id derivati, riusa-o-crea).
+            from .containers import resolve_rm_node_id as _risolvi
+            from .containers import ensure_rm_and_internal_resource
+            model_node_id, _res_id, _avvisi = (
+                ensure_rm_and_internal_resource(scene, graph, obj))
+            for _a in _avvisi:
+                if report is not None:
+                    report(_a)
+            if not model_node_id:
+                model_node_id = (_risolvi(graph, obj, scene=scene)
+                                 or f"{obj.name}_model")
+            # i vecchi first/survive si riscrivono; has_representation_model
+            # epoca→modello lo rispecchia sync_epoch_edges
+            remove_epoch_edges(graph, model_node_id,
+                               edge_types=("has_first_epoch", "survive_in_epoch"))
+            sync_epoch_edges(graph, model_node_id, sorted_epochs)
+            epoch_nodes = {n.name: n for n in graph.nodes
+                           if n.node_type == "EpochNode"}
+            for i, epoch_name in enumerate(sorted_epochs):
+                epoch_node = epoch_nodes.get(epoch_name)
+                if epoch_node is None:
+                    continue
+                edge_type = "has_first_epoch" if i == 0 else "survive_in_epoch"
+                edge_id = f"{model_node_id}_{edge_type}_{epoch_node.node_id}"
+                if graph.find_edge_by_id(edge_id) is None:
+                    graph.add_edge(edge_id=edge_id, edge_source=model_node_id,
+                                   edge_target=epoch_node.node_id,
+                                   edge_type=edge_type)
+        except Exception as e:                          # noqa: BLE001
+            print(f"Warning: Could not update graph: {e}")
+    return changed
+
+
 class RM_OT_promote_to_rm(Operator):
     bl_idname = "rm.promote_to_rm"
     bl_label = "Add to Active Epoch"
@@ -1569,9 +1654,25 @@ class RM_OT_promote_to_rm(Operator):
         default='SELECTED'
     ) # type: ignore
     
+    @classmethod
+    def poll(cls, context):
+        # E.D. 23 Oct 2026 · containers are mandatory: «+» on the selection
+        # waits for an active container (the RM list's own «+» row is
+        # already in one)
+        from .containers import active_container
+        if active_container(context.scene) is None:
+            cls.poll_message_set(NEED_CONTAINER)
+            return False
+        return True
+
     def execute(self, context):
         scene = context.scene
-        
+        if self.mode == 'SELECTED':
+            from .containers import active_container as _ac
+            if _ac(scene) is None:
+                self.report({'ERROR'}, NEED_CONTAINER)
+                return {'CANCELLED'}
+
         # Determina gli oggetti da processare
         if self.mode == 'RM_LIST':
             # Usa l'oggetto dalla lista RM
@@ -1608,104 +1709,9 @@ class RM_OT_promote_to_rm(Operator):
         
         active_epoch = epochs.list[epochs.list_index]
         
-        # Ottieni il grafo attivo (opzionale)
-        graph = None
-        try:
-            if context.scene.em_tools.active_file_index >= 0:
-                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-                graph = get_graph(graphml.name)
-        except Exception as e:
-            print(f"Warning: Could not retrieve graph: {e}")
-            graph = None
-        
-        # Processa ogni oggetto
-        for obj in selected_objects:
-            # Trova le epoche esistenti dell'oggetto
-            existing_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
-            
-            # Filtra le epoche esistenti per evitare duplicati
-            filtered_epochs = list(set(existing_epochs))
-            
-            # Ordina le epoche 
-            sorted_epochs = filtered_epochs.copy()
-            
-            # Aggiungi l'epoch attiva nell'ordine corretto
-            if active_epoch.name not in sorted_epochs:
-                sorted_epochs.append(active_epoch.name)
-            
-            # Rimuovi "no_epoch" se presente
-            if "no_epoch" in sorted_epochs:
-                sorted_epochs.remove("no_epoch")
-            
-            # Aggiorna gli EP_belong_ob dell'oggetto
-            obj.EM_ep_belong_ob.clear()
-            for epoch_name in sorted_epochs:
-                ep_item = obj.EM_ep_belong_ob.add()
-                ep_item.epoch = epoch_name
-            
-            # Aggiorna il grafo se disponibile (opzionale)
-            if graph:
-                try:
-                    # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
-                    # è un'etichetta. Il resolver legge la property, ripiega su
-                    # `rm_list` e infine sull'eredità `f"{nome}_model"`,
-                    # scrivendola nella property una volta sola (migrazione pigra).
-                    # Il ripiego finale resta per quando il nodo non è ancora nel
-                    # grafo: lì l'eredità È l'id che si sta per creare.
-                    from .containers import resolve_rm_node_id as _risolvi
-                    # NIGHT-RIM2/B2 · la promozione CREA il nodo RM e la
-                    # sua risorsa interna, invece di limitarsi a scrivere
-                    # archi verso un nodo che nessuno aveva creato.
-                    #
-                    # Prima il `representation_model` compariva solo dopo
-                    # l'export, perché lo fabbricava
-                    # `update_graph_with_scene_data`: l'oggetto risultava
-                    # promosso e nel grafo non c'era niente. Misurato la
-                    # notte scorsa, e decisione 1 di E.D.
-                    #
-                    # È idempotente (id derivati, riusa-o-crea), quindi se
-                    # l'export richiama l'updater il nodo viene TROVATO e
-                    # non rifatto.
-                    from .containers import ensure_rm_and_internal_resource
-                    model_node_id, _res_id, _avvisi = (
-                        ensure_rm_and_internal_resource(scene, graph, obj))
-                    for _a in _avvisi:
-                        #: una riga, non un popup
-                        self.report({'INFO'}, _a)
-                    if not model_node_id:
-                        model_node_id = (_risolvi(graph, obj, scene=context.scene)
-                                        or f"{obj.name}_model")
-
-                    # Rimuovi vecchi edge (in qualsiasi direzione); qui si
-                    # riscrivono solo first/survive, mentre gli edge
-                    # has_representation_model li rispecchia sync_epoch_edges
-                    remove_epoch_edges(graph, model_node_id,
-                                       edge_types=("has_first_epoch",
-                                                   "survive_in_epoch"))
-                    sync_epoch_edges(graph, model_node_id, sorted_epochs)
-                    
-                    # Aggiungi nuovi edge
-                    for i, epoch_name in enumerate(sorted_epochs):
-                        epoch_node = None
-                        for node in graph.nodes:
-                            if node.node_type == "EpochNode" and node.name == epoch_name:
-                                epoch_node = node
-                                break
-                        
-                        if epoch_node:
-                            edge_type = "has_first_epoch" if i == 0 else "survive_in_epoch"
-                            if edge_type == "has_first_epoch":
-                                edge_id = f"{model_node_id}_has_first_epoch_{epoch_node.node_id}"
-                            else:
-                                edge_id = f"{model_node_id}_survive_in_epoch_{epoch_node.node_id}"    
-                            graph.add_edge(
-                                edge_id=edge_id,
-                                edge_source=model_node_id,
-                                edge_target=epoch_node.node_id,
-                                edge_type=edge_type
-                            )
-                except Exception as e:
-                    print(f"Warning: Could not update graph: {e}")
+        graph = active_graph_of(context)
+        assign_epochs(context, selected_objects, [active_epoch.name], graph,
+                      report=lambda t: self.report({'INFO'}, t))
 
         # Container auto-attach: for SELECTED mode, anchor any
         # container-orphan mesh to the active container so the
@@ -1804,11 +1810,11 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
         evicted_from_container = False
         if not real_epochs_left:
             from .containers import (
-                find_container_for_mesh,
+                containers_of_mesh,
                 remove_mesh_from_container,
             )
-            current_idx = find_container_for_mesh(scene, obj.name)
-            if current_idx is not None:
+            # a mesh may be in several containers: out of every one
+            for current_idx in reversed(containers_of_mesh(scene, obj.name)):
                 cont = scene.rm_containers[current_idx]
                 if remove_mesh_from_container(
                         context, cont, obj.name, drop_edge=True):
@@ -1900,7 +1906,7 @@ class RM_OT_remove_epoch_from_selected(Operator):
         evicted_from_container = 0
 
         from .containers import (
-            find_container_for_mesh,
+            containers_of_mesh,
             remove_mesh_from_container,
         )
 
@@ -1931,8 +1937,8 @@ class RM_OT_remove_epoch_from_selected(Operator):
                 if ep.epoch and ep.epoch != "no_epoch"
             ]
             if not real_epochs_left:
-                current_idx = find_container_for_mesh(scene, obj.name)
-                if current_idx is not None:
+                # a mesh may be in several containers: out of every one
+                for current_idx in reversed(containers_of_mesh(scene, obj.name)):
                     cont = scene.rm_containers[current_idx]
                     if remove_mesh_from_container(
                             context, cont, obj.name, drop_edge=True):

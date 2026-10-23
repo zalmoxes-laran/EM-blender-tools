@@ -4,12 +4,20 @@ An **RM container** groups several mesh objects under a single
 DocumentNode. The Document is the graph-side wrapper; the container
 is the EMTools-side PropertyGroup on ``scene.rm_containers`` that
 tracks which Blender mesh objects belong to it. A mesh can belong to
-at most **one** container at a time (user decision, Q_C).
+SEVERAL containers (E.D., 23 Oct 2026 — until then at most one, decision
+Q_C): «Survey 2015» and «Reconstruction, 2nd century AD» may share a mesh.
+
+Containers are MANDATORY for a representation model (E.D., 23 Oct 2026):
+an epoch is given to a mesh only inside a container, and each container
+carries its DEFAULT epochs (``RMContainerItem.epochs``), given to every
+mesh that joins it. In the graph the epochs stay on each model — the
+container's epochs are a scene-side default, not a second statement.
 
 Ownership:
 - Authoritative mesh list → ``RMContainerItem.mesh_names``.
 - Mesh custom property ``em_rm_container_doc_id`` is a reverse-lookup
-  convenience; ``mesh_names`` wins if they disagree.
+  convenience (the LAST container with a document the mesh joined);
+  ``mesh_names`` wins if they disagree.
 - Blender Collections are NOT source of truth — users are free to
   keep meshes in any collection they prefer.
 
@@ -91,17 +99,39 @@ def _resolve_doc_name(graph, doc_node_id: str) -> str:
         return ""
 
 
-def find_container_for_mesh(scene, mesh_name: str) -> Optional[int]:
-    """Return the index of the container that holds ``mesh_name``, or
-    ``None`` when the mesh is not in any container.
-    """
+def containers_of_mesh(scene, mesh_name: str) -> List[int]:
+    """The indices of EVERY container that holds ``mesh_name`` (a mesh may
+    be in several, 23 Oct 2026), in list order."""
+    out: List[int] = []
     if not mesh_name:
-        return None
+        return out
     for idx, container in enumerate(scene.rm_containers):
-        for entry in container.mesh_names:
-            if entry.name == mesh_name:
-                return idx
-    return None
+        if any(entry.name == mesh_name for entry in container.mesh_names):
+            out.append(idx)
+    return out
+
+
+def find_container_for_mesh(scene, mesh_name: str) -> Optional[int]:
+    """Return the index of the FIRST container that holds ``mesh_name``, or
+    ``None`` when the mesh is not in any container — the question «is it an
+    orphan?». A mesh may be in several (:func:`containers_of_mesh`).
+    """
+    found = containers_of_mesh(scene, mesh_name)
+    return found[0] if found else None
+
+
+def documents_of_mesh(scene, obj) -> List[str]:
+    """The Documents of the containers that hold ``obj`` (in list order), and
+    the reverse-lookup ``em_rm_container_doc_id`` when no container says one."""
+    out: List[str] = []
+    for idx in containers_of_mesh(scene, obj.name) if scene is not None else []:
+        doc = scene.rm_containers[idx].doc_node_id or ""
+        if doc and doc not in out:
+            out.append(doc)
+    prop = str(obj.get("em_rm_container_doc_id", "") or "")
+    if prop and prop not in out:
+        out.append(prop)
+    return out
 
 
 def rename_mesh_in_containers(scene, old_name: str, new_name: str) -> int:
@@ -586,11 +616,11 @@ def seat_model_of(scene, graph, obj):
                     f"active one (EM panel) and add the version there")
     except ImportError:
         pass
-    doc_id = str(obj.get("em_rm_container_doc_id", "") or "")
-    if not doc_id:
-        idx = find_container_for_mesh(scene, obj.name) if scene is not None else None
-        if idx is not None:
-            doc_id = scene.rm_containers[idx].doc_node_id
+    #: a mesh may be in several containers: the first Document of its
+    #: containers that the active graph carries
+    docs = documents_of_mesh(scene, obj)
+    doc_id = next((d for d in docs if graph.find_node_by_id(d) is not None),
+                  docs[0] if docs else "")
     doc = graph.find_node_by_id(doc_id) if doc_id else None
     if doc is None:
         raise ModelNotHere(
@@ -655,11 +685,11 @@ def seat_scene_models(scene, graph) -> dict:
         rm_id = str(obj.get("em_rm_node_id", "") or "")
         scene_epochs = [ep.epoch for ep in getattr(obj, "EM_ep_belong_ob", ())
                         if ep.epoch and ep.epoch != "no_epoch"]
-        doc_id = str(obj.get("em_rm_container_doc_id", "") or "")
-        if not doc_id:
-            idx = find_container_for_mesh(scene, obj.name)
-            if idx is not None:
-                doc_id = scene.rm_containers[idx].doc_node_id or ""
+        #: every Document of its containers that this graph carries (a mesh
+        #: may be in several containers)
+        docs_here = [d for d in documents_of_mesh(scene, obj)
+                     if graph.find_node_by_id(d) is not None]
+        doc_id = docs_here[0] if docs_here else ""
         doc = graph.find_node_by_id(doc_id) if doc_id else None
         if not rm_id and not scene_epochs and doc is None:
             continue                                  # not a model at all
@@ -681,12 +711,12 @@ def seat_scene_models(scene, graph) -> dict:
             counts["seated"] += 1
         else:
             counts["present"] += 1
-        if doc is not None and not _has_edge(graph, doc_id, rm_id,
-                                             "has_representation_model"):
-            graph.add_edge(edge_id=f"{doc_id}_has_representation_model_{rm_id}",
-                           edge_source=doc_id, edge_target=rm_id,
-                           edge_type="has_representation_model")
-            counts["documents"] += 1
+        for d in docs_here:
+            if not _has_edge(graph, d, rm_id, "has_representation_model"):
+                graph.add_edge(edge_id=f"{d}_has_representation_model_{rm_id}",
+                               edge_source=d, edge_target=rm_id,
+                               edge_type="has_representation_model")
+                counts["documents"] += 1
         if publishable.get(obj.name, True) and scene_epochs:
             counts["epochs"] += sync_epoch_edges(graph, rm_id, scene_epochs)[0]
     return counts
@@ -838,22 +868,20 @@ def add_mesh_to_container(context, container, mesh_obj) -> Tuple[bool, str]:
     the RM node, sets the mesh's reverse-lookup custom property, and
     appends the mesh name to the container's list.
 
-    Skips (with reason) when the mesh is already in another container
-    (Q_C: a mesh belongs to at most one container).
+    A mesh already in ANOTHER container is added too, and stays there: a
+    mesh may be in several containers (E.D., 23 Oct 2026). Only a mesh
+    already in THIS container is skipped. The mesh joining gets the
+    container's default epochs (``container.epochs``), ADDED to the ones
+    it has — through ``operators.assign_epochs``, the one way epochs are
+    written.
     """
     if not is_rm_candidate(mesh_obj):
         return False, (
             f"Object {getattr(mesh_obj, 'name', '?')!r} is not an RM "
             f"candidate (need MESH / CURVE / plain EMPTY)")
     scene = context.scene
-    existing_idx = find_container_for_mesh(scene, mesh_obj.name)
-    if existing_idx is not None:
-        existing = scene.rm_containers[existing_idx]
-        if existing == container:
-            return False, f"Mesh {mesh_obj.name!r} already in this container"
-        return False, (
-            f"Mesh {mesh_obj.name!r} already belongs to container "
-            f"{existing.label!r} — remove it from there first")
+    if any(entry.name == mesh_obj.name for entry in container.mesh_names):
+        return False, f"Mesh {mesh_obj.name!r} already in this container"
     # Graph side (only when the container is linked to a Document).
     _graph_info, graph = _active_graph(context)
     if graph is not None and container.doc_node_id:
@@ -883,6 +911,15 @@ def add_mesh_to_container(context, container, mesh_obj) -> Tuple[bool, str]:
         rm_id = mesh_obj.get("em_rm_node_id", "")
         if rm_id:
             _gn.add_member(graph, container.group_node_id, rm_id)
+    # E.D. 23 Oct 2026 · the container's default epochs, ADDED to the mesh's
+    default = [e.name for e in getattr(container, "epochs", ()) if e.name]
+    if default:
+        try:
+            from .operators import assign_epochs
+            assign_epochs(context, [mesh_obj], default, graph)
+        except Exception as exc:                        # noqa: BLE001
+            return True, (f"Mesh {mesh_obj.name!r} added, but its epochs were "
+                          f"not given: {exc}")
     return True, ""
 
 
@@ -902,8 +939,15 @@ def remove_mesh_from_container(context, container, mesh_name: str,
     if hit_idx is None:
         return False
     container.mesh_names.remove(hit_idx)
+    # A mesh may be in several containers: the Document→model edge stays when
+    # another container of the mesh is wrapped by the SAME Document.
+    shared_doc = bool(container.doc_node_id) and any(
+        scene_c.doc_node_id == container.doc_node_id
+        for scene_c in (context.scene.rm_containers[i]
+                        for i in containers_of_mesh(context.scene, mesh_name))
+        if scene_c != container)
     # Graph side.
-    if drop_edge and container.doc_node_id:
+    if drop_edge and container.doc_node_id and not shared_doc:
         _graph_info, graph = _active_graph(context)
         mesh_obj = bpy.data.objects.get(mesh_name)
         rm_id = mesh_obj.get("em_rm_node_id", "") if mesh_obj else ""

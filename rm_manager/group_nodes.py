@@ -129,15 +129,26 @@ def members_of(graph, group_node_id):
     return out
 
 
-def group_of_member(graph, model_node_id):
-    """The group a model belongs to, or None. Singular: one mesh, one
-    container — the rule already in force on the PropertyGroup side."""
+def groups_of_member(graph, model_node_id):
+    """Every group a model belongs to, in graph order. Plural since 23 Oct
+    2026 (E.D.): a mesh may be in several containers — «Survey 2015» and
+    «Reconstruction, 2nd century AD» may share one."""
+    out = []
     if graph is None or not model_node_id:
-        return None
+        return out
     for edge in list(graph.edges):
-        if edge.edge_type == MEMBERSHIP_EDGE and edge.edge_source == model_node_id:
-            return edge.edge_target
-    return None
+        if (edge.edge_type == MEMBERSHIP_EDGE and edge.edge_source == model_node_id
+                and edge.edge_target not in out):
+            out.append(edge.edge_target)
+    return out
+
+
+def group_of_member(graph, model_node_id):
+    """The FIRST group a model belongs to, or None — kept for the callers
+    that only ask «is it in a group?». A model may be in several
+    (:func:`groups_of_member`)."""
+    gruppi = groups_of_member(graph, model_node_id)
+    return gruppi[0] if gruppi else None
 
 
 def _membership_edge_id(model_node_id, group_node_id):
@@ -147,11 +158,10 @@ def _membership_edge_id(model_node_id, group_node_id):
 def add_member(graph, group_node_id, model_node_id):
     """Tag a model into the group. Returns True when an edge was added.
 
-    Enforces the 1:1 rule by REFUSING rather than by moving: a model already
-    in another group is left where it is and False is returned. Silently
-    re-homing it would make the graph disagree with ``mesh_names``, which is
-    authoritative — and ``add_mesh_to_container`` already refuses the same case
-    on the Blender side with a reason the user reads.
+    A model may be in SEVERAL groups (E.D., 23 Oct 2026): being in another
+    group is no reason to refuse, and nothing is moved — the membership in
+    the other group stays. Only a model already in THIS group is refused
+    (nothing to do).
     """
     if graph is None or not group_node_id or not model_node_id:
         return False
@@ -165,11 +175,8 @@ def add_member(graph, group_node_id, model_node_id):
     # trasformerebbe una divergenza da segnalare in un grafo rotto.
     if graph.find_node_by_id(model_node_id) is None:
         return False
-    current = group_of_member(graph, model_node_id)
-    if current == group_node_id:
+    if group_node_id in groups_of_member(graph, model_node_id):
         return False                       # already there: nothing to do
-    if current is not None:
-        return False                       # in another group: refuse, do not move
     try:
         graph.add_edge(
             edge_id=_membership_edge_id(model_node_id, group_node_id),
@@ -285,15 +292,14 @@ def reconcile_container(graph, group_node_id, label, model_node_ids,
         created        the group node did not exist and was made
         added          member ids tagged in
         removed        member ids untagged (they are no longer in mesh_names)
-        refused        member ids that belong to ANOTHER group, left alone
+        refused        always empty since 23 Oct 2026 (a model may be in
+                       several groups); the key stays for the callers
         unknown        member ids the graph does not have — a divergence
                        between scene and graph, reported and not written
         doc_attached   the Document→group edge was added
 
-    ``refused`` is the divergence that matters: it means the graph says a model
-    is in another container while this container claims it. It is reported, not
-    resolved, because resolving it would mean choosing which of two user
-    intentions to discard.
+    A model that is also in ANOTHER group is added here too, and stays
+    there: several containers may share a mesh (E.D., 23 Oct 2026).
     """
     report = {"created": False, "added": [], "removed": [], "refused": [],
               "unknown": [], "doc_attached": False}
@@ -314,10 +320,6 @@ def reconcile_container(graph, group_node_id, label, model_node_ids,
 
     for m in voluti:
         if m in presenti:
-            continue
-        altrove = group_of_member(graph, m)
-        if altrove is not None and altrove != group_node_id:
-            report["refused"].append(m)
             continue
         if add_member(graph, group_node_id, m):
             report["added"].append(m)
@@ -340,21 +342,26 @@ def common_group_of(graph, model_node_ids):
     SET of models resolves to the container that publishes it, while a single
     model keeps resolving to itself, so nothing that works today changes.
 
-    Returns None when the list is shorter than two, when any member has no
-    group, or when they do not all agree. Disagreement is not a tie to be
-    broken: two containers selected at once have no single answer, and
-    inventing one would take the user somewhere they did not point at.
+    Since a model may be in several groups (23 Oct 2026), «share» is the
+    INTERSECTION of their groups: the answer is the one group every model is
+    in. None when the list is shorter than two, when they share no group, or
+    when they share more than one. Two groups in common have no single
+    answer, and inventing one would take the user somewhere they did not
+    point at.
     """
     ids = [m for m in (model_node_ids or []) if m]
     if graph is None or len(ids) < 2:
         return None
-    gruppi = {group_of_member(graph, m) for m in ids}
-    if len(gruppi) != 1:
+    comuni = None
+    for m in ids:
+        suoi = set(groups_of_member(graph, m))
+        comuni = suoi if comuni is None else (comuni & suoi)
+        if not comuni:
+            return None
+    comuni = {g for g in comuni if find_group(graph, g) is not None}
+    if len(comuni) != 1:
         return None
-    solo = gruppi.pop()
-    if solo is None:
-        return None
-    return solo if find_group(graph, solo) is not None else None
+    return comuni.pop()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

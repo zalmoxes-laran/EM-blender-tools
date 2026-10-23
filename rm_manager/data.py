@@ -146,11 +146,29 @@ class RMContainerMeshItem(PropertyGroup):
     )  # type: ignore
 
 
+class RMContainerEpochItem(PropertyGroup):
+    """One of the container's DEFAULT epochs (E.D., 23 Oct 2026): the epochs
+    a mesh gets when it joins the container, or when «Apply to its meshes»
+    runs. Scene side only: in the graph the epochs stay on each model."""
+
+    name: StringProperty(
+        name="Epoch",
+        description="Name of the epoch (as in the Epoch Manager)",
+        default="",
+    )  # type: ignore
+
+
 class RMContainerItem(PropertyGroup):
     """A group of meshes wrapped by a single DocumentNode (DP-07 / DP-47
     extension). The Document is the graph-side wrapper; the container
     is the EMTools-side PropertyGroup that tracks which mesh objects
-    belong to it. A mesh can belong to at most ONE container at a time.
+    belong to it. A mesh can belong to SEVERAL containers (E.D., 23 Oct
+    2026 — until then at most one, decision Q_C): «Survey 2015» and
+    «Reconstruction, 2nd century AD» may share a mesh.
+
+    Containers are MANDATORY for a representation model: a mesh is given
+    an epoch only inside a container (``rm.promote_to_rm``), so that it
+    always has a row in the RM list and a group in the graph.
 
     The Blender Collection is NOT the source of truth — users are free
     to keep meshes in whatever collection structure they prefer. The
@@ -204,6 +222,18 @@ class RMContainerItem(PropertyGroup):
              "The container travels as one tileset; the members produce nothing"),
         ],
         default="members",
+    )  # type: ignore
+    epochs: CollectionProperty(
+        type=RMContainerEpochItem,
+        name="Default epochs",
+        description=(
+            "The epochs of this set: every mesh that joins the container gets "
+            "them, and «Apply to its meshes» adds them to the meshes already "
+            "in it. A mesh stays free to have other epochs"),
+    )  # type: ignore
+    epochs_index: IntProperty(
+        name="Active default epoch",
+        default=0,
     )  # type: ignore
     group_node_id: StringProperty(
         name="Group Node ID",
@@ -339,7 +369,8 @@ def register_data():
     # RMContainerMeshItem must be registered before RMContainerItem
     # because the latter holds a CollectionProperty(type=RMContainerMeshItem).
     for cls in (RMEpochItem, RMItem, OrphanedEpochItem,
-                RMContainerMeshItem, RMContainerItem, RMContainerWarning,
+                RMContainerMeshItem, RMContainerEpochItem, RMContainerItem,
+                RMContainerWarning,
                 RMSettings):
         _register_class_once(cls)
 
@@ -375,7 +406,8 @@ def unregister_data():
         del bpy.types.Scene.rm_list
 
     for cls in reversed((RMSettings, RMContainerWarning, RMContainerItem,
-                         RMContainerMeshItem, OrphanedEpochItem, RMItem,
+                         RMContainerEpochItem, RMContainerMeshItem,
+                         OrphanedEpochItem, RMItem,
                          RMEpochItem)):
         try:
             bpy.utils.unregister_class(cls)

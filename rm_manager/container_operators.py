@@ -34,6 +34,7 @@ from .containers import (
     active_container,
     add_mesh_to_container,
     bootstrap_legacy_container_if_needed,
+    containers_of_mesh,
     find_container_for_mesh,
     is_rm_candidate,
     remove_mesh_from_container,
@@ -155,33 +156,69 @@ class RMCONTAINER_OT_link_existing_document(Operator):
         return {'FINISHED'}
 
 
+#: E.D. 23 Oct 2026 · what a container is, said where it is made
+CONTAINER_HELP = (
+    "A container is a set of meshes that come from one source, e.g. "
+    "«Survey 2015» (all the meshes of that survey) or «Reconstruction, "
+    "2nd century AD» (all the meshes of that reconstruction). A mesh can be "
+    "in more than one container. Give the container its epochs: every mesh "
+    "that joins it gets them, and each mesh stays free to have others. "
+    "Representation models live in containers: a mesh is added to an epoch "
+    "inside one")
+
+
 class RMCONTAINER_OT_create_empty(Operator):
-    """Create a new empty RM container that is NOT linked to any
-    DocumentNode yet. The user can link it later via
-    ``rmcontainer.link_this_to_doc`` or promote it to a document-linked
-    container via the edit flow.
-    """
+    """New container: a set of meshes from one source, e.g. «Survey 2015» or
+    «Reconstruction, 2nd century AD». A mesh can be in more than one
+    container; give the container its epochs below. Not linked to any
+    DocumentNode yet: link it with the icon on its row"""
     bl_idname = "rmcontainer.create_empty"
-    bl_label = "Empty container"
-    bl_description = (
-        "Create a new empty RM container (no document link). You can "
-        "add meshes now and link it to a document later."
-    )
+    bl_label = "New container…"
+    bl_description = CONTAINER_HELP
     bl_options = {'REGISTER', 'UNDO'}
+
+    label: StringProperty(  # type: ignore
+        name="Name",
+        description=("Name the set by its source: «Survey 2015», "
+                     "«Reconstruction, 2nd century AD»…"),
+        default="",
+        options={'SKIP_SAVE'},
+    )
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(
+            self, width=460, title="New container", confirm_text="Create")
+
+    def draw(self, context):
+        col = self.layout.column()
+        col.prop(self, "label")
+        box = col.box()
+        box.scale_y = 0.85
+        for line in ("A set of meshes that come from one source:",
+                     "«Survey 2015» — all the meshes of that survey;",
+                     "«Reconstruction, 2nd century AD» — all the meshes",
+                     "of that reconstruction.",
+                     "A mesh can be in more than one container.",
+                     "Then give the container its epochs: every mesh",
+                     "that joins it gets them."):
+            box.label(text=line)
 
     def execute(self, context):
         scene = context.scene
         container = scene.rm_containers.add()
-        # Auto-label with a running index so two empty containers are
-        # visually distinguishable in the UIList.
-        existing_empty = sum(
-            1 for c in scene.rm_containers if not c.doc_node_id
-            and (c.label.startswith("Container ") or c is container))
-        container.label = f"Container {existing_empty}"
+        name = (self.label or "").strip()
+        if not name:
+            # Auto-label with a running index so two empty containers are
+            # visually distinguishable in the UIList.
+            existing_empty = sum(
+                1 for c in scene.rm_containers if not c.doc_node_id
+                and (c.label.startswith("Container ") or c is container))
+            name = f"Container {existing_empty}"
+        container.label = name
         container.doc_node_id = ""
         container.doc_name = ""
         scene.rm_containers_index = len(scene.rm_containers) - 1
-        self.report({'INFO'}, f"Created empty container {container.label!r}")
+        self.report({'INFO'}, f"Created container {container.label!r}")
         return {'FINISHED'}
 
 
@@ -381,30 +418,35 @@ class RMCONTAINER_OT_create_and_link_new_document(Operator):
         return {'FINISHED'}
 
 
-class RMCONTAINER_OT_add_selected_meshes(Operator):
+class _AddSelectedMeshes:
     """Add every selected MESH object to the active container.
 
-    Skips meshes already in another container with a warning, so the
-    Q_C invariant (one mesh ↔ one container) is enforced.
+    A mesh already in another container is added too and stays there
+    (E.D., 23 Oct 2026: a mesh may be in several containers); only a mesh
+    already in this one is skipped. Each mesh gets the container's epochs.
     """
     bl_idname = "rmcontainer.add_selected_meshes"
     bl_label = "Add selected meshes"
     bl_description = (
         "Add the selected MESH objects to the active RM container. "
-        "Meshes already in another container are skipped."
+        "Meshes in other containers stay there too; each gets the "
+        "container's epochs."
     )
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context):
-        return (active_container(context.scene) is not None
-                and any(is_rm_candidate(o)
-                        for o in context.selected_objects))
+        if active_container(context.scene) is None:
+            from .operators import NEED_CONTAINER
+            cls.poll_message_set(NEED_CONTAINER)
+            return False
+        return any(is_rm_candidate(o) for o in context.selected_objects)
 
     def execute(self, context):
         container = active_container(context.scene)
         if container is None:
-            self.report({'ERROR'}, "No active container")
+            from .operators import NEED_CONTAINER
+            self.report({'ERROR'}, NEED_CONTAINER)
             return {'CANCELLED'}
         selected = [o for o in context.selected_objects
                     if is_rm_candidate(o)]
@@ -427,7 +469,12 @@ class RMCONTAINER_OT_add_selected_meshes(Operator):
                              and epochs.list_index >= 0)
         rm_names = {rm.name for rm in scene.rm_list}
         non_rm_selected = [o for o in selected if o.name not in rm_names]
-        if non_rm_selected and has_active_epoch:
+        # E.D. 23 Oct 2026 · a container with its own epochs gives THEM to the
+        # meshes that join it (add_mesh_to_container); the active epoch is the
+        # fallback for a container that has none yet
+        if len(getattr(container, "epochs", ())):
+            pass
+        elif non_rm_selected and has_active_epoch:
             # rm.promote_to_rm operates on selected_objects — the
             # current selection already matches what we want.
             try:
@@ -463,6 +510,29 @@ class RMCONTAINER_OT_add_selected_meshes(Operator):
                     f"Added {added} mesh(es) to {container.label!r} "
                     f"(skipped {len(skipped)})")
         return {'FINISHED'}
+
+
+class RMCONTAINER_OT_add_selected_meshes(_AddSelectedMeshes, Operator):
+    # the body is the mixin's: a registered Operator is never subclassed
+    # (Blender's RNA then breaks the parent's poll)
+    __doc__ = _AddSelectedMeshes.__doc__
+    bl_idname = "rmcontainer.add_selected_meshes"
+    bl_label = "Add selected meshes"
+    bl_description = _AddSelectedMeshes.bl_description
+    bl_options = {'REGISTER', 'UNDO'}
+
+
+class RMCONTAINER_OT_add_selected_to_active(_AddSelectedMeshes, Operator):
+    """Add the selected meshes to THIS container, keeping the other
+    containers they are in (E.D., 23 Oct 2026). «Move» takes them out of
+    the others; this does not."""
+    bl_idname = "rmcontainer.add_selected_to_active"
+    bl_label = "Add selected to this container"
+    bl_description = (
+        "Add the selected meshes to the active container and keep them in "
+        "the containers they are already in (a mesh can be in several). "
+        "Each gets this container's epochs")
+    bl_options = {'REGISTER', 'UNDO'}
 
 
 def container_proposal(context, graph, cont) -> dict:
@@ -736,8 +806,8 @@ class RMCONTAINER_OT_move_selected_to_container(Operator):
     Workflow: the user first narrows down the selection in the
     viewport (e.g. via ``rm.select_all_from_active_epoch`` or by
     hand), then runs this operator and picks a target. Each selected
-    mesh is removed from its current container (if any) and inserted
-    into the target. ``has_representation_model`` edges are updated
+    mesh is removed from EVERY container it is in (a mesh may be in
+    several) and inserted into the target. ``has_representation_model`` edges are updated
     end-to-end — the edge from the old container's Document is
     dropped and, when the target is linked to a Document, the new
     edge is added.
@@ -778,8 +848,8 @@ class RMCONTAINER_OT_move_selected_to_container(Operator):
             icon='OBJECT_DATA')
         layout.prop(self, "target", text="Target")
         layout.label(
-            text="Meshes are removed from their current container "
-                 "(if any) before being added to the target.",
+            text="Meshes leave every other container they are in. To keep "
+                 "them there, use «Add selected to this container».",
             icon='INFO')
 
     def execute(self, context):
@@ -807,15 +877,22 @@ class RMCONTAINER_OT_move_selected_to_container(Operator):
         moved = 0
         skipped = 0
         for obj in selected:
-            current_idx = find_container_for_mesh(scene, obj.name)
-            current_container = (scene.rm_containers[current_idx]
-                                  if current_idx is not None else None)
-            if current_container is target_container:
+            # a mesh may be in several containers: MOVE takes it out of
+            # every one but the target («Add selected to this container»
+            # keeps them)
+            current = [scene.rm_containers[i]
+                       for i in containers_of_mesh(scene, obj.name)]
+            if current == [target_container]:
                 skipped += 1
                 continue
-            if current_container is not None:
+            for current_container in reversed(current):
+                if current_container is target_container:
+                    continue
                 remove_mesh_from_container(
                     context, current_container, obj.name, drop_edge=True)
+            if target_container is not None and target_container in current:
+                moved += 1
+                continue
             if target_container is not None:
                 ok, reason = add_mesh_to_container(
                     context, target_container, obj)
@@ -1117,6 +1194,138 @@ class RMCONTAINER_OT_assign_unassigned(Operator):
         return {'FINISHED'}
 
 
+# ── the container's default epochs (E.D., 23 Oct 2026) ─────────────────────
+#
+# The epochs of a SET: «Reconstruction, 2nd century AD» → II A.D. They are a
+# default, scene side: a mesh joining the container gets them, «Apply to its
+# meshes» adds them to the ones already in it. In the graph the epochs stay on
+# each model (`operators.assign_epochs`, the one writer) — the container's
+# list is not a second statement that could disagree with them.
+
+def _container_at(scene, index):
+    if index < 0:
+        return active_container(scene)
+    if index < len(scene.rm_containers):
+        return scene.rm_containers[index]
+    return None
+
+
+class RMCONTAINER_OT_epoch_add_active(Operator):
+    """Give the active epoch to this container: the meshes that join it from
+    now on get it. «Apply to its meshes» gives it to the ones already in it"""
+    bl_idname = "rmcontainer.epoch_add_active"
+    bl_label = "Active epoch"
+    bl_description = (
+        "Add the active epoch (Epoch Manager) to this container's epochs: "
+        "every mesh that joins the container gets it")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    container_index: IntProperty(default=-1, options={'SKIP_SAVE'})  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        epochs = context.scene.em_tools.epochs
+        if active_container(context.scene) is None:
+            cls.poll_message_set("Select a container first")
+            return False
+        if not (len(epochs.list) and 0 <= epochs.list_index < len(epochs.list)):
+            cls.poll_message_set("Select an epoch in the Epoch Manager first")
+            return False
+        return True
+
+    def execute(self, context):
+        scene = context.scene
+        cont = _container_at(scene, self.container_index)
+        if cont is None:
+            self.report({'ERROR'}, "No container")
+            return {'CANCELLED'}
+        epochs = scene.em_tools.epochs
+        name = epochs.list[epochs.list_index].name
+        if any(e.name == name for e in cont.epochs):
+            self.report({'INFO'}, f"{cont.label!r} has {name!r} already")
+            return {'CANCELLED'}
+        item = cont.epochs.add()
+        item.name = name
+        cont.epochs_index = len(cont.epochs) - 1
+        self.report({'INFO'}, f"{cont.label!r}: epoch {name!r} added — "
+                              f"«Apply to its meshes» gives it to the "
+                              f"{len(cont.mesh_names)} mesh(es) already in it")
+        return {'FINISHED'}
+
+
+class RMCONTAINER_OT_epoch_remove(Operator):
+    """Take this epoch off the container's list. The meshes keep it: an
+    epoch is removed from a mesh in the RM list"""
+    bl_idname = "rmcontainer.epoch_remove"
+    bl_label = "Remove the epoch from the container"
+    bl_description = (
+        "Take this epoch off the container's epochs. The meshes already in "
+        "it keep it (remove it from a mesh in the list below)")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    index: IntProperty(default=-1)  # type: ignore
+    container_index: IntProperty(default=-1, options={'SKIP_SAVE'})  # type: ignore
+
+    def execute(self, context):
+        cont = _container_at(context.scene, self.container_index)
+        if cont is None or not (0 <= self.index < len(cont.epochs)):
+            self.report({'ERROR'}, "No such epoch in the container")
+            return {'CANCELLED'}
+        name = cont.epochs[self.index].name
+        cont.epochs.remove(self.index)
+        cont.epochs_index = min(cont.epochs_index, max(0, len(cont.epochs) - 1))
+        self.report({'INFO'}, f"{cont.label!r}: epoch {name!r} removed from the "
+                              f"container (its meshes keep it)")
+        return {'FINISHED'}
+
+
+class RMCONTAINER_OT_epochs_apply(Operator):
+    """Give the container's epochs to every mesh in it, in the scene and in
+    the graph. It only ADDS: no mesh loses an epoch it has"""
+    bl_idname = "rmcontainer.epochs_apply"
+    bl_label = "Apply to its meshes"
+    bl_description = (
+        "Add the container's epochs to every mesh in it (scene and graph). "
+        "Nothing is removed: a mesh keeps the other epochs it has")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    container_index: IntProperty(default=-1, options={'SKIP_SAVE'})  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        cont = active_container(context.scene)
+        if cont is None:
+            cls.poll_message_set("Select a container first")
+            return False
+        if not len(cont.epochs):
+            cls.poll_message_set("Give the container an epoch first")
+            return False
+        return True
+
+    def execute(self, context):
+        from .operators import assign_epochs
+        cont = _container_at(context.scene, self.container_index)
+        if cont is None or not len(cont.epochs):
+            self.report({'ERROR'}, "The container has no epochs")
+            return {'CANCELLED'}
+        names = [e.name for e in cont.epochs if e.name]
+        objs = [o for o in (bpy.data.objects.get(e.name) for e in cont.mesh_names)
+                if o is not None]
+        if not objs:
+            self.report({'WARNING'}, f"{cont.label!r} holds no mesh of this scene")
+            return {'CANCELLED'}
+        changed = assign_epochs(context, objs, names,
+                                report=lambda t: self.report({'INFO'}, t))
+        try:
+            bpy.ops.rm.update_list(from_graph=True)
+        except Exception:                               # noqa: BLE001
+            pass
+        self.report({'INFO'}, f"{cont.label!r}: {', '.join(names)} given to "
+                              f"{changed} of {len(objs)} mesh(es) (the others "
+                              f"had them)")
+        return {'FINISHED'}
+
+
 class RMCONTAINER_OT_acknowledge_warnings(Operator):
     """Clear the RM container warnings list after the user has read
     them.
@@ -1140,6 +1349,7 @@ _CONTAINER_OPS = (
     RMCONTAINER_OT_create_and_link_new_document,
     RMCONTAINER_OT_link_or_create_doc,
     RMCONTAINER_OT_add_selected_meshes,
+    RMCONTAINER_OT_add_selected_to_active,
     RMCONTAINER_OT_move_selected_to_container,
     RMCONTAINER_OT_remove_mesh_from_container,
     RMCONTAINER_OT_unregister,
@@ -1148,6 +1358,9 @@ _CONTAINER_OPS = (
     RMCONTAINER_OT_bootstrap_legacy,
     RMCONTAINER_OT_assign_unassigned,
     RMCONTAINER_OT_acknowledge_warnings,
+    RMCONTAINER_OT_epoch_add_active,
+    RMCONTAINER_OT_epoch_remove,
+    RMCONTAINER_OT_epochs_apply,
 )
 
 

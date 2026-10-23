@@ -2019,6 +2019,16 @@ def _operator_classes():  # pragma: no cover — bpy
         #: objects reads each one's when the dialog's is still this one
         category_auto: bpy.props.StringProperty(  # type: ignore
             default="", options={"HIDDEN", "SKIP_SAVE"})
+        #: E.D. 23 Oct 2026 · where the files go: the cache beside the .blend
+        #: (what Blender and the Deck use) or the project's RM folder, where a
+        #: reader outside Blender finds them (`project_files`)
+        destination: bpy.props.EnumProperty(  # type: ignore
+            name="Write to", default="CACHE", options={"SKIP_SAVE"},
+            items=[("CACHE", "The cache (em_cache)",
+                    "Beside the .blend, where EM Tools keeps the versions it uses"),
+                   ("PROJECT", "The project's RM folder",
+                    "RM/<container>/ in the EM project (or beside the em.json): "
+                    "files the graph can name outside Blender")])
 
         @classmethod
         def poll(cls, context):
@@ -2068,6 +2078,15 @@ def _operator_classes():  # pragma: no cover — bpy
                                f"from what the object shows", icon="SORTSIZE")
             col.label(text="For")
             col.prop(self, "use")
+            col.row().prop(self, "destination", expand=True)
+            if self.destination == "PROJECT":
+                from . import project_files as PF
+                where = PF.folders_here(context)
+                if where is None:
+                    col.label(text=PF.NEED_A_PLACE, icon="ERROR")
+                else:
+                    col.label(text=f"Into {PF.relative_url(where['base'], where['models'])}"
+                                   f"/<container>/", icon="FILE_FOLDER")
             box = col.box()
             box.label(text="Recipe (written in the version and in its stamp)",
                       icon="PRESET")
@@ -2213,12 +2232,21 @@ def _operator_classes():  # pragma: no cover — bpy
                 _recipe_defaults(self, context)
             several = len(objs) > 1
             room, folder = _versions_folder()
+            if self.destination == "PROJECT":
+                from . import project_files as PF
+                if PF.folders_here(context) is None:
+                    self.report({"ERROR"}, PF.NEED_A_PLACE)
+                    return {"CANCELLED"}
             made, failed = [], []
             PREPARED.clear()
             for obj in objs:
                 try:
                     recipe = self._recipe_for(context, obj, several)
-                    out = self._prepare_one(context, graph, obj, recipe, room, folder)
+                    here = folder
+                    if self.destination == "PROJECT":
+                        here = PF.models_folder_for(context, obj)
+                        os.makedirs(here, exist_ok=True)
+                    out = self._prepare_one(context, graph, obj, recipe, room, here)
                 except Exception as exc:  # noqa: BLE001 — the reason is the user's
                     failed.append(f"{obj.name}: {exc}")
                     continue

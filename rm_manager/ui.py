@@ -498,7 +498,7 @@ class VIEW3D_PT_RM_Manager(Panel):
         # dropdown with "+ Add New Document..." as the first option.
         cmd_row = cont_box.row(align=True)
         cmd_row.operator("rmcontainer.create_empty",
-                         text="Add RM container", icon='ADD')
+                         text="New container…", icon='ADD')
         cmd_row.operator("rmcontainer.sync",
                          text="Sync", icon='FILE_REFRESH')
         # EM16-RMNG · the projection into the graph is a BUTTON, and that is the
@@ -560,6 +560,32 @@ class VIEW3D_PT_RM_Manager(Panel):
             alt.label(text=f"Alternative: {ac.alt_name or '—'}", icon='MOD_ARRAY')
             alt.menu("RMCONTAINER_MT_alt_choose",
                      text="Choose…" if not ac.alt_asset_id else "Replace…")
+            # E.D. 23 Oct 2026 · the epochs of the SET: a default given to
+            # every mesh that joins it; each mesh stays free to have others
+            ep_box = cont_box.box()
+            ep_head = ep_box.row(align=True)
+            ep_head.label(text="Epochs of this set:", icon='TIME')
+            ep_head.operator("rmcontainer.epoch_add_active", text="Active epoch",
+                             icon='ADD')
+            if len(ac.epochs):
+                ep_col = ep_box.column(align=True)
+                for i, ep in enumerate(ac.epochs):
+                    ep_row = ep_col.row(align=True)
+                    ep_row.label(text=ep.name, icon='KEYFRAME_HLT' if i == 0
+                                 else 'KEYFRAME')
+                    rm_ep = ep_row.operator("rmcontainer.epoch_remove", text="",
+                                            icon='X', emboss=False)
+                    rm_ep.index = i
+                ep_box.operator("rmcontainer.epochs_apply",
+                                text="Apply to its meshes", icon='CHECKMARK')
+            else:
+                ep_box.label(text="None yet: the meshes that join it get the "
+                                  "epochs you give it here", icon='INFO')
+            try:
+                from ..sync_manager.project_files import draw_container_files
+                draw_container_files(cont_box, context, ac)
+            except ImportError:
+                pass
 
         # ═══════════════════════════════════════════════════════════════
         # SECTION 2 (MIDDLE) — Mesh-level controls between the two
@@ -568,6 +594,22 @@ class VIEW3D_PT_RM_Manager(Panel):
         # promote/remove-epoch buttons will target, and the "Sel: N
         # objs" row carries the batch mesh operations.
         # ═══════════════════════════════════════════════════════════════
+
+        # E.D. 23 Oct 2026 · containers are mandatory: with none, the epoch
+        # tools below wait for one, and the panel says why
+        if len(scene.rm_containers) == 0:
+            need = layout.box()
+            need.alert = True
+            need.label(text="Representation models live in containers: "
+                            "create one first", icon='OUTLINER_COLLECTION')
+            need.label(text="e.g. «Survey 2015», «Reconstruction, 2nd century "
+                            "AD»", icon='BLANK1')
+            need.operator("rmcontainer.create_empty", text="New container…",
+                          icon='ADD')
+        elif ac is None:
+            need = layout.box()
+            need.label(text="Select a container in the list above to add "
+                            "meshes to an epoch", icon='INFO')
 
         # Show active epoch
         has_active_epoch = False
@@ -660,6 +702,10 @@ class VIEW3D_PT_RM_Manager(Panel):
                 # action is subsumed by "+": adding to an epoch now
                 # auto-anchors orphan meshes to the active container.
                 row.separator()
+                # a mesh may be in several containers (23 Oct 2026): «add»
+                # keeps the others, «move» takes it out of them
+                row.operator("rmcontainer.add_selected_to_active",
+                             text="", icon='COLLECTION_NEW')
                 row.operator("rmcontainer.move_selected_to_container",
                              text="", icon='EXPORT')
         else:
