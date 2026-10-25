@@ -17,6 +17,10 @@ from .alternative_operators import (
     register_alternative_operators,
     unregister_alternative_operators,
 )
+from .frame_operators import (
+    register_frame_operators,
+    unregister_frame_operators,
+)
 from .ui import register_ui, unregister_ui
 
 __all__ = [
@@ -33,6 +37,7 @@ def register():
     register_operators()
     register_container_operators()
     register_alternative_operators()
+    register_frame_operators()
     register_ui()
 
     if update_rm_list_on_graph_load not in bpy.app.handlers.load_post:
@@ -44,6 +49,7 @@ def unregister():
         bpy.app.handlers.load_post.remove(update_rm_list_on_graph_load)
 
     unregister_ui()
+    unregister_frame_operators()
     unregister_alternative_operators()
     unregister_container_operators()
     unregister_operators()

@@ -263,6 +263,14 @@ class EM_strat_sync_visibility(Operator):
         # Handle RM visibility sync
         if scene.sync_rm_visibility:
             self.sync_rm_visibility(context)
+            # the containers' alternatives (a tileset stands as a box): seen
+            # in their container's epochs — its members', else its own
+            # (MICRO tileset, shift e epoche, 25 Oct 2026)
+            try:
+                from ..rm_manager.alternative_operators import apply_all_views
+                apply_all_views(context)
+            except Exception as exc:  # noqa: BLE001 — the sync never fails for it
+                print(f"[RM visibility] alternatives not applied: {exc}")
             
         return {'FINISHED'}
     

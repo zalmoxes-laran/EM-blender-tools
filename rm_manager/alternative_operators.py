@@ -35,6 +35,7 @@ from bpy.props import (StringProperty, IntProperty, EnumProperty,  # type: ignor
                        CollectionProperty, BoolProperty)
 
 from . import container_alternative as ca
+from . import tileset_frame as tf
 from .containers import (active_container, add_mesh_to_container,
                          find_container_for_mesh, reconcile_container_groups,
                          resolve_rm_node_id)
@@ -183,13 +184,104 @@ def place_twins(context, graph, cont) -> Dict[str, str]:
 
 def refresh_from_graph(container, graph) -> None:
     """The panel's copy of the container's alternative, from the graph (the
-    truth): written by the operators and on opening an em.json."""
+    truth): written by the operators and on opening an em.json. With it the
+    frame of its asset (MICRO tileset, shift e epoche)."""
     alt = ca.alternative_of(graph, container.group_node_id) if graph is not None else None
+    if (alt["asset_id"] if alt else "") != container.alt_asset_id:
+        # another tileset (or none): its box is measured again
+        container.alt_box_min = container.alt_box_max = (0.0, 0.0, 0.0)
+        container.alt_place_note = ""
     container.alt_asset_id = alt["asset_id"] if alt else ""
     container.alt_name = alt["name"] if alt else ""
     container.alt_uses = ", ".join(alt["uses"]) if alt else ""
+    frame = tf.frame_for(graph, alt["asset_id"])[0] if alt else None
+    container.alt_frame = tf.dumps(frame)
     if not alt:
         container.alt_note = ""
+        container.alt_place_note = ""
+
+
+# ── the study's frame, the box of the tileset (MICRO tileset, shift e epoche) ─
+
+def study_frames(context, graph) -> tuple:
+    """``(graph's, scene's)`` georeferencing as ``{"crs", "shift"}`` (None
+    when it says nothing): the graph's ``geo_position`` node and the scene's
+    Georeferencing panel, as EM Tools' georef manager reads them."""
+    try:
+        from ..georef_manager import graph_sync as gs
+    except Exception:  # noqa: BLE001
+        return None, None
+    g = tf.study_frame(gs.pull_from_geonode(graph)) if graph is not None else None
+    sc = None
+    georef = getattr(context.scene, "em_georef", None)
+    if georef is not None:
+        try:
+            sc = tf.study_frame(gs.scene_values(georef))
+        except Exception:  # noqa: BLE001
+            sc = None
+    return g, sc
+
+
+def place_box(cont, context, graph=None) -> str:
+    """Measure the box of the container's tileset where the Blender scene
+    puts it: the leaf tiles' envelope, the root relocated by the asset's
+    frame towards the study's frame (the graph's ``geo_position``, else the
+    scene's georeferencing, else the file's own shifted grid). Writes
+    ``alt_box_min/max`` and ``alt_place_note``; returns the note (empty when
+    the file is not on this disk)."""
+    graph = graph if graph is not None else _graph(context)
+    if graph is None or not cont.alt_asset_id:
+        return ""
+    alt = ca.alternative_of(graph, cont.group_node_id) if cont.group_node_id else None
+    url = (alt or {}).get("url") or ""
+    if not url:
+        n = graph.find_node_by_id(cont.alt_asset_id)
+        url = str(((getattr(n, "data", None) or {}).get("url")) or "")
+    path = _resolver(context)(url) if url else None
+    if not path:
+        return ""
+    frame = tf.loads(cont.alt_frame) or tf.frame_for(graph, cont.alt_asset_id)[0]
+    target, said = tf.placement_target(frame, *study_frames(context, graph))
+    try:
+        insp = ca.inspect_tileset(path, frame=frame, target=target)
+    except (ValueError, OSError) as exc:
+        cont.alt_place_note = f"Not measured: {exc}"
+        return cont.alt_place_note
+    if insp.get("envelope"):
+        lo, hi = insp["envelope"]
+        cont.alt_box_min, cont.alt_box_max = lo, hi
+    note = tf.placement_line(insp.get("relocation"), said)
+    if not note and frame and not frame.get("crs"):
+        note = "Not relocated: the frame has no CRS (the shift alone cannot relocate)"
+    cont.alt_place_note = note
+    return note
+
+
+def view_state(cont, context, graph=None) -> Dict[str, Any]:
+    """What the scene shows of the container: ``{mode, epochs, source}`` —
+    the effective mode (Automatic with no member is the tileset) and the
+    epochs its alternative lies in (s3Dgraphy's rule: its members', else its
+    own; then the scene's «Epochs of this set»). Cached on the container for
+    the panel."""
+    graph = graph if graph is not None else _graph(context)
+    gid = cont.group_node_id
+    scene_eps = [e.name for e in cont.epochs]
+    ep = tf.container_epochs(graph, gid, scene_eps)
+    members = len(cont.mesh_names)
+    aset = None
+    if graph is not None and gid and graph.find_node_by_id(gid) is not None:
+        try:
+            from s3dgraphy.resources.alternatives import (alternative_sets, find_set,
+                                                           members_of)
+            members += len(members_of(graph, gid, deep=True))
+            if cont.alt_mode == 'AUTO' and tf.has_container_rule():
+                aset = find_set(alternative_sets(graph), gid)
+        except Exception:  # noqa: BLE001 — the count decides then
+            aset = None
+    mode = tf.effective_mode(cont.alt_mode, bool(cont.alt_asset_id), members, aset)
+    cont.alt_epochs = ", ".join(ep["names"])
+    cont.alt_epochs_source = ep["source"]
+    return {"mode": mode, "epochs": ep["names"], "source": ep["source"]}
 
 
 def measure_choice(context, cont, source: str, asset_id: str = "", path: str = "") -> Dict[str, Any]:
@@ -632,7 +724,10 @@ class RMCONTAINER_OT_alt_confirm(Operator):
         refresh_from_graph(cont, graph)
         cont.alt_note = ca.note_of(cov) if self.action == 'ANYWAY' else ""
         insp = _PENDING.get("inspection")
-        if insp and insp.get("envelope"):
+        if tf.loads(cont.alt_frame):
+            # the asset already says its frame: the box where the frame puts it
+            place_box(cont, context, graph)
+        elif insp and insp.get("envelope"):
             lo, hi = insp["envelope"]
             cont.alt_box_min, cont.alt_box_max = lo, hi
         apply_view(cont, context)
@@ -682,17 +777,47 @@ def box_name(cont) -> str:
     return f"{cont.alt_name or 'Tileset'} · alternative of {cont.label}"
 
 
-def apply_view(cont, context=None) -> None:
+def _active_epoch(context) -> str:
+    try:
+        eps = context.scene.em_tools.epochs
+        if 0 <= eps.list_index < len(eps.list):
+            return eps.list[eps.list_index].name
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def apply_view(cont, context=None, members: bool = True) -> None:
     """Models / Tileset / Automatic on the scene: Blender does not draw a
     tileset, so the tileset stands as a box (an empty) over what it holds, and
-    «Automatic» is «Models» here (no distance to switch on). The eye shows or
-    hides the box."""
+    «Automatic» is «Models» here (no distance to switch on) — the tileset when
+    the container has no model (s3Dgraphy 1.6.40). The eye shows or hides the
+    box; when the RM visibility follows the active epoch («Sync RM
+    Visibility»), the box is seen only in the container's epochs (its
+    members', else its own: E.D.'s «tls», 0 meshes, its document in Epoch 1).
+    The box is measured where the scene puts it (:func:`place_box`, the
+    frame applied) when it has not been yet. ``members=False`` (on opening an
+    em.json) leaves the models as they are: only the box is set."""
     if not cont.alt_asset_id:
         return
-    tileset = cont.alt_mode == 'TILESET'
+    context = context or bpy.context
+    graph = _graph(context)
+    if not any(cont.alt_box_max[i] > cont.alt_box_min[i] for i in range(3)):
+        try:
+            place_box(cont, context, graph)
+        except Exception as exc:  # noqa: BLE001 — a view never fails
+            print(f"[RM containers] the box of «{cont.alt_name}» not measured: {exc}")
+    state = view_state(cont, context, graph)
+    tileset = state["mode"] == 'TILESET'
+    scene = context.scene
+    sync = bool(getattr(scene, "sync_rm_visibility", False)) \
+        and not getattr(scene, "landscape_mode_active", False)
+    visible = tf.box_visible(cont.alt_shown, sync, _active_epoch(context), state["epochs"])
     for e in cont.mesh_names:
         obj = bpy.data.objects.get(e.name)
-        if obj is not None:
+        if members and obj is not None and (tileset or not sync):
+            # with the RM visibility following the epoch, the models shown
+            # are the epoch's: only the tileset hides them
             try:
                 obj.hide_set(tileset)
             except RuntimeError:            # not in the view layer
@@ -704,15 +829,32 @@ def apply_view(cont, context=None) -> None:
         box.empty_display_type = 'CUBE'
         box["em_alternative_of"] = cont.label
         box["em_alternative_asset"] = cont.alt_asset_id
-        (context.scene if context else bpy.context.scene).collection.objects.link(box)
+        scene.collection.objects.link(box)
     if box is not None:
         lo, hi = cont.alt_box_min, cont.alt_box_max
         box.location = [(lo[i] + hi[i]) / 2 for i in range(3)]
         box.scale = [max(1e-3, (hi[i] - lo[i]) / 2) for i in range(3)]
+        box["em_alternative_epochs"] = ", ".join(state["epochs"])
         try:
-            box.hide_set(not cont.alt_shown)
+            box.hide_set(not visible)
         except RuntimeError:
             pass
+        if visible and box.hide_viewport:
+            box.hide_viewport = False
+
+
+def apply_all_views(context) -> int:
+    """Every container's alternative on the scene (after the RM visibility
+    followed the epoch). → how many were applied."""
+    n = 0
+    for cont in context.scene.rm_containers:
+        if cont.alt_asset_id:
+            try:
+                apply_view(cont, context)
+                n += 1
+            except Exception as exc:  # noqa: BLE001
+                print(f"[RM containers] the alternative of «{cont.label}»: {exc}")
+    return n
 
 
 _CLASSES = [RMCONTAINER_MT_alt_choose, RMCONTAINER_OT_alt_from_graph, RMCONTAINER_OT_alt_from_disk,

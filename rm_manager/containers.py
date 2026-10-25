@@ -1405,16 +1405,41 @@ def check_containers_on_open(context, graphs) -> List[str]:
             righe.extend(_gn.compare_with_graph(graph, viste))
     # the panel's copy of each container's alternative (the graph is the truth)
     try:
-        from .alternative_operators import refresh_from_graph
+        from .alternative_operators import apply_view, refresh_from_graph
         for c in scene.rm_containers:
             if not c.group_node_id:
-                continue
+                # MICRO tileset, shift e epoche (25 Oct 2026) · a container
+                # whose group was written in an em.json the .blend was not
+                # saved after (E.D.'s «tls»: rmgroup_tls in the em.json, no
+                # id in the scene) IS that group — the same stable id the
+                # comparison above already matches it by
+                gid = _gn.group_node_id_for(c.label, c.doc_node_id)
+                for graph in graphs:
+                    node = graph.find_node_by_id(gid)
+                    if node is not None and getattr(node, "node_type", "") == _gn.GROUP_NODE_TYPE:
+                        c.group_node_id = gid
+                        if not c.doc_node_id:
+                            g = next((x for x in _gn.groups_in(graph) if x["id"] == gid), None)
+                            if g and g["doc_node_id"]:
+                                c.doc_node_id = g["doc_node_id"]
+                                c.doc_name = _resolve_doc_name(graph, g["doc_node_id"])
+                        righe.append(f"container {c.label!r}: its group {gid} found in the graph")
+                        break
+                if not c.group_node_id:
+                    continue
             for graph in graphs:
                 if graph is not None and graph.find_node_by_id(c.group_node_id) is not None:
                     refresh_from_graph(c, graph)
+                    if c.alt_asset_id:
+                        apply_view(c, context, members=False)
                     break
     except Exception as exc:  # noqa: BLE001 — opening never fails for a copy
         _em_log(f"[RM containers] on open: alternatives not read ({exc})", "WARNING")
+    try:
+        from .frame_operators import refresh_object_frames
+        refresh_object_frames(graphs)
+    except Exception as exc:  # noqa: BLE001
+        _em_log(f"[RM containers] on open: tileset frames not read ({exc})", "WARNING")
     for riga in righe:
         _em_log(f"[RM containers] on open: {riga}", "WARNING")
         _add_warning(scene, "em.json", riga)

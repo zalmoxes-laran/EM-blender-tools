@@ -271,7 +271,8 @@ class RMContainerItem(PropertyGroup):
             ("MODELS", "Models", "The container's models"),
             ("TILESET", "Tileset", "The tileset (in Blender: its box) in place of the models"),
             ("AUTO", "Automatic", "The viewer chooses by distance; in Blender, which draws "
-                                 "no tileset, it is the models"),
+                                 "no tileset, it is the models — the tileset when the "
+                                 "container has no model"),
         ],
         default="MODELS",
         update=lambda self, context: _apply_alt_view(self, context),
@@ -284,9 +285,27 @@ class RMContainerItem(PropertyGroup):
     )  # type: ignore
     alt_box_min: FloatVectorProperty(size=3, default=(0.0, 0.0, 0.0))  # type: ignore
     alt_box_max: FloatVectorProperty(size=3, default=(0.0, 0.0, 0.0))  # type: ignore
+    # MICRO tileset, shift e epoche (E.D., 25 Oct 2026) · copies for the
+    # panel, never the truth: the frame of the tileset's asset (JSON of
+    # ``data.frame``: «the coordinates of this file are CRS X minus shift S»),
+    # where its box went and the fit's residual, the epochs it lies in
+    alt_frame: StringProperty(name="Frame of the alternative", default="")  # type: ignore
+    alt_place_note: StringProperty(name="Where the box went", default="")  # type: ignore
+    alt_epochs: StringProperty(name="Epochs of the alternative", default="")  # type: ignore
+    alt_epochs_source: StringProperty(name="Whence its epochs", default="")  # type: ignore
 
 
 def _apply_alt_view(container, context):
+    # with the RM visibility following the epoch, the whole sync runs (it
+    # applies the alternatives at its end): the models a mode shows again
+    # are the epoch's, not all of them
+    if getattr(context.scene, "sync_rm_visibility", False):
+        try:
+            if bpy.ops.em.strat_sync_visibility.poll():
+                bpy.ops.em.strat_sync_visibility()
+                return
+        except Exception:  # noqa: BLE001
+            pass
     from .alternative_operators import apply_view
     apply_view(container, context)
 

@@ -256,17 +256,35 @@ def proposed_name(path: str, asset: Optional[Dict[str, Any]] = None) -> str:
     return stem if ext.lower() in TILESET_EXTENSIONS else base
 
 
-def inspect_tileset(path: str) -> Dict[str, Any]:
+def inspect_tileset(path: str, frame: Optional[Dict[str, Any]] = None,
+                    target: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """What a tileset holds, read from its ``tileset.json`` and the external
     ones it calls — never a tile. → ``{kind, path, name, asset, leaves,
-    tiles, external, unread, level, envelope}``: ``leaves`` the axis-aligned
-    boxes (in the tileset's frame, ``transform`` applied) of the tiles with
-    content and no children; ``unread`` the external tilesets that could not
-    be read (their calling tile stands with its own box, ``level`` then says
-    ``coarse``). Raises ValueError for something that is not a tileset."""
+    tiles, external, unread, level, envelope, relocation}``: ``leaves`` the
+    axis-aligned boxes (in the tileset's frame, ``transform`` applied) of the
+    tiles with content and no children; ``unread`` the external tilesets that
+    could not be read (their calling tile stands with its own box, ``level``
+    then says ``coarse``). Raises ValueError for something that is not a
+    tileset.
+
+    ``frame`` (``data.frame`` of its resource, s3Dgraphy nodes datamodel
+    1.6.38: «the coordinates of this file are CRS X minus shift S») relocates
+    the root (MICRO tileset, shift e epoche, 25 Oct 2026): the root's
+    ``transform`` is replaced by the one s3Dgraphy's ``relocate_transform``
+    fits towards ``target`` (``{"crs", "shift"}``: the local frame of the
+    study, the Blender scene; None = ECEF), and ``relocation`` carries its
+    answer (``ok``, ``residual_rms_m``, ``residual_max_m``, ``true``…) or
+    why it could not (``ok: False``, ``error``) — then the boxes stay where
+    the written transform puts them. Without a frame ``relocation`` is None."""
     src = _Source(path)
     try:
         root_doc = json.loads(src.read("tileset.json"))
+        relocation = None
+        root_t = None
+        if frame:
+            relocation = relocate_root(root_doc.get("root") or {}, frame, target)
+            if relocation.get("ok"):
+                root_t = relocation["transform"]
         leaves: List[Box] = []
         unread: List[str] = []
         external = [0]
@@ -277,8 +295,11 @@ def inspect_tileset(path: str) -> Dict[str, Any]:
 
         def walk(tile: Dict[str, Any], base: str, m: Sequence[float], depth: int):
             counted[0] += 1
-            t = _mul(m, tile["transform"]) if isinstance(tile.get("transform"), list) \
-                and len(tile["transform"]) == 16 else list(m)
+            if depth == 0 and root_t is not None:
+                t = list(root_t)        # the root, relocated by its frame
+            else:
+                t = _mul(m, tile["transform"]) if isinstance(tile.get("transform"), list) \
+                    and len(tile["transform"]) == 16 else list(m)
             content = tile.get("content") or {}
             uri = content.get("uri") or content.get("url") or ""
             kids = tile.get("children") or []
@@ -315,7 +336,29 @@ def inspect_tileset(path: str) -> Dict[str, Any]:
     return {"kind": src.kind, "path": src.path, "name": proposed_name(path, asset),
             "asset": asset, "leaves": leaves, "tiles": counted[0],
             "external": external[0], "unread": unread,
-            "level": "coarse" if unread else "leaves", "envelope": env}
+            "level": "coarse" if unread else "leaves", "envelope": env,
+            "relocation": relocation}
+
+
+def relocate_root(root: Dict[str, Any], frame: Dict[str, Any],
+                  target: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """The root's true transform for ``frame``, through s3Dgraphy
+    (``geometry.frame.relocate_transform``: PROJ, a fit on the points of the
+    root's volume, its residual in metres). ``{"ok": False, "error"}`` when
+    the installed s3Dgraphy has no frame (older than the nodes datamodel
+    1.6.38), PROJ is missing, or the root has no box/sphere."""
+    try:
+        from s3dgraphy.geometry.frame import relocate_transform
+    except ImportError:
+        return {"ok": False, "error": "this s3Dgraphy has no frame relocation "
+                                      "(it comes with the nodes datamodel 1.6.38)"}
+    t = root.get("transform") if isinstance(root.get("transform"), list) \
+        and len(root["transform"]) == 16 else None
+    try:
+        return relocate_transform(t, frame, bounding_volume=root.get("boundingVolume"),
+                                  target=target)
+    except Exception as exc:  # noqa: BLE001 — PROJ's reason is the user's
+        return {"ok": False, "error": f"the frame could not relocate the tileset: {exc}"}
 
 
 # ── coverage ─────────────────────────────────────────────────────────────────

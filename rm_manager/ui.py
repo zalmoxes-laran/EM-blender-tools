@@ -145,8 +145,31 @@ def _draw_alternative_row(layout, scene, cont):
     if cont.alt_mode == 'AUTO':
         hint = box.row()
         hint.scale_y = 0.7
-        hint.label(text="Automatic is Models in Blender (no distance to switch on)",
-                   icon='INFO')
+        if len(cont.mesh_names) == 0:
+            # s3Dgraphy 1.6.40: a container with an alternative and no member
+            # lights its alternative
+            hint.label(text="Automatic is the tileset here: the container has no model",
+                       icon='INFO')
+        else:
+            hint.label(text="Automatic is Models in Blender (no distance to switch on)",
+                       icon='INFO')
+    # MICRO tileset, shift e epoche · the epochs its alternative lies in (the
+    # members', else the container's own) — a copy written by apply_view
+    eps = box.row()
+    eps.scale_y = 0.7
+    whence = {"members": "its models'", "own": "the container's own",
+              "own (local)": "the container's own", "scene": "«Epochs of this set»"}
+    if cont.alt_epochs:
+        eps.label(text=f"Seen in: {cont.alt_epochs} "
+                       f"({whence.get(cont.alt_epochs_source, cont.alt_epochs_source)})",
+                  icon='TIME')
+    else:
+        eps.alert = True
+        eps.label(text="In no epoch: give the container an epoch («Epochs of this set») "
+                       "or a document with one", icon='TIME')
+    # the frame of the tileset's file: «its coordinates are the CRS minus the shift»
+    from .frame_operators import draw_frame
+    draw_frame(box, cont, container_index=scene.rm_containers_index)
     if cont.alt_note:
         warn = box.row()
         warn.alert = True
@@ -862,6 +885,9 @@ class VIEW3D_PT_RM_Manager(Panel):
                         row = box.row()
                         row.alert = True
                         row.label(text="Warning: File not found!", icon='ERROR')
+                    # MICRO tileset, shift e epoche · the frame of its file
+                    from .frame_operators import draw_frame
+                    draw_frame(box, obj, object_name=obj.name)
 
         # Settings (collapsible) — kept at the bottom so routine per-row
         # editing (tilesets, epochs) stays above the fold.
