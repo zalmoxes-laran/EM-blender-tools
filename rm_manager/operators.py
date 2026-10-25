@@ -721,7 +721,8 @@ class RM_OT_add_tileset(Operator):
     bl_idname = "rm.add_tileset"
     bl_label = "Add Cesium Tileset"
     bl_description = ("Add an empty Cesium tileset object to the current epoch: "
-                      "choose its .3tz or .zip; it enters the project's storage")
+                      "choose its .3tz, .zip or folder (a RealityScan export too: "
+                      "it is prepared as a package first); it enters the project's storage")
 
     tileset_name: StringProperty(
         name="Tileset Name",
@@ -737,7 +738,11 @@ class RM_OT_add_tileset(Operator):
         options={'HIDDEN', 'SKIP_SAVE'},
     ) # type: ignore
     filepath: StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})  # type: ignore
-    filter_glob: StringProperty(default="*.zip;*.3tz", options={'HIDDEN'})  # type: ignore
+    #: a FOLDER too (MICRO tileset-cartella, 25 Oct 2026): open it and press
+    #: the button with no file selected; ``*.json`` for RealityScan's root
+    directory: StringProperty(subtype='DIR_PATH', options={'SKIP_SAVE'})  # type: ignore
+    filter_glob: StringProperty(default="*.zip;*.3tz;*.json", options={'HIDDEN'})  # type: ignore
+    filter_folder: BoolProperty(default=True, options={'HIDDEN'})  # type: ignore
 
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
@@ -759,8 +764,18 @@ class RM_OT_add_tileset(Operator):
 
         active_epoch = epochs.list[epochs.list_index]
 
-        chosen = bpy.path.abspath(self.filepath or self.tileset_path)
+        chosen = self.filepath or self.tileset_path
+        if (not chosen or os.path.isdir(bpy.path.abspath(chosen))
+                or not os.path.basename(chosen)) and self.directory:
+            chosen = self.directory
+        chosen = bpy.path.abspath(chosen) if chosen else ""
         if chosen:
+            # a folder, a RealityScan export, a zip without tileset.json at
+            # its root: «Shall I prepare it?» first, then this again
+            from .alternative_operators import route_tileset
+            routed = route_tileset(self, chosen, 'ADD', tileset_name=self.tileset_name)
+            if routed is not None:
+                return routed
             from . import container_alternative as _ca
             from .alternative_operators import _emjson_dir, _project_root
             try:

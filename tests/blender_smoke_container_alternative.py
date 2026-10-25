@@ -319,8 +319,8 @@ try:
 except Exception as exc:  # noqa: BLE001
     print(f"[SMOKE] the drop operator in -b: {type(exc).__name__}: {exc}")
 fh = bpy.types.RMCONTAINER_FH_tileset
-check("the FileHandler takes .3tz and .zip, for rmcontainer.alt_drop",
-      fh.bl_file_extensions == ".3tz;.zip" and fh.bl_import_operator == "rmcontainer.alt_drop")
+check("the FileHandler takes .3tz, .zip and the RealityScan .json, for rmcontainer.alt_drop",
+      fh.bl_file_extensions == ".3tz;.zip;.json" and fh.bl_import_operator == "rmcontainer.alt_drop")
 
 # «Add Cesium Tileset»: the file chosen, the name proposed, into the storage
 if len(em.epochs.list):

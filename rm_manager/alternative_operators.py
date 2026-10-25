@@ -6,9 +6,15 @@ dialog (:class:`RMCONTAINER_OT_alt_confirm`) —
 1. a tileset already in the graph (:class:`RMCONTAINER_OT_alt_from_graph`);
 2. a .3tz, a .zip or a folder with ``tileset.json`` from the disk, with
    Blender's file browser (:class:`RMCONTAINER_OT_alt_from_disk`);
-3. a .3tz or .zip dropped on the 3D Viewport's sidebar
-   (:class:`RMCONTAINER_FH_tileset`, Blender's FileHandler: it takes files by
-   extension, not folders).
+3. a .3tz, .zip or the RealityScan ``X.json`` dropped on the 3D Viewport's
+   sidebar (:class:`RMCONTAINER_FH_tileset`, Blender's FileHandler: it takes
+   files by extension, not folders).
+
+A folder, or a RealityScan export (``X.json`` beside ``X/``, or a zip without
+``tileset.json`` at its root), first passes through :class:`RM_OT_tileset_prepare`
+(MICRO tileset-cartella, 25 Oct 2026): what it is, where it falls, «Shall I
+prepare it?» — the package is written beside the original, then the same
+dialog opens on it.
 
 The dialog proposes the name, shows the coverage check (an aid: it never
 blocks) and offers «Add to the container» for the models the tileset holds and
@@ -243,7 +249,8 @@ class RMCONTAINER_MT_alt_choose(Menu):
         layout.operator("rmcontainer.alt_from_disk", text="A file or folder from the disk…",
                         icon='FILE_FOLDER')
         layout.separator()
-        layout.label(text="or drop a .3tz / .zip on this sidebar", icon='IMPORT')
+        layout.label(text="or drop a .3tz / .zip / RealityScan .json on this sidebar",
+                     icon='IMPORT')
 
 
 def _graph_tileset_items(self, context):
@@ -290,7 +297,7 @@ class RMCONTAINER_OT_alt_from_disk(Operator):
     container_index: IntProperty(default=-1)  # type: ignore
     filepath: StringProperty(subtype='FILE_PATH')  # type: ignore
     directory: StringProperty(subtype='DIR_PATH')  # type: ignore
-    filter_glob: StringProperty(default="*.3tz;*.zip;tileset.json", options={'HIDDEN'})  # type: ignore
+    filter_glob: StringProperty(default="*.3tz;*.zip;*.json", options={'HIDDEN'})  # type: ignore
     filter_folder: BoolProperty(default=True, options={'HIDDEN'})  # type: ignore
 
     def invoke(self, context, event):
@@ -302,12 +309,16 @@ class RMCONTAINER_OT_alt_from_disk(Operator):
         if not path or os.path.isdir(path) or not os.path.basename(path):
             path = self.directory
         path = bpy.path.abspath(path)
+        routed = route_tileset(self, path, 'ALTERNATIVE', container_index=self.container_index)
+        if routed is not None:
+            return routed
         return bpy.ops.rmcontainer.alt_confirm('INVOKE_DEFAULT', container_index=self.container_index,
                                                source='DISK', path=path)
 
 
 class RMCONTAINER_OT_alt_drop(Operator):
-    """What a .3tz / .zip dropped on the sidebar opens: the same dialog."""
+    """What a .3tz / .zip / RealityScan root dropped on the sidebar opens: the
+    same dialog (through «Shall I prepare it?» when it is not a package)."""
     bl_idname = "rmcontainer.alt_drop"
     bl_label = "Tileset as the container's alternative"
     bl_options = {'INTERNAL'}
@@ -326,17 +337,22 @@ class RMCONTAINER_OT_alt_drop(Operator):
             path = os.path.join(self.directory, self.files[0].name)
         if not path:
             return {'CANCELLED'}
+        routed = route_tileset(self, path, 'ALTERNATIVE')
+        if routed is not None:
+            return routed
         return bpy.ops.rmcontainer.alt_confirm('INVOKE_DEFAULT', source='DISK', path=path)
 
 
 if hasattr(bpy.types, "FileHandler"):
     class RMCONTAINER_FH_tileset(bpy.types.FileHandler):
-        """A .3tz or .zip dropped on the 3D Viewport's SIDEBAR (where the RM
-        Containers panel is), with a container active."""
+        """A .3tz, a .zip or a RealityScan root ``X.json`` dropped on the 3D
+        Viewport's SIDEBAR (where the RM Containers panel is), with a
+        container active. A folder cannot be dropped here (Blender's
+        FileHandler matches extensions): «Choose…» takes it."""
         bl_idname = "RMCONTAINER_FH_tileset"
         bl_label = "Container alternative (tileset)"
         bl_import_operator = "rmcontainer.alt_drop"
-        bl_file_extensions = ".3tz;.zip"
+        bl_file_extensions = ".3tz;.zip;.json"
 
         @classmethod
         def poll_drop(cls, context):
@@ -346,6 +362,146 @@ if hasattr(bpy.types, "FileHandler"):
                     and active_container(context.scene) is not None)
 else:                                                        # pragma: no cover
     RMCONTAINER_FH_tileset = None
+
+
+# ── a tileset as it arrives: «Shall I prepare it?» ──────────────────────────
+
+#: what the prepare dialog recognised in invoke(), read by draw()
+_PREP: Dict[str, Any] = {}
+
+
+def writer_3tz():
+    """3D Survey Collection's ``archive_3tz.write_3tz`` when 3DSC is enabled
+    (found through its registered «Pack a tileset into .3tz»), else None:
+    EM Tools writes no .3tz of its own."""
+    cls = getattr(bpy.types, "OBJECT_OT_cesium_pack_3tz", None)
+    if cls is None:
+        return None
+    import importlib
+    try:
+        return importlib.import_module(cls.__module__.rsplit(".", 1)[0] + ".archive_3tz").write_3tz
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def route_tileset(op, path: str, then: str, container_index: int = -1,
+                  tileset_name: str = ""):
+    """Before a chosen tileset goes on: a package (or, for the alternative, a
+    folder the user keeps as it is) → None, go on; something that can become
+    a package → «Shall I prepare it?» opens, the caller stops; anything else
+    → the error that says what is inside and what to do."""
+    from . import tileset_shape as tsh
+    rec = tsh.recognise(path)
+    if rec["form"] == "package":
+        return None
+    if rec["preparable"]:
+        bpy.ops.rm.tileset_prepare('INVOKE_DEFAULT', path=path, then=then,
+                                   container_index=container_index, tileset_name=tileset_name)
+        return {'FINISHED'}
+    op.report({'ERROR'}, rec["says"])
+    return {'CANCELLED'}
+
+
+class RM_OT_tileset_prepare(Operator):
+    """A folder or a RealityScan export is not a package yet: say what it is
+    and where it falls, then, at «OK», write the package beside it (.3tz with
+    3D Survey Collection, otherwise .zip) and go on with it — «Add Cesium
+    Tileset» or the container's alternative, as today."""
+    bl_idname = "rm.tileset_prepare"
+    bl_label = "Prepare the tileset package"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    path: StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})  # type: ignore
+    then: EnumProperty(items=[('ADD', "Add Cesium Tileset", ""),  # type: ignore
+                              ('ALTERNATIVE', "Container alternative", "")],
+                       options={'SKIP_SAVE'})
+    container_index: IntProperty(default=-1, options={'SKIP_SAVE'})  # type: ignore
+    tileset_name: StringProperty(default="", options={'SKIP_SAVE'})  # type: ignore
+    choice: EnumProperty(  # type: ignore
+        name="Answer",
+        items=[('PACK', "Prepare the package", "Write the package beside the original "
+                "(never inside it, never over a file): the original is not touched"),
+               ('AS_IS', "Use the folder as it is", "The folder with tileset.json "
+                "enters the project as a folder")],
+        default='PACK', options={'SKIP_SAVE'})
+
+    def _measure(self):
+        from . import tileset_shape as tsh
+        _PREP.clear()
+        rec = tsh.recognise(bpy.path.abspath(self.path))
+        w = writer_3tz()
+        _PREP.update(rec=rec, position=tsh.position(rec["root_doc"]), writer=w,
+                     dest=tsh.package_path(rec, ".3tz" if w else ".zip") if rec["preparable"] else "")
+        return rec
+
+    def invoke(self, context, event):
+        rec = self._measure()
+        if not rec["preparable"]:
+            self.report({'ERROR'}, rec["says"])
+            return {'CANCELLED'}
+        return context.window_manager.invoke_props_dialog(self, width=620)
+
+    def draw(self, context):
+        from . import tileset_shape as tsh
+        layout = self.layout
+        rec, pos = _PREP.get("rec") or {}, _PREP.get("position") or {}
+        col = layout.column(align=True)
+        col.label(text=rec.get("says", ""), icon='FILE_FOLDER')
+        row = col.row()
+        row.alert = bool(pos.get("warn"))
+        row.label(text=pos.get("line", ""), icon='ERROR' if pos.get("warn") else 'WORLD')
+        layout.separator()
+        layout.label(text=tsh.PREPARE_QUESTION, icon='QUESTION')
+        if rec.get("form") == "folder" and self.then == 'ALTERNATIVE':
+            layout.prop(self, "choice", expand=True)
+        box = layout.box()
+        box.scale_y = 0.8
+        box.label(text=f"Writes: {_PREP.get('dest', '')}", icon='PACKAGE')
+        box.label(text=("A .3tz with 3D Survey Collection" if _PREP.get("writer") else
+                        "A .zip (3D Survey Collection is not enabled: no .3tz writer here)")
+                  + "; the original is only read")
+
+    def execute(self, context):
+        from . import tileset_shape as tsh
+        if not _PREP.get("rec") or _PREP["rec"]["path"] != bpy.path.abspath(self.path).rstrip(os.sep):
+            self._measure()
+        rec = _PREP["rec"]
+        if not rec["preparable"]:
+            self.report({'ERROR'}, rec["says"])
+            return {'CANCELLED'}
+        if self.choice == 'AS_IS' and rec["form"] == "folder" and self.then == 'ALTERNATIVE':
+            target = rec["folder"]
+        else:
+            wm = context.window_manager
+            wm.progress_begin(0, 100)
+            try:
+                got = tsh.prepare(rec, writer_3tz=_PREP.get("writer"),
+                                  progress=lambda d, t: wm.progress_update(int(100 * d / max(1, t))))
+            except (OSError, ValueError) as exc:
+                self.report({'ERROR'}, f"The package could not be written: {exc}")
+                return {'CANCELLED'}
+            finally:
+                wm.progress_end()
+            target = got["path"]
+            self.report({'INFO'}, f"Prepared {os.path.basename(target)} beside the original "
+                                  f"({got.get('entries', '?')} files)")
+        if _PREP.get("position", {}).get("warn"):
+            self.report({'WARNING'}, _PREP["position"]["line"])
+        name = self.tileset_name or rec.get("name", "")
+        _PREP.clear()
+        if self.then == 'ADD':
+            return bpy.ops.rm.add_tileset('EXEC_DEFAULT', filepath=target, tileset_name=name)
+        if bpy.app.background:                 # no dialog in -b: measured, then run
+            _idx, cont = _container(context, self.container_index)
+            if cont is None:
+                self.report({'WARNING'}, "No active container")
+                return {'CANCELLED'}
+            got = measure_choice(context, cont, 'DISK', path=target)
+            return bpy.ops.rmcontainer.alt_confirm('EXEC_DEFAULT', container_index=_idx,
+                                                   source='DISK', path=target,
+                                                   name=got["name"], action=got["action"])
+        return bpy.ops.rmcontainer.alt_confirm('INVOKE_DEFAULT', container_index=self.container_index,
+                                               source='DISK', path=target)
 
 
 # ── the dialog: name, uses, coverage, the three answers ─────────────────────
@@ -560,7 +716,8 @@ def apply_view(cont, context=None) -> None:
 
 
 _CLASSES = [RMCONTAINER_MT_alt_choose, RMCONTAINER_OT_alt_from_graph, RMCONTAINER_OT_alt_from_disk,
-            RMCONTAINER_OT_alt_drop, RMCONTAINER_OT_alt_confirm, RMCONTAINER_OT_alt_remove]
+            RMCONTAINER_OT_alt_drop, RMCONTAINER_OT_alt_confirm, RMCONTAINER_OT_alt_remove,
+            RM_OT_tileset_prepare]
 if RMCONTAINER_FH_tileset is not None:
     _CLASSES.append(RMCONTAINER_FH_tileset)
 
