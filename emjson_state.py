@@ -75,6 +75,14 @@ def mark_saved(path: str, graphs: Dict[str, Any],
     }
 
 
+def note_deleted(path: str, graph_id: str) -> None:
+    """A graph was DELETED from the file in the scene (not only taken off it):
+    the file on disk still holds it until the next save, which is said."""
+    state = _SAVED.get(_norm(path))
+    if state is not None:
+        state.setdefault("deleted", set()).add(graph_id)
+
+
 def forget(path: str) -> None:
     _SAVED.pop(_norm(path), None)
 
@@ -106,6 +114,10 @@ def unsaved(path: str, graphs: Dict[str, Any],
                     else f"{changed} graph(s) changed")
     if new:
         said.append(f"{new} graph(s) not in the file yet")
+    gone = state.get("deleted") or set()
+    if gone:
+        said.append(f"{len(gone)} graph(s) deleted, still in the file "
+                    f"({', '.join(sorted(gone))})")
     pending = [label for label in _ungrouped(containers)
                if label not in state["accepted"]]
     if pending:

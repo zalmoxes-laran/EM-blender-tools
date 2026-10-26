@@ -378,9 +378,122 @@ def save_file(path: str, graph_ids: Iterable[str],
                  if k in graphs},
         version=getattr(base, "version", None),
     )
+    # the shared measures of time travel with the file too (they were dropped
+    # here: a container's periodizations did not survive a save from Blender)
+    if getattr(base, "periodizations", None) is not None:
+        container.periodizations = base.periodizations
     result.shelf = container.shelf is not None
     result.corpus = container.corpus is not None
     result.backup = _safety_copy(full) or ""
     save_container_file(container, full)
     remember(full, container)
     return result
+
+
+# ── MICRO contenuti-workspace-elimina-grafo · a graph LEAVES its em.json ─────
+#
+# «Remove graph» (−) takes a row off the scene and the graph stays in its file
+# (the next save writes it back from the remembered container). Deleting it
+# from the file is another gesture, and s3Dgraphy's: `remove_graph` on the
+# file's container as the scene would write it — the scene's graphs for the
+# rows it has, the remembered ones for the rest — so the report (nodes, edges,
+# the links of the other graphs, the shelf entries only it used, the files
+# nobody else names) is the same one EMStudio shows. Applied, the graph is
+# taken out of the remembered container too: the next save no longer writes
+# it. Files on disk are never touched.
+
+def _base_of(full: str) -> Any:
+    from s3dgraphy.container import load_container_file
+    base = remembered(full)
+    if base is None and os.path.exists(full):
+        base, _warnings = load_container_file(full)
+        remember(full, base)
+    return base
+
+
+def file_view(path: str, graph_ids: Iterable[str],
+              live: Callable[[str], Any]) -> Any:
+    """The container a save of ``path`` would write, as objects: the scene's
+    graph for each id of ``graph_ids`` it has, the remembered one otherwise."""
+    from s3dgraphy.container import Container
+    full = _norm_path(path)
+    base = _base_of(full)
+    wanted = [g for g in graph_ids if g]
+    graphs: Dict[str, Any] = {}
+    for gid, graph in (getattr(base, "graphs", {}) or {}).items():
+        now = live(gid) if gid in wanted else None
+        graphs[gid] = now if now is not None else graph
+    for gid in wanted:
+        if gid not in graphs and live(gid) is not None:
+            graphs[gid] = live(gid)
+    view = Container(
+        graphs=graphs,
+        shelf=getattr(base, "shelf", None),
+        corpus=getattr(base, "corpus", None),
+        active_graph_id=getattr(base, "active_graph_id", None),
+        header=dict(getattr(base, "header", {}) or {}),
+        layout=dict(getattr(base, "layout", {}) or {}),
+        layouts=dict(getattr(base, "layouts", {}) or {}),
+        version=getattr(base, "version", None),
+    )
+    if getattr(base, "periodizations", None) is not None:
+        view.periodizations = base.periodizations
+    return view
+
+
+def removal_api():
+    """s3Dgraphy's `remove_graph`, or None when the s3Dgraphy in use is older
+    than the operation (the bundled wheel before it was bundled)."""
+    try:
+        from s3dgraphy.graph_removal import remove_graph
+    except ImportError:
+        return None
+    return remove_graph
+
+
+def remove_from_file(path: str, graph_id: str, graph_ids: Iterable[str],
+                     live: Callable[[str], Any], *, links: str = "keep",
+                     shelf: str = "keep", dry_run: bool = False) -> Dict[str, Any]:
+    """s3Dgraphy's report on deleting ``graph_id`` from the em.json at ``path``
+    (``dry_run``), or the deletion itself: the remembered container loses the
+    graph (its layout too), the other graphs' links are kept marked or dropped,
+    the shelf entries only it used stay or go. Raises ImportError when the
+    s3Dgraphy in use has no `remove_graph`, its GraphRemovalError when the
+    graph cannot be removed (the last one, the shelf…)."""
+    remove_graph = removal_api()
+    if remove_graph is None:
+        raise ImportError("this s3Dgraphy has no graph_removal (newer than the "
+                          "bundled one)")
+    full = _norm_path(path)
+    view = file_view(full, graph_ids, live)
+    report = remove_graph(view, graph_id, links=links, shelf=shelf,
+                          dry_run=dry_run)
+    if dry_run:
+        return report
+    base = _base_of(full)
+    if base is not None:
+        base.graphs = {gid: g for gid, g in view.graphs.items()}
+        base.layouts = dict(view.layouts)
+        base.layout = dict(view.layout)
+        base.active_graph_id = view.active_graph_id
+        base.shelf = view.shelf
+        remember(full, base)
+    return report
+
+
+def objects_of_graph(graph: Any, object_names: Iterable[str],
+                     code: str = "") -> List[str]:
+    """The Blender objects tied to ``graph`` by name: a node's name, or the
+    name with the graph's code before it (``CODE.US12``) — proxies, RMs,
+    documents. Given the scene's object names, so it needs no bpy."""
+    names = set(object_names)
+    out = []
+    for node in getattr(graph, "nodes", []) or []:
+        name = _text(getattr(node, "name", ""))
+        if not name:
+            continue
+        for candidate in ((f"{code}.{name}", name) if code else (name,)):
+            if candidate in names and candidate not in out:
+                out.append(candidate)
+    return sorted(out)
+

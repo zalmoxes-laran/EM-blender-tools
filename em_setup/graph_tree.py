@@ -330,6 +330,159 @@ class EM_OT_graph_save_all(bpy.types.Operator):
         return {"FINISHED"}
 
 
+def _delete_target(context, index: int):
+    """`(rows, i, row, origin)` of the graph «Delete…» acts on, or None."""
+    em_tools = context.scene.em_tools
+    rows = _rows(em_tools)
+    i = index if index >= 0 else em_tools.active_file_index
+    if not (0 <= i < len(rows)):
+        return None
+    return rows, i, rows[i], graph_origins.origin_of(rows[i], abspath=_abspath)
+
+
+class EM_OT_graph_delete(bpy.types.Operator):
+    """Delete this graph from its em.json — after the report"""
+
+    bl_idname = "em.graph_delete"
+    bl_label = "Delete the graph from its em.json…"
+    bl_description = ("Take the graph OUT of its em.json (− only takes it off "
+                      "the scene, and the file keeps it). First the report, "
+                      "s3Dgraphy's: its nodes and edges, the links of the "
+                      "other graphs that point at it, the shelf entries only "
+                      "it used, the files nobody else uses (never deleted), "
+                      "the Blender objects tied to it (they stay). Written "
+                      "by the next save of the file")
+
+    index: IntProperty(default=-1, options={"SKIP_SAVE"})  # type: ignore
+    drop_links: bpy.props.BoolProperty(  # type: ignore
+        name="Remove the links of the other graphs that point at it",
+        description="Otherwise they stay, marked as pointing at a deleted graph",
+        default=False, options={"SKIP_SAVE"})
+    drop_shelf: bpy.props.BoolProperty(  # type: ignore
+        name="Take the shelf entries only it used off the shelf",
+        description="Otherwise they stay on the shelf", default=False,
+        options={"SKIP_SAVE"})
+
+    @classmethod
+    def poll(cls, context):
+        target = _delete_target(context, -1)
+        if target is None:
+            cls.poll_message_set("No graph selected")
+            return False
+        _rows_, _i, _row, origin = target
+        if origin.is_room:
+            cls.poll_message_set("The graph lives in a room: it is the room's "
+                                 "study, not a file's")
+            return False
+        if not (origin.is_file and origin.is_emjson):
+            cls.poll_message_set("The graph is not in an em.json (a GraphML or "
+                                 "no file): there is no file to take it out of")
+            return False
+        if graph_origins.removal_api() is None:
+            cls.poll_message_set("The s3Dgraphy bundled here is older than "
+                                 "«Delete the graph»: it comes with the next "
+                                 "bundle")
+            return False
+        return True
+
+    def _report(self, context, dry_run=True):
+        from s3dgraphy import get_graph
+        rows, i, row, origin = _delete_target(context, self.index)
+        members = graph_origins.members_of(rows, origin, abspath=_abspath)
+        return graph_origins.remove_from_file(
+            origin.path, row.name, members, get_graph,
+            links="drop" if self.drop_links else "keep",
+            shelf="drop" if self.drop_shelf else "keep", dry_run=dry_run)
+
+    def _objects(self, context):
+        from s3dgraphy import get_graph
+        from ..graph_code import graph_code_of
+        _rows_, _i, row, _origin = _delete_target(context, self.index)
+        graph = get_graph(row.name)
+        code = (graph_code_of(graph) if graph is not None else None) or ""
+        return graph_origins.objects_of_graph(
+            graph, (o.name for o in bpy.data.objects), code)
+
+    def invoke(self, context, event):
+        try:
+            self._said = self._report(context)
+        except Exception as exc:  # noqa: BLE001 — GraphRemovalError, ImportError
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        self._objs = self._objects(context)
+        return context.window_manager.invoke_props_dialog(self, width=560)
+
+    def draw(self, context):
+        from s3dgraphy.graph_removal import removal_summary
+        layout = self.layout
+        try:
+            rep = self._report(context)
+        except Exception as exc:  # noqa: BLE001
+            layout.label(text=str(exc), icon="ERROR")
+            return
+        col = layout.column(align=True)
+        for sentence in removal_summary(rep):
+            col.label(text=sentence[:1].upper() + sentence[1:])
+        for link in rep["links_in"][:6]:
+            col.label(text=f"   {link['graph_id']} · {link['source_name'] or link['source']} "
+                           f"→ {link['target_name'] or link['target']} ({link['edge_type']})")
+        if rep["links_in"]:
+            layout.prop(self, "drop_links")
+        for entry in rep["shelf_only_here"][:6]:
+            col.label(text=f"   shelf: {entry['name'] or entry['locator']}")
+        if rep["shelf_only_here"]:
+            layout.prop(self, "drop_shelf")
+        for path in rep["files_alone"][:6]:
+            col.label(text=f"   file: {path}", icon="FILE")
+        objs = getattr(self, "_objs", None) or self._objects(context)
+        box = layout.box()
+        if objs:
+            box.label(text=f"{len(objs)} Blender objects are tied to it by name: "
+                           f"they stay in the scene", icon="OBJECT_DATA")
+            box.label(text=", ".join(objs[:10]) + (f" … and {len(objs) - 10} more"
+                                                    if len(objs) > 10 else ""))
+        else:
+            box.label(text="No Blender object is tied to it by name",
+                      icon="OBJECT_DATA")
+
+    def execute(self, context):
+        from s3dgraphy import remove_graph as unload
+        from s3dgraphy.graph_removal import removal_summary
+        from .. import emjson_state
+        target = _delete_target(context, self.index)
+        if target is None:
+            return {"CANCELLED"}
+        _rows_, i, row, origin = target
+        gid = row.name
+        try:
+            objs = self._objects(context)
+            rep = self._report(context, dry_run=False)
+        except Exception as exc:  # noqa: BLE001
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        # off the manager and off the list; the objects stay where they are
+        unload(gid)
+        em_tools = context.scene.em_tools
+        em_tools.graphml_files.remove(i)
+        em_tools.active_file_index = min(max(0, i - 1), len(em_tools.graphml_files) - 1)
+        emjson_state.note_deleted(origin.path, gid)
+        said = removal_summary(rep)
+        print(f"[em.json] graph deleted from {origin.path}:")
+        for sentence in said:
+            print(f"  · {sentence}")
+        if objs:
+            print(f"  · Blender objects tied to it by name, left in the scene: {', '.join(objs)}")
+        rows = _rows(em_tools)
+        if rows and 0 <= em_tools.active_file_index < len(rows) and _loaded(rows[em_tools.active_file_index]):
+            try:
+                bpy.ops.em_tools.populate_lists(graphml_index=em_tools.active_file_index)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[graph tree] populate after delete skipped: {exc}")
+        tail = (f" · {len(objs)} Blender objects tied to it stay" if objs else "")
+        self.report({"INFO"}, f"{said[0]} — save {origin.label} to write it{tail}")
+        return {"FINISHED"}
+
+
 def draw_graph_tree(layout, context, em_tools) -> None:
     """The tree: a branch per origin, a row per graph, the active one marked."""
     from s3dgraphy import get_graph
@@ -560,10 +713,13 @@ class EM_MT_graph_more(bpy.types.Menu):
         op.enable = not on
         layout.operator("wm.call_menu", text="What is Multigraph?",
                         icon="INFO").name = "EM_MT_LandscapeInfo"
+        # MICRO contenuti-workspace-elimina-grafo · the graph LEAVES its em.json
+        layout.separator()
+        layout.operator("em.graph_delete", icon="TRASH")
 
 
 CLASSES = (EM_OT_graph_activate, EM_OT_graph_origin_save, EM_OT_graph_save_all,
-           EM_MT_graph_more)
+           EM_OT_graph_delete, EM_MT_graph_more)
 
 
 def register():
