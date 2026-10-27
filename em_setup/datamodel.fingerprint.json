@@ -1,5 +1,5 @@
 {
-  "digest": "sha256:b4ad8fadc72cce37e4400773febe63de7652cdc4ca1491849504b8b9ee8fb96e",
+  "digest": "sha256:d95775737b26d827217ed0ce04c1180b8e5828f59c73127e83b73da9054252ed",
   "versions": {
     "nodes": "1.6.38",
     "node_registry": "1.6.37",
@@ -14,7 +14,7 @@
     "connections": "sha256:573da103dd280a598076da51f1fb632d8953d02826e4ce62f7eebc3499f80c37",
     "visual_rules": "sha256:531304866f841e3c2a6c1e5ac8f8e3cf59a654ec6c2a4fc138b445be2a21d6ba",
     "qualia": "sha256:1f83bb41e0e610f572c25f24dfe4fae2730ec15c973c6e1864794c147bb03d81",
-    "translations": "sha256:99eefe1de24ca6a2852fdb8e2274dc1c46b969440bd5b3256a416e6010611536"
+    "translations": "sha256:9cffdac9eadd9ab8adefd149940898b0e12c85f8bd933b28d07ff1bd5c307090"
   },
   "files": {
     "nodes": {
@@ -44,10 +44,10 @@
     },
     "translations": {
       "file": "datamodel_translations.json",
-      "digest": "sha256:99eefe1de24ca6a2852fdb8e2274dc1c46b969440bd5b3256a416e6010611536",
+      "digest": "sha256:9cffdac9eadd9ab8adefd149940898b0e12c85f8bd933b28d07ff1bd5c307090",
       "version": "1.15"
     }
   },
-  "s3dgraphy": "1.6.0.dev66",
+  "s3dgraphy": "1.6.0.dev67",
   "_note": "the datamodel the pinned s3dgraphy wheel carries; written by scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup by em_setup/version_banner.check_datamodel. Never edit by hand."
 }
