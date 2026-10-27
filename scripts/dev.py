@@ -34,7 +34,8 @@ def increment_version(part='dev_build'):
     """Increment version and update files"""
     vm = VersionManager(Path(__file__).parent.parent)
     version = vm.increment_version(part)
-    vm.update_manifest()
+    # only the version line: the wheels target is ./em.sh manifest X.Y's
+    vm.update_manifest_version()
     vm.update_init_py()
     print(f"✅ Version incremented to: {version}")
     return version
@@ -42,8 +43,7 @@ def increment_version(part='dev_build'):
 def set_mode(mode):
     """Set development mode"""
     vm = VersionManager(Path(__file__).parent.parent)
-    version = vm.set_mode(mode)
-    vm.update_manifest()
+    version = vm.set_mode(mode)      # the version line only
     vm.update_init_py()
     print(f"✅ Mode set to {mode}, version: {version}")
     return version

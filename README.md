@@ -11,7 +11,7 @@ Version 1.5 is a major rewrite featuring a modular architecture, the **s3Dgraphy
 
 ## What's new in v1.5
 
-* **Blender Extension format** - Native `.zip` packages with bundled platform-specific wheels for Blender 5.0.x (Python 3.11) and 5.1+ (Python 3.13)
+* **Blender Extension format** - Native `.zip` packages with bundled platform-specific wheels for Blender 4.4–5.0.x (Python 3.11) and 5.1+ (Python 3.13)
 * **s3Dgraphy integration** - All graph operations (parsing, querying, export) powered by the [s3Dgraphy](https://github.com/zalmoxes-laran/s3Dgraphy) library
 * **Modular architecture** - Code reorganised into dedicated managers: Stratigraphy, Epoch, Visual, Reconstruction, Paradata, Document
 * **Graph Editor / Viewer** - Interactive node-graph visualisation of the Extended Matrix with dynamic sockets generated from the s3Dgraphy data-model
@@ -78,8 +78,11 @@ so a `.blend` stops having to be both the workshop and the archive.
 
 1. Go to the [Releases](https://github.com/zalmoxes-laran/EM-blender-tools/releases) page
 2. Download the file matching your **platform** and **Blender version**:
-   - Blender 5.0.x &rarr; `blender50` files (Python 3.11)
-   - Blender 5.1+ &rarr; `blender51` files (Python 3.13)
+   - Blender 4.4 &ndash; 5.0.x &rarr; `blender44-50` files (Python 3.11)
+   - Blender 5.1 and later &rarr; `blender51plus` files (Python 3.13)
+
+   Each package declares its Blender range (`blender_version_min`/`max`), so
+   Blender refuses the one built for the other Python instead of installing it.
 3. In Blender: **Extensions &rarr; Install from Disk**
 4. Select the downloaded file (do not unzip) and enable the extension
 
@@ -119,7 +122,7 @@ chmod +x em.sh
 
 # Setup development environment (downloads platform wheels)
 # For macOS / Linux
-./em.sh setup            # Python 3.11 (Blender 5.0.x)
+./em.sh setup            # Python 3.11 (Blender 4.4–5.0.x)
 ./em.sh setup 3.13       # Python 3.13 (Blender 5.1+)
 ./em.sh setup force all  # Force re-download for both versions
 
@@ -171,7 +174,7 @@ faked.
 ## Requirements
 
 - Blender 4.4+ / 5.0.x / 5.1+
-- Python 3.11 (Blender 5.0.x) or Python 3.13 (Blender 5.1+)
+- Python 3.11 (Blender 4.4–5.0.x) or Python 3.13 (Blender 5.1+)
 - 500 MB free disk space
 - 4 GB RAM (8 GB recommended)
 

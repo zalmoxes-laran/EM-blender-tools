@@ -141,14 +141,16 @@ show_help() {
     echo "=== SETUP ==="
     echo "  first_setup        One-time: create .venv/ for VSCode IntelliSense"
     echo "                     (run once after cloning the repo)"
-    echo "  setup              Setup Blender wheels (Python 3.11, Blender 5.0.x)"
+    echo "  setup              Setup Blender wheels (Python 3.11, Blender 4.4–5.0.x)"
     echo "  setup force        Setup and force re-download wheels"
     echo "  setup [force] 3.13 Setup for Blender 5.1+ (Python 3.13)"
     echo "  setup [force] all  Setup for both Python 3.11 and 3.13"
     echo
     echo "=== SWITCH BLENDER VERSION ==="
-    echo "  manifest 3.11      Rigenera manifest per Blender 5.0.x (usa wheels cp311)"
-    echo "  manifest 3.13      Rigenera manifest per Blender 5.1+  (usa wheels cp313)"
+    echo "  manifest 3.11      Rigenera manifest per Blender 4.4–5.0.x (wheels cp311, max 5.1.0)"
+    echo "  manifest 3.13      Rigenera manifest per Blender 5.1+      (wheels cp313, min 5.1.0)"
+    echo "                     (the ONLY command that changes the manifest's wheels:"
+    echo "                      inc / build / dev / devrel touch its version line only)"
     echo
     echo "=== s3dgraphy DEVELOPMENT ==="
     echo "  rebundle           Ricostruisci il wheel s3dgraphy bundlato dal"
@@ -192,10 +194,10 @@ show_help() {
     echo
     echo "=== EXAMPLES ==="
     echo "  ./em.sh first_setup    # Once after cloning: dev venv for VSCode IntelliSense"
-    echo "  ./em.sh setup          # First time setup (Python 3.11, Blender 5.0.x)"
+    echo "  ./em.sh setup          # First time setup (Python 3.11, Blender 4.4–5.0.x)"
     echo "  ./em.sh setup 3.13     # Setup for Blender 5.1+ (Python 3.13)"
     echo "  ./em.sh setup force 3.13  # Force re-download for Python 3.13"
-    echo "  ./em.sh setup all      # Setup for both Blender 5.0.x and 5.1+"
+    echo "  ./em.sh setup all      # Setup for both Blender 4.4–5.0.x and 5.1+"
     echo "  ./em.sh s3d        # Activate s3dgraphy development version"
     echo "  ./em.sh s3d off    # Back to s3dgraphy PyPI version"
     echo "  ./em.sh dev        # Quick: inc dev + build LOCAL .zip for testing"
@@ -598,16 +600,7 @@ case "$1" in
         echo "⏱️  Expected completion: ~10-15 minutes"
         echo
         echo "💡 Files will be:"
-        echo "   For Blender 5.0.x:"
-        echo "   - em_tools-v$VERSION-windows-x64-blender50.zip"
-        echo "   - em_tools-v$VERSION-macosx-arm64-blender50.zip"
-        echo "   - em_tools-v$VERSION-macosx-x64-blender50.zip"
-        echo "   - em_tools-v$VERSION-linux-x64-blender50.zip"
-        echo "   For Blender 5.1+:"
-        echo "   - em_tools-v$VERSION-windows-x64-blender51.zip"
-        echo "   - em_tools-v$VERSION-macosx-arm64-blender51.zip"
-        echo "   - em_tools-v$VERSION-macosx-x64-blender51.zip"
-        echo "   - em_tools-v$VERSION-linux-x64-blender51.zip"
+        "$PYTHON_CMD" scripts/version_manager.py release-notes --tag "v$VERSION" --files-only
         echo
         ;;
     

@@ -213,3 +213,15 @@ def test_U1_prepare_for_a_use_records_what_changed_with_its_numbers():
                            size_bytes=1)["technique"] == "texture_reduction"
     assert av.prepare_step(ratio=1.0, max_side=0, draco=True, resized=0,
                            size_bytes=1)["technique"] == "compression"
+
+
+# ── «Prepare for a use…» refuses a mesh without faces (27 Oct 2026) ────────
+
+def test_a_mesh_without_faces_is_refused():
+    # the linked library lost: an empty placeholder mesh, once a 184-byte glb
+    why = av.faceless_refusal("ME_PODIO", 0, 0)
+    assert why and "ME_PODIO" in why and "no faces" in why
+    assert "no version written" in why
+    assert av.faceless_refusal("ME_PODIO", 0, 12)       # points only: still refused
+    assert av.faceless_refusal("ME_PODIO", 1, 3) is None
+    assert av.faceless_refusal("ME_PODIO", 120000, 60000) is None

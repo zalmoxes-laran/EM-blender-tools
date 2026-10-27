@@ -45,20 +45,13 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Set Python ABI tag and Blender tag
+      # The Blender range, the wheels' cp tag and the package name of this
+      # Python come from ONE place: scripts/version_manager.py (BLENDER_TARGETS).
+      # 3.11 → Blender 4.4–5.0.x (max 5.1.0, exclusive) · 3.13 → Blender 5.1+.
+      - name: Blender target of this Python
         id: pytag
         run: |
-          PY_VER="${{ matrix.python-version }}"
-          CP_TAG="cp${PY_VER//.}"
-          echo "cp_tag=$CP_TAG" >> $GITHUB_OUTPUT
-
-          # Map Python version to user-friendly Blender tag
-          case "$PY_VER" in
-            3.11) BLENDER_TAG="blender50" ;;
-            3.13) BLENDER_TAG="blender51" ;;
-            *)    BLENDER_TAG="py${PY_VER//.}" ;;
-          esac
-          echo "blender_tag=$BLENDER_TAG" >> $GITHUB_OUTPUT
+          python scripts/version_manager.py target --python-version ${{ matrix.python-version }} | tee -a "$GITHUB_OUTPUT"
 
       - name: Download platform-specific wheels
         run: |
@@ -102,48 +95,28 @@ jobs:
           echo "Downloaded wheels:"
           ls -la wheels/$CP_TAG/
 
-      - name: Generate platform-specific manifest
-        run: |
-          python scripts/version_manager.py set-mode --mode stable --python-version ${{ matrix.python-version }}
-          VERSION="${{ steps.version.outputs.version }}"
-
-          # Aggiorna version.json
-          python -c "
-          import json
-          config = {'version': '$VERSION', 'platform': '${{ matrix.platform }}'}
-          with open('version.json', 'w') as f:
-              json.dump(config, f, indent=2)
-          "
-
-          # Update manifest with python version
-          python scripts/version_manager.py update --python-version ${{ matrix.python-version }}
-
-          # Verifica l'integrità del manifest generato
-          if ! grep -q "version = \"$VERSION\"" blender_manifest.toml; then
-            echo "WARNING: Versione nel manifest non corretta, riparazione..."
-            sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" blender_manifest.toml
-            echo "Manifest riparato con versione: $VERSION"
-          fi
-
       - name: Create platform-specific package
         run: |
           PLATFORM="${{ matrix.platform }}"
           VERSION="${{ steps.version.outputs.version }}"
-          BLENDER_TAG="${{ steps.pytag.outputs.blender_tag }}"
-          PACKAGE_NAME="em_tools-v${VERSION}-${PLATFORM}-${BLENDER_TAG}.zip"
+          PY_VER="${{ matrix.python-version }}"
+          CP_TAG="${{ steps.pytag.outputs.cp_tag }}"
+          PACKAGE_NAME="em_tools-v${VERSION}-${PLATFORM}-${{ steps.pytag.outputs.package_tag }}.zip"
 
-          # Create build directory
           mkdir -p build
 
-          # Copy all addon files except development files
-          rsync -av --exclude='.git' \
+          # Copy all addon files except development files (the wheels apart:
+          # only this Python's, flattened into build/wheels/ below)
+          rsync -a --exclude='.git' \
                     --exclude='.github' \
                     --exclude='scripts' \
                     --exclude='__pycache__' \
                     --exclude='*.pyc' \
-                    --exclude='build' \
+                    --exclude='/build' \
+                    --exclude='/wheels' \
                     --exclude='*.blext' \
                     --exclude='.gitignore' \
+                    --exclude='blender_manifest.toml' \
                     --exclude='blender_manifest_template.toml' \
                     --exclude='version.json' \
                     --exclude='em.bat' \
@@ -159,29 +132,32 @@ jobs:
                     --exclude='sync_dev.sh' \
                     . build/
 
-          # Copy platform-specific wheels (flatten cp* subfolder into wheels/)
-          CP_TAG="${{ steps.pytag.outputs.cp_tag }}"
           mkdir -p build/wheels
-          cp wheels/$CP_TAG/*.whl build/wheels/ 2>/dev/null || true
+          cp wheels/$CP_TAG/*.whl build/wheels/
 
-          # Update manifest to reference wheels/ (flat) instead of wheels/cp*/
-          sed -i "s|wheels/$CP_TAG/|wheels/|g" build/blender_manifest.toml
+          # The manifest of THIS package: the tag's version, this Python's
+          # wheels (flat), its Blender range
+          python scripts/version_manager.py render \
+            --python-version "$PY_VER" --version "$VERSION" \
+            --wheels-prefix wheels --output build/blender_manifest.toml
 
-          # Create the zip package
+          # FAIL the build when a listed wheel is for another CPython, is not
+          # in the package, or the Blender range admits another Python
+          python scripts/check_manifest.py build --python-version "$PY_VER"
+
           cd build
-          zip -r "../${PACKAGE_NAME}" . -x "*.pyc" "__pycache__/*"
+          zip -qr "../${PACKAGE_NAME}" . -x "*.pyc" "__pycache__/*"
           cd ..
+          python scripts/check_manifest.py "${PACKAGE_NAME}" --python-version "$PY_VER"
 
           echo "Created package: ${PACKAGE_NAME}"
           ls -la "${PACKAGE_NAME}"
-
-          # Store package name for release
           echo "package_name=${PACKAGE_NAME}" >> $GITHUB_ENV
 
       - name: Upload platform package
         uses: actions/upload-artifact@v4
         with:
-          name: em_tools-${{ matrix.platform }}-${{ steps.pytag.outputs.blender_tag }}
+          name: em_tools-${{ matrix.platform }}-${{ steps.pytag.outputs.package_tag }}
           path: ${{ env.package_name }}
   
   release:
@@ -194,6 +170,8 @@ jobs:
     # (va disattivato in Zenodo > Settings > GitHub): le release stabili vanno
     # archiviate separatamente, cosi' le dev non finiscono su Zenodo.
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -223,6 +201,15 @@ jobs:
             echo "release_type=stable" >> $GITHUB_OUTPUT
           fi
       
+      # The body names each package and its Blender range from
+      # scripts/version_manager.py, the same table the packages were built from
+      - name: Release notes
+        run: |
+          python3 scripts/version_manager.py release-notes \
+            --tag "${{ steps.version.outputs.tag }}" \
+            --release-type "${{ steps.prerelease.outputs.release_type }}" > release_body.md
+          cat release_body.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -231,33 +218,7 @@ jobs:
           files: em_tools-*.zip
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
           generate_release_notes: true
-          body: |
-            ## EM Tools ${{ steps.version.outputs.tag }}
-
-            This is a **${{ steps.prerelease.outputs.release_type }}** of EM Tools.
-
-            ### Downloads for Blender 5.0.x
-            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-blender50.zip`
-            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-blender50.zip`
-            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-blender50.zip`
-            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-blender50.zip`
-
-            ### Downloads for Blender 5.1+
-            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-blender51.zip`
-            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-blender51.zip`
-            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-blender51.zip`
-            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-blender51.zip`
-
-            ### Installation
-            1. Choose the `.zip` file matching your **platform** and **Blender version**
-               - Blender 5.0.x → `blender50` files
-               - Blender 5.1+ → `blender51` files
-            2. In Blender: **Extensions** → **Install from Disk**
-            3. Select the downloaded zip file (do not unzip)
-            4. Enable the extension
-
-            ### What's Included
-            Each package contains wheels compiled for a specific platform and Python version.
+          body_path: release_body.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

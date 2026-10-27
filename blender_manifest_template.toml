@@ -8,7 +8,7 @@ maintainer = "E. Demetrescu <emanuel.demetrescu@cnr.it>"
 type = "add-on"
 license = ["SPDX:GPL-3.0-or-later"]
 
-blender_version_min = "4.4.0"
+{BLENDER_RANGE}
 
 platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
 tags = ["3D View", "Import-Export"]

@@ -206,6 +206,18 @@ def resized_side(side: int, max_side: int) -> int:
     return min(side, max_side) if max_side and side else side
 
 
+def faceless_refusal(name: str, faces: int, vertices: int = 0) -> Optional[str]:
+    """Why «Prepare for a use…» refuses a mesh with no faces (None when it has
+    some). 27 Oct 2026: with its linked library lost, an object showed an empty
+    placeholder mesh and the operator wrote a 184-byte glb and registered it as
+    a version. Nothing is written and nothing registered for such a mesh."""
+    if int(faces or 0) > 0:
+        return None
+    return (f"{name} has no faces ({int(vertices or 0)} vertices): nothing to "
+            f"export, no version written. Is its mesh in a linked library that "
+            f"was not found? Relocate it (File > External Data) and try again")
+
+
 def prepare_step(*, ratio: float, max_side: int, draco: bool,
                  resized: int, size_bytes: int) -> Dict[str, Any]:
     """U1 · the `lod_generation` step «Prepare for a use…» records in the DTC:
@@ -1726,6 +1738,15 @@ def _operator_classes():  # pragma: no cover — bpy
         except Exception:  # noqa: BLE001 — the dialog opens anyway
             return ""
 
+    def _faceless(context, obj) -> Optional[str]:
+        """``faceless_refusal`` of what ``obj`` shows now (its modifiers applied)."""
+        try:
+            data = obj.evaluated_get(context.evaluated_depsgraph_get()).data
+        except Exception:  # noqa: BLE001 — no depsgraph: the object's own mesh
+            data = obj.data
+        return faceless_refusal(obj.name, len(getattr(data, "polygons", ()) or ()),
+                                len(getattr(data, "vertices", ()) or ()))
+
     def _versions_folder():
         room = _room_id()
         folder = os.path.join(cache_folder(), CACHE_DIR, safe(room or "local"), "versions")
@@ -2138,6 +2159,10 @@ def _operator_classes():  # pragma: no cover — bpy
             return _VR.checked(dict(fields, category=cat), self.use)
 
         def _prepare_one(self, context, graph, obj, recipe, room, folder):
+            #: before anything touches the graph, the disk or the object
+            refusal = _faceless(context, obj)
+            if refusal:
+                raise ValueError(refusal)
             viewer = _VR.is_viewer(self.use)
             recipe = dict(recipe, viewer=viewer)
             #: first: an RMDoc / RMSF finds its node, and its level after it
@@ -2155,6 +2180,10 @@ def _operator_classes():  # pragma: no cover — bpy
                 mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(deps))
                 if mod is not None:
                     obj.modifiers.remove(mod)
+                refusal = faceless_refusal(obj.name, len(mesh.polygons), len(mesh.vertices))
+                if refusal:                 # decimated to nothing
+                    bpy.data.meshes.remove(mesh)
+                    raise ValueError(refusal)
                 resized = 0
                 if recipe["max_texture_px"]:
                     for i, mat in enumerate(list(mesh.materials)):
@@ -2224,6 +2253,15 @@ def _operator_classes():  # pragma: no cover — bpy
             objs = _selected_meshes(context)
             if not objs:
                 self.report({"ERROR"}, "select the object(s) to export")
+                return {"CANCELLED"}
+            #: a mesh without faces (its linked library lost) is refused before
+            #: any folder, file or graph node is made for it
+            refused = [(o, _faceless(context, o)) for o in objs]
+            for o, why in refused:
+                if why:
+                    self.report({"ERROR"}, f"could not export the version: {why}")
+            objs = [o for o, why in refused if not why]
+            if not objs:
                 return {"CANCELLED"}
             if not self.recipe_ready:      # run without its dialog (a script, the Deck)
                 if not self.category_known:

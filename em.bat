@@ -413,7 +413,7 @@ echo.
 echo === SETUP ===
 echo   first_setup        One-time: create .venv\ for VSCode IntelliSense
 echo                      (run once after cloning the repo)
-echo   setup              Setup Blender wheels (Python 3.11, Blender 5.0.x)
+echo   setup              Setup Blender wheels (Python 3.11, Blender 4.4-5.0.x)
 echo   setup force        Setup and force re-download wheels (clean install)
 echo   setup [force] 3.13 Setup for Blender 5.1+ (Python 3.13)
 echo   setup [force] all  Setup for both Python 3.11 and 3.13

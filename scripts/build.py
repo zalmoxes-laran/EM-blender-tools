@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import zipfile
 from pathlib import Path
-from version_manager import VersionManager
+from version_manager import VersionManager, target_for
 
 def clean_build_directory(build_dir: Path):
     """Pulisce la directory di build completamente"""
@@ -184,10 +184,22 @@ def write_build_info(root_dir: Path, build_dir: Path) -> None:
     print(f"build_info.json: {info}")
 
 
-def build_extension(mode: str = 'dev', platform: str = None, python_version: str = '3.11'):
-    """Costruisce l'extension in modalità specificata"""
+def build_extension(mode: str = 'dev', platform: str = None, python_version: str = None):
+    """Costruisce l'extension in modalità specificata.
+
+    ``python_version`` None: the Python the LOCAL manifest targets (its
+    ``wheels/cpXY/``), 3.11 without one. The local manifest gets only its
+    version line; the package's manifest is rendered for ``python_version`` into
+    the build folder (27 Oct 2026: a build rewrote E.D.'s cp313 manifest to cp311).
+    """
     root_dir = Path(__file__).parent.parent
     build_dir = root_dir / "build"
+    vm = VersionManager(root_dir)
+    if not python_version:
+        python_version = vm.manifest_python_version() or '3.11'
+        print(f"🐍 Python target of the package: {python_version} "
+              f"(from the local manifest's wheels; --python-version to choose)")
+    target = target_for(python_version)
 
     # The bundled library FIRST: the manifest lists wheels by name, so the wheel
     # has to be the right one before the manifest is generated below.
@@ -199,37 +211,37 @@ def build_extension(mode: str = 'dev', platform: str = None, python_version: str
         print(f"  Removing: {old_blext.name}")
         old_blext.unlink()
 
-    # Gestione versione - PRIMA genera il manifest!
-    vm = VersionManager(root_dir)
-
     # Set mode se specificato
     if mode != 'dev':
         vm.set_mode(mode)
 
-    # Aggiorna i file con la versione corrente (con python_version per selezionare le wheels giuste)
-    version = vm.update_manifest(python_version)  # Questo genera blender_manifest.toml valido!
-    
-    print(f"Building EM Tools v{version} in {mode} mode...")
-    
-    # Verifica che il manifest sia stato generato correttamente
-    manifest_file = root_dir / "blender_manifest.toml"
-    if not manifest_file.exists():
-        raise FileNotFoundError("blender_manifest.toml not found! Version manager failed.")
-    
-    # Verifica che il manifest contenga i campi richiesti
-    with open(manifest_file, 'r') as f:
-        manifest_content = f.read()
-        if '{VERSION}' in manifest_content or 'id' not in manifest_content:
-            raise ValueError("blender_manifest.toml contains unresolved placeholders!")
-    
-    print(f"✅ Manifest generated successfully for version {version}")
-    
+    # the local manifest: its version line only
+    vm.update_manifest_version()
+    version = vm.get_version_string(vm.load_version_config())
+    # the package's manifest: rendered for its Python (wheels + Blender range)
+    manifest_content = vm.render_manifest(python_version, version)
+    if '{VERSION}' in manifest_content or 'id' not in manifest_content:
+        raise ValueError("the package manifest contains unresolved placeholders!")
+
+    print(f"Building EM Tools v{version} in {mode} mode for "
+          f"{target['label']} (Python {python_version})...")
+
     # Pulisci e prepara build directory COMPLETAMENTE
     clean_build_directory(build_dir)
     
     # Copia file sorgente (ESCLUSI i vecchi wheels/build)
     copy_source_files(root_dir, build_dir)
     write_build_info(root_dir, build_dir)
+    (build_dir / "blender_manifest.toml").write_text(manifest_content, encoding="utf-8")
+    # only the wheels of this Python travel
+    for other in (build_dir / "wheels").glob("cp*"):
+        if other.is_dir() and other.name != target["cp_tag"]:
+            shutil.rmtree(other)
+    from check_manifest import check_path
+    problems = check_path(build_dir, python_version)
+    if problems:
+        raise ValueError("the package manifest is not coherent:\n  - " + "\n  - ".join(problems))
+    print(f"✅ Package manifest: Python {python_version}, {target['label']}")
     
     # VERIFICA WHEELS PRIMA DELLA COPIA
     wheels_dir = root_dir / "wheels"
@@ -261,12 +273,7 @@ def build_extension(mode: str = 'dev', platform: str = None, python_version: str
         wheels_script = root_dir / "scripts" / "setup_development.py"
         subprocess.run([sys.executable, str(wheels_script), f'--python-version={python_version}'], cwd=root_dir)
 
-    # Mapping Python version → Blender compatibility tag (user-friendly)
-    BLENDER_TAG_MAP = {
-        '3.11': 'blender50',
-        '3.13': 'blender51',
-    }
-    blender_tag = BLENDER_TAG_MAP.get(python_version, f'py{python_version.replace(".", "")}')
+    blender_tag = target['package_tag']
 
     # Crea il package blext con nome appropriato
     if platform and mode != 'dev':
@@ -332,8 +339,9 @@ def main():
                        help="Increment version before building")
     parser.add_argument('--platform', choices=['windows', 'macos-intel', 'macos-arm', 'linux'],
                        help="Build for specific platform (production only)")
-    parser.add_argument('--python-version', default='3.11',
-                       help="Target Python version (default: 3.11). Use 3.13 for Blender 5.1+")
+    parser.add_argument('--python-version', default=None,
+                       help="Target Python version (3.11 / 3.13); default: the one "
+                            "the local manifest's wheels target")
 
     args = parser.parse_args()
 
