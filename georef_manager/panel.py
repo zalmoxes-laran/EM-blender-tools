@@ -172,6 +172,9 @@ class EM_PT_georef(Panel):
         else:
             row.label(text="No active graph", icon='DOT')
         diff = _draw_graph_box(layout, g, graph)
+        # MICRO lab sito Sarmizegetusa · the site of the graph, its footprint, its
+        # GIS layers: what the em.json says, read only (EMStudio makes them)
+        _draw_site_box(layout, graph)
 
         # --- Sync status (lights) ---
         box = layout.box()
@@ -332,6 +335,19 @@ def _fmt(key, value):
 
 _FIELD_LABEL = {'epsg': 'EPSG', 'shift_x': 'Shift X', 'shift_y': 'Shift Y',
                 'shift_z': 'Shift Z', 'rotation': 'Azimuth'}
+
+
+def _draw_site_box(layout, graph):
+    from .site_info import site_lines, site_summary
+    try:
+        lines = site_lines(site_summary(graph))
+    except Exception:  # a graph the reader does not expect: the panel stays up
+        lines = []
+    if not lines:
+        return
+    box = layout.box()
+    for i, line in enumerate(lines):
+        box.label(text=tr(line), icon='WORLD' if i == 0 else 'BLANK1', translate=False)
 
 
 def _draw_graph_box(layout, g, graph):
