@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — The value of a property in two places; a property documented through its extractor (28 October 2026)
+- MICRO valore-proprietà, decided by E.D. Every operator and panel that
+  creates or changes a property already passes through s3Dgraphy's
+  `PropertyNode` (constructor and setter: `canonical_document_helpers`,
+  `proxy_box_creator`, `surface_areale`, the sync and setup panels), which now
+  keeps `description` and `value` (`data.value`) equal — the geometry property
+  and a uuid value excepted. Tested on the shapes of those calls.
+- EM Setup's resource folder no longer writes property → document
+  `has_documentation` (read-only since connections 1.6.51): it puts an extractor
+  in between, `D.NN.n`, with `has_data_provenance` and `extracted_from`, in the
+  property's paradata group (`property_documentation.py`, no `bpy`). Existing
+  files are not touched.
+
 ### Changed — The object store is S3 (RustFS); MinIO is gone (18 October 2026)
 - The shared object store is any S3-compatible server (RustFS in the EM
   ecosystem); the MinIO community edition is deprecated and every trace of it

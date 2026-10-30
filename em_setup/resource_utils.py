@@ -13,6 +13,8 @@ from s3dgraphy.nodes.document_node import DocumentNode
 # Una risorsa nasce da un posto solo: `s3dgraphy.api.add_resource` (MICRO
 # risorsa-file, 25 ott 2026). Niente costruttore di `ResourceNode` qui.
 from s3dgraphy import api as _s3d_api
+from ..property_documentation import (document_through_extractor,
+                                      documents_through_extractor)
 
 
 # ============================================================================
@@ -318,6 +320,8 @@ def determine_edge_type_for_document(target_node):
     if node_type in STRATIGRAPHIC_NODE_TYPES:
         return "has_documentation"
     elif node_type == "property":
+        # read-only since connections 1.6.51: create_document_for_resource
+        # puts an extractor in between (property_documentation)
         return "has_documentation"
     elif node_type == "extractor":
         return "extracted_from"
@@ -396,6 +400,11 @@ def create_document_for_resource(graph, target_node, file_path, filename, folder
             break
 
     if existing_doc:
+        # A property is documented through its extractor (connections 1.6.51,
+        # E.D. 28 Oct 2026): never the direct has_documentation
+        if documents_through_extractor(target_node, existing_doc):
+            document_through_extractor(graph, target_node, existing_doc)
+            return existing_doc
         # Ensure edge exists to target node
         edge_exists = False
         edge_id = f"{target_node.node_id}_{edge_type}_{existing_doc.node_id}"
@@ -442,14 +451,17 @@ def create_document_for_resource(graph, target_node, file_path, filename, folder
 
     graph.add_node(doc_node)
 
-    # Create edge to target node
-    edge_id = f"{target_node.node_id}_{edge_type}_{doc_node.node_id}"
-    graph.add_edge(
-        edge_id=edge_id,
-        edge_source=target_node.node_id,
-        edge_target=doc_node.node_id,
-        edge_type=edge_type
-    )
+    # Create edge to target node — a property through its extractor
+    if documents_through_extractor(target_node, doc_node):
+        document_through_extractor(graph, target_node, doc_node)
+    else:
+        edge_id = f"{target_node.node_id}_{edge_type}_{doc_node.node_id}"
+        graph.add_edge(
+            edge_id=edge_id,
+            edge_source=target_node.node_id,
+            edge_target=doc_node.node_id,
+            edge_type=edge_type
+        )
 
     # Create LinkNode
     link_id = f"LINK.{doc_id}"
