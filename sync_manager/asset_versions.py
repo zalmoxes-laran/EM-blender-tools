@@ -2779,21 +2779,25 @@ def _operator_classes():  # pragma: no cover — bpy
             # they do, and the way it goes — all on the selected objects
             n = len([o for o in context.selected_objects if o.type == "MESH"])
             on = f" ({n} objects)" if n > 1 else ""
+            # MICRO-BLEND-OFFICINA-1 (E.D. 30 Oct 2026) · the optimisation
+            # window left EM Tools for EMStudio: here stays the container's
+            # status row and «Prepare in EMStudio». «Export a version for a
+            # use…» (em.asset_prepare_for_use) and «Prepare for a use:
+            # diagnosis…» (em.prepare_diagnose) stay REGISTERED — EMStudio
+            # drives them in a headless Blender — and reachable from F3.
+            from . import blend_officina
+            blend_officina.draw_status(layout, context, obj)
             col = layout.column(align=True)
             col.operator("em.asset_add_version", icon="ADD",
                          text="Add a level of detail…" + on)
-            col.operator("em.asset_prepare_for_use", icon="EXPORT",
-                         text="Export a version for a use…" + on)
             op = col.operator("em.asset_remove_versions", icon="TRASH",
                               text="Remove versions…" + on)
             op.mode = "SHOWN"
-            # MICRO-PREPARA-DIAGNOSI · what the model costs for a use, what can
-            # be improved, the version made with the ticks; the versions on disk
-            col.operator("em.prepare_diagnose", icon="VIEWZOOM",
-                         text="Prepare for a use: diagnosis…")
             op = col.operator("em.asset_remove_versions", icon="FILE_FOLDER",
                               text="Versions on disk…")
             op.mode = "DISK"
+            # the gestures of who models, on the selection
+            blend_officina.draw_modeller(layout, context)
             if obj is not None and obj.get(PROP_ASSET):
                 # D1 · what the shown version IS: computed level, uses, measures
                 info = _version_info(context, obj)

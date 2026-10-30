@@ -42,7 +42,7 @@ CMD_NAMESPACE = uuid.UUID("6f1f2f4a-3f2a-5c7e-9d1b-4a6c8e2f0b31")
 
 #: The verbs this host will execute. A verb that is not here is refused BY NAME,
 #: which is the difference between "I do not do that" and a silent no-op.
-VERBS = ("create_proxy_for_unit", "import_geometry", "promote_model")
+VERBS = ("create_proxy_for_unit", "import_geometry", "promote_model", "blend_apply")
 
 
 def make_cmd_id(verb: str, target: str, params: Optional[Dict[str, Any]] = None) -> str:
@@ -504,10 +504,18 @@ def promote_model(target: str, params: Dict[str, Any], context,
 
 # ── dispatch ─────────────────────────────────────────────────────────────────
 
+def blend_apply(target: str, params: Dict[str, Any], context, graph) -> Dict[str, Any]:
+    """MICRO-BLEND-OFFICINA-1 · EMStudio's «Apply» of «Check against the
+    graph» while THIS Blender has the .blend open (never a second save)."""
+    from .blend_officina import command_blend_apply
+    return command_blend_apply(target, params, context, graph)
+
+
 _HANDLERS = {
     "create_proxy_for_unit": create_proxy_for_unit,
     "import_geometry": import_geometry,
     "promote_model": promote_model,
+    "blend_apply": blend_apply,
 }
 
 #: cmd_id → result, for the run of this Blender session. Idempotence is a

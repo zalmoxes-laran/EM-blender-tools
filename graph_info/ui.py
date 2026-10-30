@@ -164,6 +164,13 @@ class VIEW3D_PT_EM_GraphInfo(bpy.types.Panel):
             return
         # The SAME body the inline section draws — one renderer, two frames.
         _draw_body(self.layout, context, p)
+        # MICRO-BLEND-OFFICINA-1 · the .blend against the graph: ✔ ↑ ↓ ✗ ○
+        try:
+            from ..sync_manager import blend_officina
+            self.layout.separator()
+            blend_officina.draw_check(self.layout, context)
+        except Exception as exc:  # noqa: BLE001 — a row never breaks the panel
+            print(f"[the graph] check against the graph: {exc}")
 
 
 _CLASSES = (VIEW3D_PT_EM_GraphInfo,)
