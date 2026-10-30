@@ -56,13 +56,38 @@ TOO_OLD = ("this Blender's s3dgraphy has no profiles of use "
 _NS = uuid.uuid5(uuid.NAMESPACE_URL, "https://extendedmatrix.org/emtools/prepared-for-use")
 
 
+def _sibling_resources() -> Optional[str]:
+    """``<GitHub>/s3Dgraphy/src/s3dgraphy/resources`` beside the working copy
+    of EM Tools (the development link), when it holds the profiles."""
+    here = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    p = os.path.join(os.path.dirname(here), "s3Dgraphy", "src", "s3dgraphy", "resources")
+    return p if os.path.isfile(os.path.join(p, "use_profiles.py")) else None
+
+
 def use_profiles():
-    """s3Dgraphy's table and diagnosis, or ``RuntimeError(TOO_OLD)``."""
+    """s3Dgraphy's table and diagnosis, or ``RuntimeError(TOO_OLD)``.
+
+    Blender installs the bundled wheel once and does not install again a wheel
+    with the same name (measured, 30 Oct 2026: rebuilt at 1.6.0.dev72, the old
+    copy stayed in ``extensions/.local``). Until the chain brings a new
+    version, a DEVELOPMENT copy of EM Tools beside an s3Dgraphy checkout reads
+    this one pure module from that checkout — what EMStudio's runner does with
+    its bridge's — so the GUI, ``blender -b`` and EMStudio use one table."""
     try:
         from s3dgraphy.resources import use_profiles as UP
+        return UP
     except ImportError as exc:
-        raise RuntimeError(TOO_OLD) from exc
-    return UP
+        extra = _sibling_resources()
+        if extra is None:
+            raise RuntimeError(TOO_OLD) from exc
+        import s3dgraphy.resources as R
+        if extra not in list(R.__path__):
+            R.__path__.append(extra)
+        try:
+            from s3dgraphy.resources import use_profiles as UP
+        except ImportError as exc2:
+            raise RuntimeError(TOO_OLD) from exc2
+        return UP
 
 
 # ── pure ────────────────────────────────────────────────────────────────────
