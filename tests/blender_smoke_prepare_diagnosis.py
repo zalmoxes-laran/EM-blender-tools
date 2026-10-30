@@ -11,7 +11,8 @@ loaded (its headless ``make_lod_set(normal_map=True)``)::
 ``PD_PROJECT``: the copy (``SB/GreatTemple_2026_v2.blend``, ``EM/TempluMare_v5.em.json``);
 ``PD_MODELS``: the names of the objects that have a version today (one per
 line: the models of ``SB/versions``); the selection is those objects. The
-diagnosis is asked for the web and for Heriverse/ATON, then each is APPLIED
+diagnosis is asked for mobile webXR and for webXR (ATON / Heriverse) — E.D.'s
+names, MICRO-PREPARA-RITOCCHI —, then each is APPLIED
 through the operator (EXEC: a dialog cannot open in -b), measured, listed in
 versions/ and removed with «Remove versions…» in its DISK mode. The .blend is
 never saved; the smoke checks that it is left as it was.
@@ -80,7 +81,7 @@ before = counts()
 
 # ── the diagnosis, twice
 report = {}
-for prof in ("heriverse", "web"):
+for prof in ("webxr", "mobile_webxr"):
     t0 = time.time()
     d = PD.diagnose_here(bpy.context, objs, prof)
     report[prof] = {"seconds": round(time.time() - t0, 2),
@@ -95,30 +96,39 @@ for prof in ("heriverse", "web"):
                     "lines": d["lines"]}
     for ln in d["lines"]:
         print(f"[SMOKE] {prof}: {ln}")
-again = PD.diagnose_here(bpy.context, objs, "web")
+again = PD.diagnose_here(bpy.context, objs, "mobile_webxr")
 check("the diagnosis is the same asked twice",
       json.dumps({k: again[k] for k in ("totals", "before", "after")}, sort_keys=True)
-      == json.dumps({k: report["web"][k] for k in ("totals", "before", "after")}, sort_keys=True))
-check("copies found: the columns", sum(c for c, _m, t in report["web"]["duplicates"] if t > 50000) >= 50,
-      report["web"]["duplicates"][:4])
-check("web: the columns are peaks (over 25 k) with a decimation row",
-      any(r["kind"] == "decimate" and r["available"] for r in report["web"]["rows"]))
-check("heriverse: no decimation, no Draco (Q5)",
-      not any(r["kind"] in ("decimate",) for r in report["heriverse"]["rows"])
-      and not any(r["id"].startswith("geometry:") and r["checked"] for r in report["heriverse"]["rows"]))
+      == json.dumps({k: report["mobile_webxr"][k] for k in ("totals", "before", "after")}, sort_keys=True))
+check("copies found: the columns", sum(c for c, _m, t in report["mobile_webxr"]["duplicates"] if t > 50000) >= 50,
+      report["mobile_webxr"]["duplicates"][:4])
+check("mobile webXR: the columns are peaks (over 10 k) with a decimation row, proposed unticked",
+      any(r["kind"] == "decimate" and r["available"] and not r["checked"] for r in report["mobile_webxr"]["rows"]))
+check("webXR: no decimation, no Draco (Q5)",
+      not any(r["kind"] in ("decimate",) for r in report["webxr"]["rows"])
+      and not any(r["id"].startswith("geometry:") and r["checked"] for r in report["webxr"]["rows"]))
+check("the grid comes in groups with their rationale",
+      [g["id"] for g in again["groups"]][:2] == ["instances", "textures"]
+      and all(g["rationale"] for g in again["groups"]), [g["id"] for g in again["groups"]])
 check(".blend unchanged by the diagnosis", counts() == before, f"{before} -> {counts()}")
 
 # ── applied, through the operator
 folder = UP.versions_folder(bpy.data.filepath)
 applied = {}
-for prof in ("heriverse", "web"):
+for prof in ("webxr", "mobile_webxr"):
     d = PD.diagnose_here(bpy.context, objs, prof)
     ids = [r["id"] for r in d["improvements"] if r.get("checked") and r.get("available", True)]
+    params = {}
+    if prof == "mobile_webxr":
+        # the decimation ticked by hand, the first geometry to 8 000 triangles
+        decs = [r for r in d["improvements"] if r["kind"] == "decimate" and r["available"]]
+        ids += [r["id"] for r in decs]
+        params[decs[0]["id"]] = {"triangles_to": 8000}
     t0 = time.time()
     r = bpy.ops.em.prepare_diagnose(profile=prof, scope="SELECTED", model="TempluMare_SB",
                                     level=PD.level_for(x["kind"] for x in d["improvements"]
                                                        if x["id"] in ids),
-                                    checked_ids=",".join(ids))
+                                    checked_ids=",".join(ids), params_json=json.dumps(params))
     secs = round(time.time() - t0, 1)
     out = dict(PD.LAST.get("applied") or {})
     check(f"{prof}: applied", r == {"FINISHED"} and out.get("entry"), f"{r} {secs} s")
@@ -151,14 +161,22 @@ for prof in ("heriverse", "web"):
         r2 = {"CANCELLED"} if "already in" in str(exc) else {str(exc)}
     check(f"{prof}: not written again over the file without «replace»", r2 == {"CANCELLED"})
 check(".blend left as it was after applying", counts() == before, f"{before} -> {counts()}")
-web = applied.get("web") or {}
-check("web: columns decimated with a normal map",
+web = applied.get("mobile_webxr") or {}
+check("mobile webXR: columns decimated with a normal map",
       web.get("decimated", 0) >= 1 and web.get("measured", {}).get("compression") == "draco",
       web.get("measured"))
+if web.get("entry"):
+    mm = UP.measure_gltf(web["entry"])
+    stored = sorted({o["mesh_id"]: o["triangles"] for o in mm["objects"]}.values(), reverse=True)
+    check("mobile webXR: the target changed by hand is the one written (≤ 8 000 for that geometry)",
+          any(7000 <= t <= 8000 for t in stored), stored[:6])
+    check("mobile webXR: textures at 512 px", all(max(v["width"], v["height"]) <= 512
+                                                  for v in mm["textures"].values()),
+          sorted({max(v["width"], v["height"]) for v in mm["textures"].values()}))
 
 # ── the versions on disk, and their removal
 rows = UP.list_versions(folder)
-check("versions/ lists both", {r["destination"] for r in rows} >= {"web", "aton-heriverse"},
+check("versions/ lists both", {r["destination"] for r in rows} >= {"mobile", "aton-heriverse"},
       [r["name"] for r in rows])
 with open(os.path.join(OUT, "versions.json"), "w") as f:
     json.dump([{k: r[k] for k in ("name", "profile", "triangles", "bytes", "stamp", "textures")}
@@ -168,14 +186,41 @@ import shutil  # noqa: E402
 keep = os.path.join(OUT, "made")
 shutil.rmtree(keep, ignore_errors=True)
 shutil.copytree(folder, keep)
-web_name = next(r["name"] for r in rows if r["destination"] == "web")
-res_web = (applied.get("web") or {}).get("registered", {}).get("resource_id")
+web_name = next(r["name"] for r in rows if r["destination"] == "mobile")
+res_web = (applied.get("mobile_webxr") or {}).get("registered", {}).get("resource_id")
 r = bpy.ops.em.asset_remove_versions(mode="DISK", names=web_name)
-check("Versions on disk… removes the web version", r == {"FINISHED"})
+check("Versions on disk… removes the mobile version", r == {"FINISHED"})
 check("its files are gone, the other stays",
       not any(x["name"] == web_name for x in UP.list_versions(folder))
       and any(x["destination"] == "aton-heriverse" for x in UP.list_versions(folder)))
 check("its node left the graph", res_web and graph.find_node_by_id(res_web) is None)
+
+# ── 3D printing: three objects joined into one closed-or-said mesh, an STL in mm
+few = objs[:3]
+for o in bpy.context.view_layer.objects:
+    o.select_set(False)
+for o in few:
+    o.select_set(True)
+bpy.context.view_layer.objects.active = few[0]
+dp = PD.diagnose_here(bpy.context, few, "print_3d")
+kinds = {r["kind"] for r in dp["improvements"]}
+check("print: join, no textures, scale; the packaging STL",
+      {"single_mesh", "scale", "packaging"} <= kinds and dp["after"]["draw_calls"] == 1, sorted(kinds))
+print(f"[SMOKE] print: open edges {dp['totals'].get('open_edges')}, extent {dp['totals'].get('extent_m')} m")
+r = bpy.ops.em.prepare_diagnose(profile="print_3d", scope="SELECTED", model="TempluMare_print",
+                                checked_ids=",".join(x["id"] for x in dp["improvements"]
+                                                     if x.get("checked") and x.get("available", True)))
+po = dict(PD.LAST.get("applied") or {})
+stl = po.get("entry") or ""
+check("print: an STL in versions/", r == {"FINISHED"} and stl.endswith("@lod0-print.stl") and os.path.isfile(stl), stl)
+if os.path.isfile(stl):
+    tris = UP.stl_triangles(stl)
+    check("print: its triangles are the three objects'", tris == dp["totals"]["triangles"],
+          f"{tris} vs {dp['totals']['triangles']}")
+    check("print: stamped", bool(UP.sidecars(stl)["stamp"]))
+    applied["print_3d"] = {"entry": stl, "bytes": os.path.getsize(stl), "triangles": tris,
+                           "open_edges": dp["totals"].get("open_edges"), "seconds": po.get("seconds")}
+check(".blend left as it was after printing", counts() == before, f"{before} -> {counts()}")
 
 with open(os.path.join(OUT, "smoke.json"), "w") as f:
     json.dump({"diagnosis": report, "applied": applied}, f, indent=1, default=str)

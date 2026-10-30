@@ -150,14 +150,15 @@ def next_level(levels: List[str]) -> str:
 
 
 #: D1 · the uses a version can serve (s3dgraphy ``resources.versions.USES``),
-#: with the words the dialog shows
-USES = (("analysis", "Analysis", "Study and measure: autopsy of the units, sections, annotation"),
-        ("realtime", "Real time", "An engine, desktop or HMD (Unreal, Unity, Godot, EMviq)"),
-        ("web", "Web", "A browser (ATON, Heriverse, Voyager), streamed too"),
-        ("mobile_ar", "Mobile / AR", "Augmented reality and mobile devices"),
-        ("print", "Print", "3D printing, a physical replica"),
-        ("render", "Render", "Plates, sections, reconstructive views, video"),
-        ("preview", "Preview", "A light preview for catalogues and records"),
+#: with the words the dialog shows — E.D.'s names of the profiles where a use
+#: is one of them (MICRO-PREPARA-RITOCCHI, 30 Oct 2026); the ids stay
+USES = (("analysis", "Archive / analysis", "Study and measure: autopsy of the units, sections, annotation"),
+        ("realtime", "Desktop realtime", "An engine, desktop or HMD (Unreal, Unity, Godot, EMviq)"),
+        ("web", "webXR", "A browser and its headsets (ATON, Heriverse, Voyager), streamed too"),
+        ("mobile_ar", "Mobile webXR", "Phones and stand-alone headsets, augmented reality"),
+        ("print", "3D printing", "3D printing, a physical replica"),
+        ("render", "Offline rendering", "Plates, sections, reconstructive views, video"),
+        ("preview", "Preview / catalogue", "A light preview for catalogues and records"),
         # H4 (E.D., 5 Oct 2026) · a version made FOR a viewer: the package on
         # disk Heriverse or another ATON app opens (datamodel 1.6.26)
         ("heriverse", "Heriverse", "The package Heriverse opens, on disk or from "

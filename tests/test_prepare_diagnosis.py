@@ -79,10 +79,12 @@ def test_a_mirrored_copy_is_still_a_similarity():
 def test_level_and_target_name():
     assert pd.level_for(["instances", "texture_side"]) == "lod0"
     assert pd.level_for(["decimate"]) == "lod1"
-    web = UP.profile("web")
-    assert pd.target_name("/p/SB/versions", "Colonnato", "lod1", web) \
-        == "/p/SB/versions/Colonnato@lod1-web.glb"
-    her = UP.profile("heriverse")
+    mob = UP.profile("mobile_webxr")
+    assert pd.target_name("/p/SB/versions", "Colonnato", "lod1", mob) \
+        == "/p/SB/versions/Colonnato@lod1-mobile.glb"
+    assert pd.target_name("/p/v", "Colonnato", "lod0", UP.profile("print_3d")) \
+        == "/p/v/Colonnato@lod0-print.stl"
+    her = UP.profile("heriverse")          # a name of before: webXR
     assert pd.target_name("/p/SB/versions", "Colonnato", "lod0", her) \
         == "/p/SB/versions/Colonnato@lod0-aton-heriverse/Colonnato.gltf"
     assert pd.target_name("/p/v", "Colonnato", "lod0", her, "glb").endswith(
@@ -113,5 +115,23 @@ def test_effect_and_removal_lines():
 
 def test_the_module_reads_s3dgraphys_table():
     assert pd.use_profiles() is UP
-    assert {p["id"] for p in UP.profiles()} >= {"web", "realtime", "heriverse", "mobile_ar",
-                                                "archive"}
+    assert [p["id"] for p in UP.profiles()] == ["desktop_realtime", "webxr", "mobile_webxr", "archive",
+                                               "preview", "render_offline", "print_3d"]
+
+
+def test_row_params_take_the_dialogs_values_over_the_rows():
+    dec = {"id": "decimate:k", "params": {"triangles_to": 10_000}}
+    assert pd.row_params(dec) == {"triangles_to": 10_000}
+    assert pd.row_params(dec, triangles_to=4000) == {"triangles_to": 4000}
+    tex = {"id": "textures:k", "params": {"side": 512, "format": "jpeg"}}
+    assert pd.row_params(tex, side=1024, fmt="png") == {"side": 1024, "format": "png"}
+    assert pd.row_params(tex) == {"side": 512, "format": "jpeg"}
+    d = UP.diagnose_keep([{"name": "C", "triangles": 50_000, "vertices": 26_000, "geometry_key": "c",
+                           "textures": ["t"]}],
+                         {"t": {"width": 4096, "height": 4096, "bytes": 1, "format": "jpeg"}},
+                         "mobile_webxr")
+    rows = {r["id"]: r for r in d["improvements"]}
+    params = {"decimate:c": pd.row_params(rows["decimate:c"], triangles_to=3000),
+              "textures:c": pd.row_params(rows["textures:c"], side=256)}
+    ch = UP.choices(d, ["decimate:c", "textures:c"], params)
+    assert ch["decimated"] == {"c": 3000} and ch["tex_sides"] == {"t": 256}

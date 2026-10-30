@@ -37,6 +37,7 @@ The pure parts (:func:`similarity`, :func:`target_name`, :func:`level_for`,
 # NOT `from __future__ import annotations` (the operators' annotations are
 # evaluated by Blender in this module's globals; see asset_versions).
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -75,6 +76,20 @@ def use_profiles():
     its bridge's — so the GUI, ``blender -b`` and EMStudio use one table."""
     try:
         from s3dgraphy.resources import use_profiles as UP
+        extra = _sibling_resources()
+        if extra is not None and not hasattr(UP, "ALIASES"):
+            # MICRO-PREPARA-RITOCCHI: the installed table predates E.D.'s names
+            # of the profiles; the checkout beside holds them — the same as
+            # EMStudio's bridge, so both say the same profiles
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "s3dgraphy.resources.use_profiles", os.path.join(extra, "use_profiles.py"))
+            new = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(new)
+            sys.modules["s3dgraphy.resources.use_profiles"] = new
+            import s3dgraphy.resources as R
+            R.use_profiles = new
+            return new
         return UP
     except ImportError as exc:
         extra = _sibling_resources()
@@ -118,6 +133,27 @@ def similarity(a, b, *, tol: float = 1e-3):
     m[:3, :3] = lin
     m[:3, 3] = x[3]
     return m.tolist(), res
+
+
+#: The texture formats a row may choose in Blender (what its exporter writes).
+TEXTURE_FORMATS = (("jpeg", "JPEG", "JPEG, quality 90"), ("png", "PNG", "PNG, lossless"))
+
+
+def row_params(row: Dict[str, Any], *, triangles_to: int = 0, side: int = 0,
+               fmt: str = "") -> Dict[str, Any]:
+    """The parameters of one row as the dialog holds them (0 / "" = the
+    row's own) → what s3Dgraphy's ``choices(params=…)`` takes."""
+    own = row.get("params") or {}
+    out: Dict[str, Any] = {}
+    if "triangles_to" in own:
+        out["triangles_to"] = int(triangles_to or own["triangles_to"])
+    if "side" in own:
+        out["side"] = int(side) if side else own["side"]
+    if "format" in own:
+        out["format"] = fmt or own["format"]
+    if "scale" in own:
+        out["scale"] = own["scale"]
+    return out
 
 
 def level_for(checked_kinds: Iterable[str]) -> str:
@@ -273,12 +309,27 @@ def measure_objects(objs, context=None) -> Dict[str, Any]:  # pragma: no cover �
                             "width": int(img.size[0]), "height": int(img.size[1]),
                             "bytes": _image_bytes(img),
                             "format": _FORMATS.get(img.file_format, img.file_format.lower())}
+            # the box in the world (a tileset for a wide surface) and the
+            # edges of one face only (a print wants a closed mesh)
+            co = np.empty(len(mesh.vertices) * 3)
+            mesh.vertices.foreach_get("co", co)
+            bbox = None
+            if len(co):
+                from mathutils import Vector
+                pts = co.reshape(-1, 3)
+                corners = [obj.matrix_world @ Vector((x, y, z)) for x in (pts[:, 0].min(), pts[:, 0].max())
+                           for y in (pts[:, 1].min(), pts[:, 1].max()) for z in (pts[:, 2].min(), pts[:, 2].max())]
+                bbox = [[min(c[i] for c in corners) for i in range(3)],
+                        [max(c[i] for c in corners) for i in range(3)]]
+            le = np.empty(len(mesh.loops), dtype=np.int32)
+            mesh.loops.foreach_get("edge_index", le)
+            open_edges = int((np.bincount(le, minlength=len(mesh.edges)) == 1).sum()) if len(le) else 0
             objects.append({
                 "name": obj.name, "triangles": tris, "vertices": len(mesh.vertices),
                 "materials": max(1, len(slots)) if tris else 0,
                 "mesh_id": obj.data.name if not obj.modifiers else f"{obj.name}|evaluated",
                 "geometry_key": geometry_key(mesh), "textures": sorted(set(tex)),
-                "normal_map": normal})
+                "normal_map": normal, "bbox": bbox, "open_edges": open_edges})
         finally:
             ev.to_mesh_clear()
     return {"objects": objects, "textures": textures}
@@ -399,7 +450,8 @@ def mesh_images(mesh):  # pragma: no cover — bpy
 
 def apply(context, objs, diagnosis: Dict[str, Any], checked: Iterable[str], *, model: str,
           level: str, folder: str, replace: bool = False, container=None,
-          graph=None, say=print) -> Dict[str, Any]:  # pragma: no cover — bpy
+          graph=None, say=print, params: Optional[Dict[str, Dict[str, Any]]] = None
+          ) -> Dict[str, Any]:  # pragma: no cover — bpy
     """«Apply the ticks»: the version of ``objs`` for the diagnosis' profile,
     written at :func:`target_name`, stamped, registered in ``graph``.
 
@@ -410,7 +462,13 @@ def apply(context, objs, diagnosis: Dict[str, Any], checked: Iterable[str], *, m
     bpy = _bpy()
     UP = use_profiles()
     prof = UP.profile(diagnosis["profile"])
-    ch = UP.choices(diagnosis, list(checked))
+    try:
+        ch = UP.choices(diagnosis, list(checked), params)
+    except TypeError:  # a table before MICRO-PREPARA-RITOCCHI
+        ch = UP.choices(diagnosis, list(checked))
+    for k, v in (("tex_sides", {}), ("tex_formats", {}), ("single_mesh", False),
+                 ("drop_textures", False), ("scale", None)):
+        ch.setdefault(k, v)
     entry = target_name(folder, model, level, prof, ch["packaging"])
     there = target_files(entry)
     if there and not replace:
@@ -489,8 +547,12 @@ def apply(context, objs, diagnosis: Dict[str, Any], checked: Iterable[str], *, m
                     done[t.data.name] = small
                     out["decimated"] += 1
                 t.data = small
-        # ── textures at the profile's side
-        if ch["tex_side"]:
+        # ── textures: model by model, each at the side its row says (a
+        #    texture shared by models: the largest side ticked)
+        sides = dict(ch["tex_sides"])
+        if not sides and ch["tex_side"]:      # a single side for all (before)
+            sides = {None: ch["tex_side"]}
+        if sides and not ch["drop_textures"]:
             copies: Dict[str, Any] = {}
             mats: Dict[str, Any] = {}
             for mesh in {t.data for t in temps.values()}:
@@ -503,18 +565,23 @@ def apply(context, objs, diagnosis: Dict[str, Any], checked: Iterable[str], *, m
                             img = getattr(node, "image", None)
                             if img is None or not img.size[0]:
                                 continue
+                            side_to = sides.get(img.name, sides.get(None))
                             big = max(img.size[0], img.size[1])
-                            if big <= ch["tex_side"]:
+                            if not side_to or big <= side_to:
                                 continue
                             if img.name not in copies:
                                 small = img.copy()
-                                k = ch["tex_side"] / float(big)
+                                k = side_to / float(big)
                                 small.scale(max(1, int(img.size[0] * k)), max(1, int(img.size[1] * k)))
                                 copies[img.name] = small
                                 out["resized"] += 1
                             node.image = copies[img.name]
                         mats[mat.name] = cp
                     mesh.materials[i] = mats[mat.name]
+        # ── a print: one mesh, no materials, written as STL at its scale
+        if ch["packaging"] == "stl" or ch["single_mesh"]:
+            return _write_print(context, temps, col, entry, there, folder, prof, ch, out, layer,
+                                objs, diagnosis, model, level, container, graph, warnings, UP)
         # ── one parent at the origin: what Blender's exporter needs to write
         #    EXT_mesh_gpu_instancing for the objects that share a mesh
         root = bpy.data.objects.new("_em_root", None)
@@ -533,6 +600,10 @@ def apply(context, objs, diagnosis: Dict[str, Any], checked: Iterable[str], *, m
         tmp_entry = os.path.join(workdir, "out", os.path.basename(entry))
         os.makedirs(os.path.dirname(tmp_entry), exist_ok=True)
         fmt = ch["tex_format"]
+        fmts = set(ch["tex_formats"].values())
+        if len(fmts) > 1:
+            warnings.append("textures asked in " + " and ".join(sorted(fmts)) + ": Blender's exporter "
+                            "writes one format for all, " + fmt.upper())
         kw = _gltf_kwargs(
             filepath=tmp_entry, use_selection=True, export_format="GLTF_SEPARATE" if gltf else "GLB",
             export_apply=False, export_yup=True, export_texcoords=True, export_normals=True,
@@ -583,6 +654,60 @@ def apply(context, objs, diagnosis: Dict[str, Any], checked: Iterable[str], *, m
         if was_active is not None:
             layer.objects.active = was_active
         shutil.rmtree(workdir, ignore_errors=True)
+    return out
+
+
+def _write_print(context, temps, col, entry, there, folder, prof, ch, out, layer, objs, diagnosis,
+                 model, level, container, graph, warnings, UP) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The 3D printing profile: the temporary objects joined into ONE mesh,
+    their materials left out, written as a binary STL at the profile's scale
+    (metres → millimetres), into the canonical place. The holes are said by
+    the diagnosis (a repair to look at), not closed here."""
+    bpy = _bpy()
+    import tempfile as _tf
+    parts = [t for t in temps.values() if t.type == "MESH"]
+    if not parts:
+        raise RuntimeError("nothing to print")
+    # each its own mesh before joining (instances would join one mesh twice)
+    for t in parts:
+        if t.data.users > 1:
+            t.data = t.data.copy()
+        if ch["drop_textures"] or ch["packaging"] == "stl":
+            t.data.materials.clear()
+    for o in layer.objects:
+        o.select_set(False)
+    for t in parts:
+        t.select_set(True)
+    layer.objects.active = parts[0]
+    with context.temp_override(active_object=parts[0], selected_objects=parts,
+                               selected_editable_objects=parts):
+        bpy.ops.object.join()
+    joined = layer.objects.active
+    scale = float(ch.get("scale") or prof.get("scale") or 1.0)
+    tmpdir = _tf.mkdtemp(prefix="em_print_")
+    tmp_entry = os.path.join(tmpdir, os.path.basename(entry))
+    for o in layer.objects:
+        o.select_set(False)
+    joined.select_set(True)
+    if hasattr(bpy.ops.wm, "stl_export"):
+        r = bpy.ops.wm.stl_export(filepath=tmp_entry, export_selected_objects=True,
+                                  global_scale=scale, apply_modifiers=True, ascii_format=False)
+    else:  # Blender before 4.2
+        r = bpy.ops.export_mesh.stl(filepath=tmp_entry, use_selection=True, global_scale=scale)
+    if "FINISHED" not in r or not os.path.isfile(tmp_entry):
+        raise RuntimeError("the STL export failed")
+    for p in there:
+        shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
+    os.makedirs(folder, exist_ok=True)
+    shutil.move(tmp_entry, entry)
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    tris = UP.stl_triangles(entry) if hasattr(UP, "stl_triangles") else None
+    out.update(entry=entry, files=[entry], bytes=os.path.getsize(entry), measured={
+        "triangles": tris or 0, "triangles_stored": tris or 0, "nodes": 1, "instancing": False,
+        "textures": 0, "compression": None, "scale": scale})
+    out["registered"] = register_version(context, graph, objs, entry, diagnosis, ch, model=model,
+                                         level=level, container=container, warnings=warnings,
+                                         measured=out["measured"])
     return out
 
 
@@ -711,47 +836,128 @@ def nodes_for_files(graph, rows: Sequence[Dict[str, Any]]) -> Dict[str, List[Dic
 # ── Blender: the dialog ─────────────────────────────────────────────────────
 
 _CLASSES: tuple = ()
+#: the dialog open now (its rows' and groups' ticks reach each other through it)
+_OPEN: Dict[str, Any] = {}
 
 
 def _profile_items(self, context):  # pragma: no cover — bpy
     try:
         UP = use_profiles()
     except RuntimeError:
-        return [("web", "Web", "")]
-    return [(p["id"], p["label"], ", ".join(p["uses"])) for p in UP.profiles()]
+        return [("webxr", "webXR", "")]
+    out = []
+    for p in UP.profiles():
+        tip = p.get("purpose") or ", ".join(p["uses"])
+        if p.get("hint"):
+            tip = f"{p['hint']} — {tip}"
+        out.append((p["id"], p["label"], tip))
+    return out
 
 
 def _operator_classes():  # pragma: no cover — bpy
     import bpy  # type: ignore
 
+    _sync = {"busy": False}
+
+    def _row_ticked(row, context):
+        # a row's tick moves its group's: ticked when every row it can apply is
+        if _sync["busy"]:
+            return
+        op = _OPEN.get("op")
+        if op is None:
+            return
+        _sync["busy"] = True
+        try:
+            for g in op.groups:
+                if g.gid == row.group:
+                    rs = [r for r in op.rows if r.group == g.gid and r.available and not r.separate]
+                    g.checked = bool(rs) and all(r.checked for r in rs)
+        finally:
+            _sync["busy"] = False
+
+    def _group_ticked(group, context):
+        if _sync["busy"]:
+            return
+        op = _OPEN.get("op")
+        if op is None:
+            return
+        _sync["busy"] = True
+        try:
+            for r in op.rows:
+                if r.group == group.gid and r.available and not r.separate:
+                    r.checked = group.checked
+        finally:
+            _sync["busy"] = False
+
     class EM_PG_prepare_row(bpy.types.PropertyGroup):
         row_id: bpy.props.StringProperty()  # type: ignore
         kind: bpy.props.StringProperty()  # type: ignore
+        group: bpy.props.StringProperty()  # type: ignore
         problem: bpy.props.StringProperty()  # type: ignore
         action: bpy.props.StringProperty()  # type: ignore
+        rationale: bpy.props.StringProperty()  # type: ignore
         effect: bpy.props.StringProperty()  # type: ignore
         why: bpy.props.StringProperty()  # type: ignore
         available: bpy.props.BoolProperty(default=True)  # type: ignore
-        checked: bpy.props.BoolProperty(name="", default=True)  # type: ignore
+        separate: bpy.props.BoolProperty(default=False)  # type: ignore
+        checked: bpy.props.BoolProperty(name="", default=True, update=_row_ticked)  # type: ignore
+        # MICRO-PREPARA-RITOCCHI · the parameters the person may change
+        has_triangles: bpy.props.BoolProperty(default=False)  # type: ignore
+        has_side: bpy.props.BoolProperty(default=False)  # type: ignore
+        has_format: bpy.props.BoolProperty(default=False)  # type: ignore
+        triangles_to: bpy.props.IntProperty(  # type: ignore
+            name="Triangles", min=100, soft_max=1_000_000,
+            description="The triangles this geometry is decimated to (the normal map keeps its relief)")
+        side: bpy.props.IntProperty(  # type: ignore
+            name="Side", min=0, soft_max=8192, subtype="PIXEL",
+            description="The largest side of its textures (0: as they are)")
+        fmt: bpy.props.EnumProperty(  # type: ignore
+            name="Format", items=[(k, n, d) for k, n, d in TEXTURE_FORMATS],
+            description="The format its textures are written in")
 
-    def _fill(op, context, set_level=True):
+    class EM_PG_prepare_group(bpy.types.PropertyGroup):
+        gid: bpy.props.StringProperty()  # type: ignore
+        label: bpy.props.StringProperty()  # type: ignore
+        rationale: bpy.props.StringProperty()  # type: ignore
+        available: bpy.props.BoolProperty(default=True)  # type: ignore
+        checked: bpy.props.BoolProperty(name="", default=True, update=_group_ticked)  # type: ignore
+        expanded: bpy.props.BoolProperty(name="", default=False)  # type: ignore
+
+    def _fill(op, context):
         objs, model, _c = selection(context, op.scope)
-        op.rows.clear()
-        if not objs:
-            return None
-        d = diagnose_here(context, objs, op.profile)
-        for r in d["improvements"]:
-            row = op.rows.add()
-            row.row_id, row.kind = r["id"], r["kind"]
-            row.problem, row.action, row.why = r["problem"], r["action"], r.get("why", "")
-            row.effect = effect_line(r["effect"])
-            row.available, row.checked = bool(r.get("available", True)), bool(r.get("checked"))
-        if not op.model:
-            op.model = model
-        if set_level:
-            op.level = level_for(r["kind"] for r in d["improvements"]
-                                 if r.get("checked") and r.get("available", True))
-        return d
+        _sync["busy"] = True
+        try:
+            op.rows.clear()
+            op.groups.clear()
+            if not objs:
+                return None
+            d = diagnose_here(context, objs, op.profile)
+            for r in d["improvements"]:
+                row = op.rows.add()
+                row.row_id, row.kind = r["id"], r["kind"]
+                row.group = r.get("group") or ("packaging" if r["kind"] == "packaging" else "")
+                row.problem, row.action, row.why = r["problem"], r["action"], r.get("why", "")
+                row.rationale = r.get("rationale") or ""
+                row.effect = effect_line(r["effect"])
+                row.available, row.checked = bool(r.get("available", True)), bool(r.get("checked"))
+                row.separate = bool(r.get("separate"))
+                pr = r.get("params") or {}
+                if "triangles_to" in pr:
+                    row.has_triangles, row.triangles_to = True, int(pr["triangles_to"])
+                if "side" in pr:
+                    row.has_side, row.side = True, int(pr["side"] or 0)
+                if "format" in pr and pr["format"] in {k for k, _n, _d in TEXTURE_FORMATS}:
+                    row.has_format, row.fmt = True, pr["format"]
+            for g in d.get("groups") or []:
+                gr = op.groups.add()
+                gr.gid, gr.label, gr.rationale = g["id"], g["label"], g["rationale"]
+                gr.available, gr.checked = bool(g["available"]), bool(g["checked"])
+            if not op.model:
+                op.model = model
+            op.level = ""
+            return d
+        finally:
+            _sync["busy"] = False
 
     def _on_profile(self, context):
         _fill(self, context)
@@ -775,14 +981,21 @@ def _operator_classes():  # pragma: no cover — bpy
             items=[("CONTAINER", "Its container", "The meshes of the active object's RM container"),
                    ("SELECTED", "The selection", "The selected meshes")])
         rows: bpy.props.CollectionProperty(type=EM_PG_prepare_row)  # type: ignore
+        groups: bpy.props.CollectionProperty(type=EM_PG_prepare_group)  # type: ignore
         model: bpy.props.StringProperty(name="Model", default="", options={"SKIP_SAVE"})  # type: ignore
-        level: bpy.props.StringProperty(name="Level", default="lod0", options={"SKIP_SAVE"})  # type: ignore
+        level: bpy.props.StringProperty(  # type: ignore
+            name="Level", default="", options={"SKIP_SAVE"},
+            description="Empty: lod1 when something is decimated, else lod0")
         replace: bpy.props.BoolProperty(  # type: ignore
             name="Replace the version there", default=False, options={"SKIP_SAVE"},
             description="A version with this name is already in versions/: write it again")
         checked_ids: bpy.props.StringProperty(  # type: ignore
             default="", options={"HIDDEN", "SKIP_SAVE"},
             description="Comma-separated row ids to apply (a script, EMStudio); empty: the ticks")
+        params_json: bpy.props.StringProperty(  # type: ignore
+            default="", options={"HIDDEN", "SKIP_SAVE"},
+            description="The parameters of the rows as JSON ({row id: {triangles_to, side, format}}): "
+                        "a script, EMStudio; empty: the dialog's")
         folder: bpy.props.StringProperty(  # type: ignore
             default="", options={"HIDDEN", "SKIP_SAVE"},
             description="Where versions/ is (default: beside the .blend)")
@@ -797,6 +1010,31 @@ def _operator_classes():  # pragma: no cover — bpy
             path = bpy.data.filepath
             return use_profiles().versions_folder(path) if path else ""
 
+        def _params(self, d):
+            if self.params_json:
+                try:
+                    return {str(k): dict(v) for k, v in json.loads(self.params_json).items()}
+                except (ValueError, AttributeError, TypeError):
+                    return {}
+            by_id = {r["id"]: r for r in d.get("improvements") or []}
+            out = {}
+            for r in self.rows:
+                if r.row_id in by_id and (r.has_triangles or r.has_side or r.has_format):
+                    out[r.row_id] = row_params(by_id[r.row_id], triangles_to=r.triangles_to,
+                                               side=r.side if r.has_side else 0,
+                                               fmt=r.fmt if r.has_format else "")
+            return out
+
+        def _checked(self):
+            return [r.row_id for r in self.rows if r.checked and r.available and not r.separate]
+
+        def _estimate(self, d, checked, params):
+            UP = use_profiles()
+            try:
+                return UP.estimate(d, checked, params=params)
+            except TypeError:
+                return UP.estimate(d, checked)
+
         def invoke(self, context, event):
             try:
                 use_profiles()
@@ -805,14 +1043,16 @@ def _operator_classes():  # pragma: no cover — bpy
                 return {"CANCELLED"}
             if context.active_object is not None and container_of(context.scene, context.active_object) is None:
                 self.scope = "SELECTED"
+            _OPEN["op"] = self
             if _fill(self, context) is None:
                 self.report({"ERROR"}, "select the model (or an object of its container)")
                 return {"CANCELLED"}
-            return context.window_manager.invoke_props_dialog(self, width=720,
+            return context.window_manager.invoke_props_dialog(self, width=760,
                                                               title="Prepare for a use",
                                                               confirm_text="Apply the ticks")
 
         def draw(self, context):
+            _OPEN["op"] = self
             d = LAST.get("diagnosis")
             col = self.layout.column()
             row = col.row()
@@ -821,6 +1061,13 @@ def _operator_classes():  # pragma: no cover — bpy
             if not d:
                 col.label(text="Nothing to diagnose", icon="INFO")
                 return
+            try:
+                prof = use_profiles().profile(d["profile"])
+                if prof.get("purpose"):
+                    col.label(text=(f"{prof['hint']} — " if prof.get("hint") else "") + prof["purpose"],
+                              icon="QUESTION")
+            except Exception:  # noqa: BLE001
+                pass
             t, b = d["totals"], d["before"]
             box = col.box()
             box.label(text=f"{t['objects']} objects · {t['triangles']:,} triangles · "
@@ -839,32 +1086,75 @@ def _operator_classes():  # pragma: no cover — bpy
                 box.label(text="Over the budget per object: " + ", ".join(
                     f"{p['name']} {p['triangles']:,}" for p in d["peaks"][:4])
                     + ("…" if len(d["peaks"]) > 4 else ""), icon="ERROR")
+            # the grid, by group: the group's tick and rationale; opened, the
+            # rows model by model with their rationale and their parameters
             grid = col.box()
-            grid.label(text="Improvements", icon="MODIFIER")
-            checked = [r.row_id for r in self.rows if r.checked and r.available]
+            grid.label(text="Improvements (the safe ones are ticked; open a group to change a row)",
+                       icon="MODIFIER")
+            for g in self.groups:
+                gb = grid.box()
+                head = gb.row(align=True)
+                rs = [r for r in self.rows if r.group == g.gid]
+                head.prop(g, "expanded", icon="TRIA_DOWN" if g.expanded else "TRIA_RIGHT", emboss=False)
+                if g.gid != "tileset":
+                    sub = head.row()
+                    sub.enabled = g.available
+                    sub.prop(g, "checked")
+                n_on = sum(1 for r in rs if r.checked and r.available)
+                head.label(text=f"{g.label} ({n_on}/{len(rs)})" if g.gid != "tileset" else g.label)
+                gb.label(text=g.rationale)
+                if g.gid == "tileset":
+                    for r in rs:
+                        gb.label(text=r.problem, icon="INFO")
+                    tr = gb.row()
+                    tr.operator("em.prepare_tileset_3dsc", icon="OUTLINER_OB_POINTCLOUD")
+                    tr.label(text="or in EMStudio: Ottimizza › a tileset from a mesh (Obj2Tiles)")
+                    continue
+                if not g.expanded:
+                    continue
+                for r in rs:
+                    line = gb.row(align=True)
+                    sub = line.row()
+                    sub.enabled = r.available
+                    sub.prop(r, "checked", text="")
+                    line.label(text=r.action if not r.problem else f"{r.problem} → {r.action}")
+                    line.label(text=r.effect if r.available else r.why)
+                    if r.rationale or r.has_triangles or r.has_side or r.has_format:
+                        pr = gb.row(align=True)
+                        pr.separator(factor=3.0)
+                        if r.rationale:
+                            pr.label(text=r.rationale)
+                        if r.has_triangles:
+                            pr.prop(r, "triangles_to")
+                        if r.has_side:
+                            pr.prop(r, "side")
+                        if r.has_format:
+                            pr.prop(r, "fmt", text="")
             for r in self.rows:
-                line = grid.row(align=True)
-                sub = line.row()
-                sub.enabled = r.available
-                sub.prop(r, "checked", text="")
-                text = r.action if not r.problem else f"{r.problem} → {r.action}"
-                line.label(text=text)
-                line.label(text=r.effect if r.available else r.why)
-            a = use_profiles().estimate(d, checked)
+                if r.kind == "packaging":
+                    grid.label(text=f"Packaging: {r.action}", icon="PACKAGE")
+            checked = self._checked()
+            params = self._params(d)
+            a = self._estimate(d, checked, params)
             col.label(text=f"Download {mb(b['download_bytes'])} → {mb(a['download_bytes'])} · "
                            f"GPU memory {mb(b['gpu_bytes'])} → {mb(a['gpu_bytes'])} · "
                            f"triangles {b['triangles']:,} → {a['triangles']:,} · "
                            f"draw calls {b['draw_calls']} → {a['draw_calls']}", icon="SORTTIME")
+            if any(r.kind == "decimate" and r.checked for r in self.rows):
+                col.label(text="Decimation with baked normals: 3D Survey Collection's LOD generator "
+                               "(make_lod_set / rebake_atlas)", icon="MOD_DECIM")
+            level = self.level or level_for(r.kind for r in self.rows if r.row_id in checked)
             row = col.row()
             row.prop(self, "model")
-            row.prop(self, "level")
+            row.prop(self, "level", text=f"Level (auto: {level_for(r.kind for r in self.rows if r.row_id in checked)})"
+                     if not self.level else "Level")
             folder = self._folder()
             if not folder:
                 col.label(text="Save the .blend first: the versions go beside it", icon="ERROR")
                 return
             try:
                 ch = use_profiles().choices(d, checked)
-                entry = target_name(folder, self.model or "model", self.level or "lod0",
+                entry = target_name(folder, self.model or "model", level,
                                     use_profiles().profile(d["profile"]), ch["packaging"])
             except Exception as exc:  # noqa: BLE001
                 col.label(text=str(exc), icon="ERROR")
@@ -873,7 +1163,11 @@ def _operator_classes():  # pragma: no cover — bpy
             if target_files(entry):
                 col.prop(self, "replace", text="Replace the version there (it is already in versions/)")
 
+        def cancel(self, context):
+            _OPEN.pop("op", None)
+
         def execute(self, context):
+            _OPEN.pop("op", None)
             try:
                 use_profiles()
             except RuntimeError as exc:
@@ -884,15 +1178,18 @@ def _operator_classes():  # pragma: no cover — bpy
                 self.report({"ERROR"}, "select the model (or an object of its container)")
                 return {"CANCELLED"}
             if not len(self.rows):
-                _fill(self, context, set_level=False)
+                _fill(self, context)
             d = diagnose_here(context, objs, self.profile)
             ids = ([x for x in self.checked_ids.split(",") if x] if self.checked_ids
-                   else [r.row_id for r in self.rows if r.checked and r.available])
+                   else self._checked())
+            ids = [i for i in ids if i != "none"]
+            params = self._params(d)
+            kinds = {r["id"]: r["kind"] for r in d["improvements"]}
+            level = self.level or level_for(kinds.get(i, "") for i in ids)
             folder = self._folder()
             if not folder:
                 self.report({"ERROR"}, "save the .blend first: the versions go beside it")
                 return {"CANCELLED"}
-            from . import asset_versions as AV
             graph = None
             try:
                 from ..functions import is_graph_available
@@ -903,8 +1200,8 @@ def _operator_classes():  # pragma: no cover — bpy
             t0 = time.time()
             try:
                 out = apply(context, objs, d, ids, model=self.model or model,
-                            level=self.level or "lod0", folder=folder, replace=self.replace,
-                            container=cont, graph=graph,
+                            level=level, folder=folder, replace=self.replace,
+                            container=cont, graph=graph, params=params,
                             say=lambda s: self.report({"INFO"}, s))
             except FileExistsError as exc:
                 self.report({"ERROR"}, str(exc))
@@ -914,7 +1211,8 @@ def _operator_classes():  # pragma: no cover — bpy
                 traceback.print_exc()
                 self.report({"ERROR"}, f"could not prepare the version: {exc}")
                 return {"CANCELLED"}
-            LAST["applied"] = dict(out, seconds=round(time.time() - t0, 1), rows=ids)
+            LAST["applied"] = dict(out, seconds=round(time.time() - t0, 1), rows=ids, params=params,
+                                   level=level)
             for w in out["warnings"]:
                 self.report({"WARNING"}, w)
             m = out["measured"]
@@ -928,7 +1226,50 @@ def _operator_classes():  # pragma: no cover — bpy
                 area.tag_redraw()
             return {"FINISHED"}
 
-    return (EM_PG_prepare_row, EM_OT_prepare_diagnose)
+    class EM_OT_prepare_tileset_3dsc(bpy.types.Operator):
+        """A 3D Tiles tileset of the model with 3D Survey Collection's Cesium
+        exporter: the model cut in tiles with their levels of detail (a
+        packaging, for desktop realtime and webXR). Its output folder, when
+        none is set, becomes versions/<model>@tiles beside the .blend"""
+
+        bl_idname = "em.prepare_tileset_3dsc"
+        bl_label = "Make a tileset (3D Survey Collection)"
+        bl_options = {"REGISTER"}
+
+        @classmethod
+        def poll(cls, context):
+            return hasattr(bpy.ops.object, "export_cesium_tiles") and hasattr(context.scene, "cesium_output_dir")
+
+        @classmethod
+        def description(cls, context, properties):
+            if not hasattr(context.scene, "cesium_output_dir"):
+                return "3D Survey Collection is not loaded in this Blender: its Cesium exporter makes the tileset"
+            return cls.__doc__
+
+        def execute(self, context):
+            op = _OPEN.get("op")
+            scope = op.scope if op is not None else "SELECTED"
+            objs, model, _c = selection(context, scope)
+            if not objs:
+                self.report({"ERROR"}, "select the model (or an object of its container)")
+                return {"CANCELLED"}
+            scene = context.scene
+            if not str(scene.cesium_output_dir or "").strip():
+                if not bpy.data.filepath:
+                    self.report({"ERROR"}, "save the .blend first, or set the Cesium exporter's output folder")
+                    return {"CANCELLED"}
+                safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in (op.model if op else model) or model)
+                scene.cesium_output_dir = os.path.join(use_profiles().versions_folder(bpy.data.filepath),
+                                                       f"{safe}@tiles")
+                self.report({"INFO"}, f"the tileset goes in {scene.cesium_output_dir}")
+            for o in context.view_layer.objects:
+                o.select_set(False)
+            for o in objs:
+                o.select_set(True)
+            context.view_layer.objects.active = objs[0]
+            return bpy.ops.object.export_cesium_tiles("INVOKE_DEFAULT")
+
+    return (EM_PG_prepare_row, EM_PG_prepare_group, EM_OT_prepare_diagnose, EM_OT_prepare_tileset_3dsc)
 
 
 def register():  # pragma: no cover — bpy

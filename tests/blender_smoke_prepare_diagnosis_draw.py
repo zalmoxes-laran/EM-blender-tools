@@ -1,6 +1,7 @@
 """Headless smoke · MICRO-PREPARA-DIAGNOSI — the two dialogs DRAWN (in -b an
 operator runs in EXEC and its dialog is never drawn): «Prepare for a use:
-diagnosis…» for the web on Templu Mare's 87 objects, and «Remove versions…» in
+diagnosis…» for mobile webXR on Templu Mare's 87 objects (its grid by group,
+the groups opened, their rows' parameters — MICRO-PREPARA-RITOCCHI), and «Remove versions…» in
 its DISK mode on a versions/ folder. A recording layout stands in for the
 region (the same as blender_smoke_graph_delete)::
 
@@ -40,6 +41,9 @@ class Rec:
     def prop(self, data, name, **k):
         self.calls.append(f"prop:{name}")
 
+    def separator(self, **k):
+        pass
+
     def prop_enum(self, data, name, value, **k):
         self.calls.append(f"enum:{value}")
 
@@ -61,25 +65,41 @@ for o in objs:
     o.select_set(True)
 bpy.context.view_layer.objects.active = objs[0]
 
-d = PD.diagnose_here(bpy.context, objs, "web")
-rows = [types.SimpleNamespace(row_id=r["id"], kind=r["kind"], problem=r["problem"], action=r["action"],
-                              effect=PD.effect_line(r["effect"]), why=r.get("why", ""),
-                              available=bool(r.get("available", True)), checked=bool(r.get("checked")))
-        for r in d["improvements"]]
+d = PD.diagnose_here(bpy.context, objs, "mobile_webxr")
+rows = []
+for r in d["improvements"]:
+    pr = r.get("params") or {}
+    rows.append(types.SimpleNamespace(
+        row_id=r["id"], kind=r["kind"], group=r.get("group", ""), problem=r["problem"], action=r["action"],
+        rationale=r.get("rationale", ""), effect=PD.effect_line(r["effect"]), why=r.get("why", ""),
+        available=bool(r.get("available", True)), checked=bool(r.get("checked")),
+        separate=bool(r.get("separate")), has_triangles="triangles_to" in pr, has_side="side" in pr,
+        has_format="format" in pr, triangles_to=int(pr.get("triangles_to") or 0),
+        side=int(pr.get("side") or 0), fmt=pr.get("format") or "jpeg"))
+groups = [types.SimpleNamespace(gid=g["id"], label=g["label"], rationale=g["rationale"],
+                                available=g["available"], checked=g["checked"], expanded=True)
+          for g in d["groups"]]
 OP = next(c for c in PD._CLASSES if getattr(c, "bl_idname", "") == "em.prepare_diagnose")
 calls = []
-fake = types.SimpleNamespace(layout=Rec(calls), profile="web", scope="SELECTED", rows=rows,
-                             model="TempluMare_SB", level="lod1", replace=False, folder="")
-fake._folder = lambda: OP._folder(fake)
+fake = types.SimpleNamespace(layout=Rec(calls), profile="mobile_webxr", scope="SELECTED", rows=rows,
+                             groups=groups, model="TempluMare_SB", level="", replace=False, folder="",
+                             params_json="")
+for m in ("_folder", "_checked", "_params", "_estimate"):
+    setattr(fake, m, (lambda name: (lambda *a: getattr(OP, name)(fake, *a)))(m))
 OP.draw(fake, bpy.context)
 text = " | ".join(c for c in calls if c)
-print("[SMOKE] diagnosis dialog:", text[:1500])
-check("the dialog: totals, budgets, copies, peaks", "87 objects" in text and "copies of" in text
-      and "Over the budget per object" in text and "triangles: 3,028,338 of 1,500,000" in text)
-check("the dialog: one tick per row, the unavailable say why",
-      calls.count("prop:checked") == len(rows) and "gltfpack" in text)
-check("the dialog: before → after and the target in versions/",
-      "Download 81.3 MB →" in text and "versions/TempluMare_SB@lod1-web.glb" in text)
+print("[SMOKE] diagnosis dialog:", text[:2400])
+check("the dialog: what the profile is for, totals, budgets, copies, peaks",
+      "phones and stand-alone headsets" in text and "87 objects" in text and "copies of" in text
+      and "Over the budget per object" in text and "triangles: 3,028,338 of 500,000" in text)
+check("the dialog: the groups with their tick and rationale",
+      calls.count("prop:checked") >= len(groups) + len([r for r in rows if r.group != "tileset" and r.kind != "packaging"])
+      and "Copies of one mesh → instances" in text and "make_lod_set / rebake_atlas" in text)
+check("the dialog: opened, the rows' parameters (triangles, side, format)",
+      "prop:triangles_to" in calls and "prop:side" in calls and "prop:fmt" in calls)
+check("the dialog: the unavailable say why", "gltfpack" in text)
+check("the dialog: before → after and the target in versions/ (level auto: lod0, decimation unticked)",
+      "Download" in text and "versions/TempluMare_SB@lod0-mobile.glb" in text)
 
 # «Remove versions…» › Files in versions/
 folder = os.environ.get("PD_VERSIONS", "/tmp/pd/out/made")
