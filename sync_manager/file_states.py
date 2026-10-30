@@ -16,6 +16,7 @@ after every sync and when a .blend is opened (`check_soon`), and again with ↻
 """
 
 import os
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 
@@ -83,6 +84,9 @@ def resolve_active(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover 
                                 on_node=node_probe(), hasher=sha256_of_file)
     ULTIMI.update({"graph_id": str(getattr(graph, "graph_id", "")),
                    "results": results,
+                   # MICRO-BLEND-OFFICINA-1 · when: «Check against the graph»
+                   # with the room as source says how old its answer is
+                   "at": time.strftime("%Y-%m-%d %H:%M"),
                    # R2 · the row says the file and its document, not «Link to D.32»
                    "described": {r["id"]: describe(graph, r["id"], r) for r in results},
                    "models": model_states(graph, results)})

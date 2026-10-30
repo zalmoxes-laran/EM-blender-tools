@@ -2784,7 +2784,8 @@ def _operator_classes():  # pragma: no cover — bpy
             # status row and «Prepare in EMStudio». «Export a version for a
             # use…» (em.asset_prepare_for_use) and «Prepare for a use:
             # diagnosis…» (em.prepare_diagnose) stay REGISTERED — EMStudio
-            # drives them in a headless Blender — and reachable from F3.
+            # drives them in a headless Blender; in Blender F3 finds them with
+            # Preferences ▸ Interface ▸ Developer Extras on.
             from . import blend_officina
             blend_officina.draw_status(layout, context, obj)
             col = layout.column(align=True)

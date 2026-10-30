@@ -92,6 +92,10 @@ r_obj = next(r for r in res["rows"] if r["key"] == "object:" + OBJ)
 check("… and «Export as master» is proposed", r_obj["action"] == "export_master", r_obj)
 check("check: only-here objects exist", res["counts"]["only_here"] > 0, res["counts"])
 
+# the ROOM as source, never resolved here: the last state known, said
+rr = BO.check_here(bpy.context, source="room")
+check("source room, not resolved: offline, said", rr["offline"] and rr["as_of"] == "never resolved", rr["as_of"])
+
 # ── «Export as master»
 obj = bpy.data.objects[OBJ]
 out = BO.export_master(bpy.context, graph, obj, emjson)

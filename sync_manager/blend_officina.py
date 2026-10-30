@@ -280,15 +280,17 @@ def check_here(context, *, source: str = "disk") -> Dict[str, Any]:  # pragma: n
     files = disk_files(doc, em_folder) if source == "disk" else {}
     offline, as_of = False, ""
     if source == "room":
-        try:
-            from . import file_states
-            known = getattr(file_states, "LAST", None) or {}
-            files = {r.get("id"): {"sha256": r.get("sha256"), "exists": r.get("state") != "missing"}
-                     for r in (known.get("results") or []) if r.get("id")}
-            offline = not bool(known.get("online", True))
-            as_of = str(known.get("at") or "")
-        except Exception:  # noqa: BLE001
-            offline = True
+        # the room's answer is the last resolution of the active graph
+        # (``file_states.ULTIMI``: each resource on the node, on the disk,
+        # missing; the node asked by sha256). Not resolved yet, or the node not
+        # reached (its position answered None): the last state known, said.
+        from . import file_states
+        known = getattr(file_states, "ULTIMI", None) or {}
+        results = known.get("results") or []
+        files = {r["id"]: {"exists": r.get("state") != "missing"} for r in results if r.get("id")}
+        offline = not results or any(p.get("kind") == "node" and p.get("ok") is None
+                                     for r in results for p in (r.get("positions") or []))
+        as_of = str(known.get("at") or "") if results else "never resolved"
     res = bf().check(inv, doc, files=files, source=source, offline=offline, as_of=as_of, em_folder=em_folder)
     LAST.clear()
     LAST.update({"result": res, "inventory_counts": inv["counts"], "at": time.strftime("%H:%M")})
