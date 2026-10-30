@@ -308,6 +308,84 @@ def zones(s: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+# ── the chip: where you work in ONE row of the EM Data Tree ────────────────
+
+#: the dot beside the chip: green (connected and someone there), grey
+#: (nothing to connect, or nobody yet), red (something to fix)
+DOT_ON, DOT_IDLE, DOT_PROBLEM = "on", "idle", "problem"
+
+
+def chip(s: Dict[str, Any], z: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """MICRO-EMTOOLS-PANNELLO (E.D., 30 Oct 2026) · «Where you work» was a
+    panel of its own repeating EM ▸ Mode, three status lines and three
+    buttons: now it is the FIRST ROW of the EM Data Tree — an icon and a short
+    word («On this computer» / «With EMStudio» / «Room: <title>»), a dot, the
+    menu EM ▸ Mode on a click. Pure: ``{icon, text, dot, tip, action}``.
+
+    ``tip`` is the detail the panel's lines used to say (the study's file,
+    who you are, the node, the bridge, the clients, the last transition, the
+    log) — the tooltip of the chip. ``action`` is the one gesture that FIXES
+    something now (Reconnect, Sign in again, Cancel the wait, the room's
+    Reconnect / Download now): it stays in sight, on a row under the chip,
+    because a call to action read only in a tooltip is a call nobody hears;
+    ``None`` when there is nothing to fix (the normal case: no row)."""
+    z = z if z is not None else zones(s)
+    place = s.get("place") or PLACE_HERE
+    msg = z.get("message") or {}
+    tip: List[str] = []
+    if place == PLACE_ROOM:
+        title = s.get("room_title") or s.get("room_id") or "the room"
+        icon, text = "COMMUNITY", f"Room: {title}"
+        st = z.get("state") or {}
+        if s.get("not_connected") or s.get("offline"):
+            dot = DOT_PROBLEM
+            icon = "UNLINKED"
+        elif st.get("alert") or not z.get("healthy", True):
+            dot = DOT_PROBLEM
+        else:
+            dot = DOT_ON if s.get("connected") else DOT_IDLE
+        tip.append(z["place"][1])
+        if z.get("who", ("", ""))[1]:
+            tip.append(z["who"][1])
+        if st.get("text"):
+            tip.append(st["text"] + (f" ({st['numbers']})" if st.get("numbers") else ""))
+    elif place == PLACE_EMSTUDIO:
+        icon, text = "LINKED", "With EMStudio"
+        n = int(s.get("clients") or 0)
+        dot = DOT_ON if n else DOT_IDLE
+        tip.append(z["place"][1])
+        tip.append(f"The bridge listens on 127.0.0.1 · {n} client{'s' if n != 1 else ''}")
+        if z.get("who", ("", ""))[1]:
+            tip.append(z["who"][1])
+    else:
+        icon, text = "FILE_BLEND", "On this computer"
+        dot = DOT_IDLE
+        tip.append(z["place"][1])
+        if z.get("who", ("", ""))[1]:
+            tip.append(z["who"][1])
+    if msg.get("text"):
+        tip.append(str(msg["text"]))
+    log = z.get("log") or ("", "")
+    if log[1]:
+        tip.append(log[1])
+    if msg.get("alert") or (log[1] and log[0] == "ERROR"):
+        dot = DOT_PROBLEM
+    action = None
+    if msg.get("op"):
+        action = {"icon": msg.get("icon") or "INFO", "text": str(msg.get("text") or ""),
+                  "op": msg["op"], "op_text": msg.get("op_text") or "",
+                  "op_props": dict(msg.get("op_props") or {}),
+                  "alert": bool(msg.get("alert"))}
+    elif place == PLACE_ROOM and (z.get("state") or {}).get("op"):
+        st = z["state"]
+        action = {"icon": st.get("icon") or "INFO", "text": st.get("text") or "",
+                  "op": st["op"], "op_text": st.get("op_text") or "",
+                  "op_props": dict(st.get("op_props") or {}),
+                  "alert": bool(st.get("alert"))}
+    tip.append("Click: where you work (the same menu as EM ▸ Mode)")
+    return {"icon": icon, "text": text, "dot": dot, "tip": tip, "action": action}
+
+
 # ── Blender ─────────────────────────────────────────────────────────────────
 
 def read_state(context) -> Dict[str, Any]:  # pragma: no cover — bpy

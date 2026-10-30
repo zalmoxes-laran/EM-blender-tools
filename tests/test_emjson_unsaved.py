@@ -162,13 +162,16 @@ def _src(*parts):
 def test_the_save_has_words_beside_the_file_name():
     tree = _src("em_setup", "graph_tree.py")
     body = tree[tree.index("def draw_save_row("):tree.index("def room_alignment(")]
-    assert '"export.em_save", text="Save em.json"' in body
-    assert '"export.em_saveas", text="Save as…"' in body
-    assert '"export.em_saveas", text="Save as em.json…"' in body, "GraphML / no file"
+    # MICRO-EMTOOLS-PANNELLO (30 Oct 2026) · the words are the tooltips of
+    # two icons ON the file's row, beside its name (Save lit when unsaved)
+    assert '"export.em_save", text="", icon="FILE_TICK"' in body
+    assert '"export.em_saveas", text="", icon="FILE_NEW"' in body
+    assert "save.alert = bool(unsaved)" in body
     loop = tree[tree.index("def draw_graph_tree("):tree.index("def _unsaved_reasons(")]
     assert 'f"● {origin.label}" if unsaved' in loop, "the mark on the file's name"
-    assert loop.index("head.label(text=f\"● {origin.label}\"") < \
-        loop.index("draw_save_row(col, origin, unsaved)"), "under the name"
+    assert loop.index('text=f"● {origin.label}" if unsaved') < \
+        loop.index("draw_save_row(right, origin, unsaved)"), "beside the name"
+    assert '"Unsaved: "' not in loop, "the why is the name's tooltip"
 
 
 def test_file_export_has_extended_matrix():

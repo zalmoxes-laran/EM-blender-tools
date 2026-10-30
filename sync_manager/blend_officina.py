@@ -131,8 +131,8 @@ def prepare_link(*, sidecar_clients: int, room: Dict[str, Optional[str]], contai
         from urllib.parse import urlencode
         q = {"server": room["server"], "room": room["room"], "node": container, "tab": "prepare"}
         return {"way": "link", "url": "stratigraph://open?" + urlencode(q)}
-    return {"way": None, "say": ("EMStudio is not connected: turn the Sidecar on (EM ▸ Where you work ▸ "
-                                 "Work with EMStudio) and connect EMStudio to it, then press again; "
+    return {"way": None, "say": ("EMStudio is not connected: turn the Sidecar on (EM ▸ Mode ▸ "
+                                 "With EMStudio) and connect EMStudio to it, then press again; "
                                  "or open the em.json in EMStudio › Prepare.")}
 
 

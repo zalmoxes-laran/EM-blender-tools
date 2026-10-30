@@ -240,6 +240,26 @@ def _imported_warnings(active_file):
     return records + extra
 
 
+def warning_messages(em_tools, active_file):
+    """Every warning of the active graph: the two the panel checks itself
+    (the site ID left as a placeholder, epochs with placeholder dates) and
+    those of the import. MICRO-EMTOOLS-PANNELLO · counted ONCE per redraw,
+    for the counter ⚠ n of the file's row and for the list it opens."""
+    out = []
+    if getattr(active_file, "graph_code", "") in GRAPH_CODE_SEGNAPOSTO:
+        out.append("Please add a proper site ID in the header")
+    epochs = getattr(getattr(em_tools, "epochs", None), "list", None) or []
+    if any(e.start_time == 10000 or e.end_time == 10000 for e in epochs):
+        out.append("Update the epochs placeholder dates (xx)")
+    # Prefer the structured records: they carry the s3Dgraphy `kind`,
+    # so the digest files them exactly instead of matching English.
+    # The flat strings are the fallback — for a GraphML source, whose
+    # importer emits richer prose than the state families can, and
+    # for anything loaded before the records existed.
+    out.extend(_imported_warnings(active_file))
+    return out
+
+
 def _draw_warning_row(layout, context, message, record):
     """One warning line, with a reveal button when it points somewhere.
 
@@ -656,15 +676,30 @@ class EM_SetupPanel(bpy.types.Panel):
         # ogni passo l'unica cosa accesa sia quella giusta.
         _stato = self._catena(context, em_tools)
 
+        # MICRO-EMTOOLS-PANNELLO (E.D., 30 Oct 2026) · the FIRST ROW is where
+        # you work — the chip that opens EM ▸ Mode, its dot, the detail in its
+        # tooltip (the panel «Where you work» that stood above is gone) — and,
+        # at its right end, the bar of the graphs (+ − ▾)
+        from .graph_tree import draw_graph_tree, draw_toolbar
+        try:
+            from ..sync_manager.panel import draw_mode_row
+            draw_mode_row(layout, context, tools=lambda bar: draw_toolbar(
+                bar, context, em_tools, _stato))
+        except Exception as exc:  # noqa: BLE001 — the tree draws without it
+            print(f"[EM Data Tree] where you work not drawn: {exc}")
+            draw_toolbar(layout.row(align=True), context, em_tools, _stato)
+
+        _active = (em_tools.graphml_files[em_tools.active_file_index]
+                   if 0 <= em_tools.active_file_index < len(em_tools.graphml_files)
+                   else None)
+        _warnings = (warning_messages(em_tools, _active) if _active is not None else [])
+
         # M1 · the graphs as a tree «file or room → graphs», like EMStudio's
         # EMTree: each graph under the place it comes from, and «Save» on a
         # branch writes that file with its own graphs only. With no rows
         # the old list stays (empty state, same as before).
         if len(em_tools.graphml_files):
-            from .graph_tree import draw_graph_tree, draw_toolbar
-            # P2 · the commands as a bar of icons ABOVE the tree, like EMStudio
-            draw_toolbar(layout, context, em_tools, _stato)
-            draw_graph_tree(layout, context, em_tools)
+            draw_graph_tree(layout, context, em_tools, warnings=len(_warnings))
         else:
             row = layout.row()
             row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
@@ -713,24 +748,12 @@ class EM_SetupPanel(bpy.types.Panel):
 
         # (Multigraph Mode è nella riga di icone sopra — B3.)
 
-        # Details for selected GraphML file (codice esistente)
-        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+        # MICRO-EMTOOLS-PANNELLO · the warnings are a counter ⚠ n on the file's
+        # row; the list only when it is opened from there, nothing when zero
+        if _active is not None and _warnings and _active.show_warnings_section:
+            self._draw_graph_warnings(context, layout, em_tools, _active, _warnings)
 
-            layout.separator()
-
-            active_file = em_tools.graphml_files[em_tools.active_file_index]
-
-            # P2 · the Path and Load are inside the selected graph's row
-            # (graph_tree._draw_active_path); «Graph info» is a sub-panel,
-            # closed by default (VIEW3D_PT_em_graph_info)
-
-            # I warning NON entrano nel collassabile: un avviso che si può
-            # chiudere resta chiuso, ed è lo stesso motivo per cui la riga
-            # della scala sta fuori.
-            self._draw_graph_warnings(context, layout, em_tools, active_file)
-
-            # U6 · the auxiliary files are the tree's third job: their own
-            # sub-panel («Auxiliary files», below «Import from tables»)
+        # U6 · the auxiliary files, the tables: «Import» below, one sub-panel
 
     def _draw_graph_info(self, context, layout, active_file):
         """B2 · i numeri e i metadati del grafo attivo."""
@@ -844,68 +867,32 @@ class EM_SetupPanel(bpy.types.Panel):
         # linguaggio stai lavorando è informazione del grafo, non un
         # avviso — quindi sta qui dentro e non fuori.
 
-        # S6 — version banner. Shown whether or not there are warnings:
-        # knowing which language version you are working with is not
-        # conditional on something having gone wrong.
-        _banner = _format_version_banner(active_file)
-        if _banner:
-            banner_row = layout.row()
-            banner_row.label(text=_banner, icon='FILE_TEXT')
+        # S6 — version banner. MICRO-EMTOOLS-PANNELLO · no longer a line
+        # here: it is in the tooltip of the file's name, on the tree's row
+        # (`graph_tree.origin_tooltip`), always there without a row.
 
-    def _draw_graph_warnings(self, context, layout, em_tools, active_file):
-        """I warning del grafo, FUORI dal collassabile.
-
-        Un avviso che si può chiudere resta chiuso: è lo stesso motivo
-        per cui la riga della scala di promozione sta fuori.
-        """
-        # Controllo se ci sono warning da mostrare
-        graph_code_warning = False
-        epochs_date_warning = False
-
-        if hasattr(active_file, 'graph_code'):
-            if active_file.graph_code in GRAPH_CODE_SEGNAPOSTO:
-                graph_code_warning = True
-
-        # Controllo per date delle epoche non valide
-        if hasattr(em_tools, "epochs") and len(em_tools.epochs.list) > 0:
-            for epoch in em_tools.epochs.list:
-                if epoch.start_time == 10000 or epoch.end_time == 10000:
-                    epochs_date_warning = True
-                    break
-
-        warning_messages = []
-
-        if graph_code_warning:
-            warning_messages.append("Please add a proper site ID in the header")
-
-        if epochs_date_warning:
-            warning_messages.append("Update the epochs placeholder dates (xx)")
-
-        # Prefer the structured records: they carry the s3Dgraphy `kind`,
-        # so the digest files them exactly instead of matching English.
-        # The flat strings are the fallback — for a GraphML source, whose
-        # importer emits richer prose than the state families can, and
-        # for anything loaded before the records existed.
-        warning_messages.extend(_imported_warnings(active_file))
-
+    def _draw_graph_warnings(self, context, layout, em_tools, active_file,
+                             warning_messages=None):
+        """The list of the graph's warnings, opened from the counter ⚠ n of
+        the file's row (MICRO-EMTOOLS-PANNELLO: there are no rows for them
+        while it is closed, and none at all when they are zero)."""
+        if warning_messages is None:
+            warning_messages = _all_warnings(em_tools, active_file)
         warning_count = len(warning_messages)
 
-        # Se ci sono warning, mostra il box di warning
         if warning_count > 0:
-            from .warning_digest import digest_warnings, summarise
+            from .warning_digest import digest_warnings
             groups = digest_warnings(warning_messages)
 
             warning_box = layout.box()
             header_row = warning_box.row(align=True)
-            icon = 'TRIA_DOWN' if active_file.show_warnings_section else 'TRIA_RIGHT'
             header_row.prop(
                 active_file,
                 "show_warnings_section",
-                text=f"EM Warnings ({warning_count}):",
-                icon=icon,
+                text=f"EM Warnings ({warning_count})",
+                icon='TRIA_DOWN',
                 emboss=False,
             )
-            header_row.label(text="", icon='ERROR')
             help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
             help_op.title = "EM Warnings"
             help_op.text = (
@@ -923,15 +910,7 @@ class EM_SetupPanel(bpy.types.Panel):
             help_op.url = "panels/em_setup.html#em-warnings"
             help_op.project = 'em_tools'
 
-            # Collapsed: one line saying what the bulk of it is, so the
-            # panel is informative without being opened.
-            if not active_file.show_warnings_section:
-                digest = summarise(groups)
-                if digest:
-                    _draw_wrapped_text(warning_box, context, digest,
-                                       icon='INFO')
-
-            if active_file.show_warnings_section:
+            if True:
                 # Grouped by problem, biggest first. A flat list of ~100
                 # near-identical lines is unreadable, and unread warnings
                 # fix nothing.
@@ -1485,34 +1464,37 @@ class VIEW3D_PT_em_graph_info(bpy.types.Panel):
         EM_SetupPanel._draw_graph_info(EM_SetupPanel, context, self.layout, active_file)
 
 
-class VIEW3D_PT_auxiliary_files(bpy.types.Panel):
-    """U6 · the third job of EM Data Tree: the tables, DosCo and source lists
-    that ENRICH the active graph (a table that makes a new graph is «Import
-    from tables»)."""
-    bl_label = "Auxiliary files"
-    bl_idname = "VIEW3D_PT_auxiliary_files"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "EM"
-    bl_parent_id = "VIEW3D_PT_EM_Tools_Setup"
-    bl_order = 3
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        em_tools = context.scene.em_tools
-        if em_tools.active_file_index < 0 or not len(em_tools.graphml_files):
-            self.layout.label(text="Add and load a graph first: the auxiliary files enrich it", icon='INFO')
-            return
-        active_file = em_tools.graphml_files[em_tools.active_file_index]
-        _say(self.layout, "Not saved into the graph: grafted on top of the loaded "
-                          "graph each time it is loaded. To change the graph "
-                          "itself, Re-import a table.")
-        EM_SetupPanel._draw_auxiliary_files(self, context, self.layout, active_file)
+#: MICRO-EMTOOLS-PANNELLO · the three voices of «Import», one shown at a time
+IMPORT_SECTIONS = (
+    ("TABLES", "From tables", "Import from tables: a table (pyArchInit, EMdb, "
+     "an xlsx) makes a NEW graph, saved as em.json"),
+    ("REIMPORT", "Re-import", "Re-import a table: the newer version of the "
+     "table a graph came from, into that graph"),
+    ("AUX", "Auxiliary files", "The tables, DosCo and source lists that "
+     "ENRICH the active graph, grafted on it at each load"),
+)
 
 
-class VIEW3D_PT_import_from_tables(bpy.types.Panel):
-    bl_label = "Import from tables"
-    bl_idname = "VIEW3D_PT_import_from_tables"
+def _draw_auxiliary_section(layout, context):
+    em_tools = context.scene.em_tools
+    if em_tools.active_file_index < 0 or not len(em_tools.graphml_files):
+        layout.label(text="Add and load a graph first: the auxiliary files enrich it", icon='INFO')
+        return
+    active_file = em_tools.graphml_files[em_tools.active_file_index]
+    _say(layout, "Not saved into the graph: grafted on top of the loaded "
+                 "graph each time it is loaded. To change the graph "
+                 "itself, Re-import a table.")
+    EM_SetupPanel._draw_auxiliary_files(None, context, layout, active_file)
+
+
+class VIEW3D_PT_em_import(bpy.types.Panel):
+    """MICRO-EMTOOLS-PANNELLO (E.D., 30 Oct 2026) · «Import from tables»,
+    «Re-import a table» and «Auxiliary files» were three sub-panels, three
+    rows of the closed tree: now ONE, «Import», with the three as a choice at
+    its head and the chosen one's form under it (U6/E2: a table that makes a
+    graph · the same table newer into its graph · the files that enrich it)."""
+    bl_label = "Import"
+    bl_idname = "VIEW3D_PT_em_import"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM"
@@ -1521,23 +1503,16 @@ class VIEW3D_PT_import_from_tables(bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        draw_import_from_tables(self.layout, context, context.scene.em_tools)
-
-
-class VIEW3D_PT_reimport_table(bpy.types.Panel):
-    """E2 · beside Import from tables: the same table, newer, into the graph
-    that came from it (E.D., 4 Oct 2026)."""
-    bl_label = "Re-import a table"
-    bl_idname = "VIEW3D_PT_reimport_table"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "EM"
-    bl_parent_id = "VIEW3D_PT_EM_Tools_Setup"
-    bl_order = 2
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        draw_reimport_table(self.layout, context, context.scene.em_tools)
+        layout = self.layout
+        wm = context.window_manager
+        layout.row(align=True).prop(wm, "em_import_section", expand=True)
+        which = wm.em_import_section
+        if which == "REIMPORT":
+            draw_reimport_table(layout, context, context.scene.em_tools)
+        elif which == "AUX":
+            _draw_auxiliary_section(layout, context)
+        else:
+            draw_import_from_tables(layout, context, context.scene.em_tools)
 
 
 class AUXILIARY_MT_context_menu(bpy.types.Menu):
@@ -1570,9 +1545,7 @@ classes = (
     EMTOOLS_UL_files,
     EM_SetupPanel,
     VIEW3D_PT_em_graph_info,
-    VIEW3D_PT_import_from_tables,
-    VIEW3D_PT_reimport_table,
-    VIEW3D_PT_auxiliary_files,
+    VIEW3D_PT_em_import,
     AUXILIARY_MT_context_menu,
 )
 
@@ -1584,9 +1557,16 @@ classes = (
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+    bpy.types.WindowManager.em_import_section = bpy.props.EnumProperty(
+        name="Import", items=IMPORT_SECTIONS, default="TABLES",
+        description="Which of the three: from tables, re-import, auxiliary files")
 
 
 def unregister():
+    try:
+        del bpy.types.WindowManager.em_import_section
+    except AttributeError:
+        pass
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
@@ -1596,3 +1576,8 @@ def unregister():
 
 if __name__ == "__main__":
     register()
+
+
+#: the module function under another name, for the method whose argument
+#: shadows it
+_all_warnings = warning_messages

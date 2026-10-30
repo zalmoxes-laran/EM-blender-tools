@@ -27,7 +27,7 @@ from typing import Dict, Optional
 
 #: why the button is grey, and what turns it on
 OFF = ("EMStudio opens a unit through the Sidecar or a room: turn the Sidecar on "
-       "(EM ▸ Where you work ▸ Work with EMStudio) and connect EMStudio to it, "
+       "(EM ▸ Mode ▸ With EMStudio) and connect EMStudio to it, "
        "or work in a collaborative room")
 
 

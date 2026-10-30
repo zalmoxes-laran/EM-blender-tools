@@ -1,4 +1,6 @@
 """Headless inventory · T-T1/Z1/N1, «Where you work» measured state by state.
+MICRO-EMTOOLS-PANNELLO (30 Oct 2026): no longer a panel — the chip at the head
+of the EM Data Tree and the menu EM ▸ Mode it opens are what is measured.
 
 The fake layout is COPIED from the desk's script
 (`_datasets/SegniSanPietro/_lavoro-claude/script/inventario_pannello_room.py`,
@@ -105,35 +107,43 @@ def draw_with(cls, method="draw"):
     return out
 
 
-#: the zones' own buttons: Change…, Log…, the message's one gesture
-ZONE_OPS = {"em.where_change", "em.sync_log", "em.set_mode_reconnect",
-            "em.sign_in_cancel", "em.sign_in_again", "em.room_reconnect"}
-
-
 def measure(name):
-    cls = bpy.types.VIEW3D_PT_em_sync
-    drawn = draw_with(cls)
-    excs = [r for r in drawn if r["k"] == "EXC"]
+    """MICRO-EMTOOLS-PANNELLO (30 Oct 2026) · «Where you work» is no longer a
+    panel: its FIRST ROW of the EM Data Tree (the chip, `em.where_menu`, and
+    the row of a fix when there is one) and the menu the chip opens, EM ▸ Mode
+    (the places, then the commands of the place)."""
+    tree = draw_with(bpy.types.VIEW3D_PT_EM_Tools_Setup)
+    menu = draw_with(bpy.types.EM_MT_mode)
+    excs = [r for r in tree + menu if r["k"] == "EXC"]
     try:
-        sep = next(i for i, r in enumerate(drawn) if r["k"] == "sep")
+        first = next(i for i, r in enumerate(tree) if r.get("id") == "em.where_menu")
     except StopIteration:
-        sep = len(drawn)
-    head, below = drawn[:sep], drawn[sep + 1:]
-    # P1 · the scene's word in a room is Log… (em.sync_log): a zone, not a command
-    commands = [r for r in below if r["k"] == "op" and r.get("id") != "em.sync_log"]
-    menus = [r for r in below if r["k"] == "menu"]
-    labels_below = [r for r in below if r["k"] == "label"]
-    # an explanatory line is an INFO label that is not one of the four zones
-    info_lines = [r for r in below if r["k"] == "label" and r.get("icon") == "INFO"]
-    alerts = [r for r in drawn if r.get("alert")]
-    STATES[name] = {"drawn": drawn, "commands": [c["text"] or c["id"] for c in commands],
-                    "menus": [m["id"] for m in menus],
-                    "zones": [r.get("text") for r in head if r["k"] == "label"],
-                    "labels_below": [r["text"] for r in labels_below],
-                    "exceptions": excs, "alerts": alerts, "info": info_lines}
-    print(f"[INV] {name}: zones {STATES[name]['zones']}")
+        first = -1
+    try:
+        sep = next(i for i, r in enumerate(menu) if r["k"] == "sep")
+    except StopIteration:
+        sep = len(menu)
+    places, below = menu[:sep], menu[sep + 1:]
+    commands = [r for r in below if r["k"] == "op"]
+    chip = tree[first] if first >= 0 else {}
+    # the row of a fix: an op right after the chip's row that is not the
+    # bar's (+ − ▾, the room's Sync)
+    alerts = [r for r in tree if r.get("alert")]
+    STATES[name] = {"tree": tree[:14], "menu": menu,
+                    "chip": chip.get("text"), "chip_index": first,
+                    "places": [r.get("text") for r in places if r["k"] in ("op", "label")],
+                    "commands": [c["text"] or c["id"] for c in commands],
+                    "command_ids": [c["id"] for c in commands],
+                    "menus": [m["id"] for m in below if m["k"] == "menu"],
+                    "labels_tree": [r.get("text") for r in tree if r["k"] == "label"],
+                    "ops_tree": [r.get("id") for r in tree if r["k"] == "op"],
+                    "exceptions": excs, "alerts": alerts}
+    print(f"[INV] {name}: chip {STATES[name]['chip']!r} at {first}")
+    print(f"[INV] {name}: places {STATES[name]['places']}")
     print(f"[INV] {name}: commands {STATES[name]['commands']} menus {STATES[name]['menus']}")
     check(f"{name}: drawn without an exception", not excs, str(excs[:1]))
+    check(f"{name}: the chip is the first command of the EM Data Tree",
+          first >= 0 and not any(r["k"] == "op" for r in tree[:first]), str(tree[:first + 1]))
     return STATES[name]
 
 
@@ -167,7 +177,9 @@ def run():
     print("[INV] tabs:", {k: len(v) for k, v in found.items()})
     check("two tabs, EM and EM Scene", set(found) == {"EM", "EM Scene"}, str(sorted(found)))
     check("no «EM Room»", "EM Room" not in found)
-    check("Where you work is in EM", "Where you work" in found.get("EM", []))
+    check("no panel «Where you work» (the first row of the EM Data Tree)",
+          "Where you work" not in sum(found.values(), []))
+    check("the EM Data Tree is in EM", "EM Data Tree" in found.get("EM", []))
     # P3 (6 Oct 2026) · EM Scene is EMStudio's two spaces, then the Deck
     check("EM Scene: Contents, Space, then the Publication Deck",
           found.get("EM Scene", []) and
@@ -185,23 +197,32 @@ def run():
     RESULT["declared"] = sc.em_session_mode
     st = measure("1_opened")
     check("1: no red alarm when the file opens", not st["alerts"], str(st["alerts"][:2]))
-    check("1: the message says where this file worked last",
-          any("Last time this file worked" in (z or "") for z in st["zones"]), str(st["zones"]))
+    if RESULT["declared"] != "standalone":
+        check("1: the fix in sight under the chip: where this file worked last",
+              any("Last time this file worked" in (t or "") for t in st["labels_tree"]),
+              str(st["labels_tree"][:4]))
 
     # ── 2 · on this computer ───────────────────────────────────────────────
     bpy.ops.em.set_mode(mode=ops.MODE_STANDALONE)
     st = measure("2_here")
-    check("2: three commands", len(st["commands"]) == 3, str(st["commands"]))
-    check("2: no INFO line outside the zones", not st["info"], str(st["info"][:2]))
-    check("2: nothing but commands under the zones", not st["labels_below"], str(st["labels_below"]))
+    check("2: the chip says On this computer", st["chip"] == "On this computer", str(st["chip"]))
+    check("2: the places: With EMStudio, In a collaborative room…, Choose the node…",
+          {"With EMStudio", "In a collaborative room…", "Choose the node…"} <= set(st["places"]),
+          str(st["places"]))
+    check("2: under them Create a collaborative room… and Log…",
+          st["command_ids"] == ["em.room_bring", "em.sync_log"], str(st["command_ids"]))
+    check("2: no line of state in the tree", not any(
+        "On this computer ·" in (t or "") or "none needed here" in (t or "")
+        for t in st["labels_tree"]), str(st["labels_tree"][:4]))
 
     # ── 3 · with EMStudio ──────────────────────────────────────────────────
     bpy.ops.em.set_mode(mode=ops.MODE_SIDECAR)
     time.sleep(0.5)
     st = measure("3_emstudio")
-    check("3: two commands (Stop, Permissions…)", len(st["commands"]) == 2, str(st["commands"]))
-    check("3: the place says With EMStudio", "With EMStudio" in (st["zones"][0] or ""))
-    check("3: no INFO line outside the zones", not st["info"], str(st["info"][:2]))
+    check("3: the chip says With EMStudio", st["chip"] == "With EMStudio", str(st["chip"]))
+    check("3: Stop = the place On this computer", "On this computer" in st["places"], str(st["places"]))
+    check("3: Permissions… and Log…",
+          st["command_ids"] == ["em.sidecar_permissions", "em.sync_log"], str(st["command_ids"]))
     bpy.ops.em.set_mode(mode=ops.MODE_STANDALONE)
 
     # ── 4 · in a room ──────────────────────────────────────────────────────
@@ -225,24 +246,15 @@ def run():
         RESULT["room"] = room_cfg.room().get("room_id")
         bpy.ops.em.scene_check(send="NONE")
         st = measure("4_room")
-        # MICRO tre pannelli · Room: the big Sync, then Open in EMStudio ·
-        # Change… · ⋯ — the panel has no separator in a room, so it is read whole
-        room_ops = [r.get("text") for r in st["drawn"] if r["k"] == "op"]
-        check("4: Sync, Open in EMStudio, Change… and the ⋯ menu",
-              {"Sync the scene…", "Open in EMStudio", "Change…"} <= set(room_ops)
-              and any(r["k"] == "menu" and r.get("id") == "EM_MT_room_more"
-                      for r in st["drawn"]), str(room_ops))
-        texts = [r.get("text") or "" for r in st["drawn"] if r["k"] == "label"]
-        check("4: the place names the room", any("present" in t for t in texts), str(texts[:2]))
-        # who you are: the token's name, else its username («Dev User» or
-        # «dev» — measured on 15 Oct 2026 the dev realm gives the user a name)
-        import re as _re
-        check("4: who you are, once",
-              sum(bool(_re.match(r"^[^·▣●]+ · (owner|admin|editor|viewer) · ", t))
-                  for t in texts) == 1, str(texts))
+        # MICRO-EMTOOLS-PANNELLO · the chip names the room, Sync stays an icon
+        # on its row; Open in EMStudio · Change… · Room ⋯ · Log… in the menu
+        check("4: the chip names the room", (st["chip"] or "").startswith("Room: "), str(st["chip"]))
+        check("4: Sync the scene on the chip's row", "em.scene_check" in st["ops_tree"])
+        check("4: Sync, Open in EMStudio, Change…, Room and Log… in EM ▸ Mode",
+              {"Sync the scene…", "Open in EMStudio", "Change…", "Log…"} <= set(st["commands"])
+              and "EM_MT_room_more" in st["menus"], str(st["commands"]))
         check("4: no Create inside a room",
               not any("Create a collaborative room" in c for c in st["commands"]))
-        check("4: no INFO line outside the zones", not st["info"], str(st["info"][:2]))
         RESULT["menu_room"] = draw_with(bpy.types.EM_MT_room_more)
         files = draw_with(bpy.types.EM_PT_resources)
         RESULT["files"] = files

@@ -114,10 +114,14 @@ class EM_MT_mode(bpy.types.Menu):
                       "collaborative room")
 
     def draw(self, context):
-        # Z1 · the same content as «Change…» of «Where you work»: the three
-        # places, with the words of EMStudio's Connection panel
+        # Z1 · the same content as «Change…»: the three places, with the
+        # words of EMStudio's Connection panel. MICRO-EMTOOLS-PANNELLO · and
+        # the commands of the place under them: the chip of the EM Data Tree
+        # opens THIS menu, the one source of «where you work»
         from .sync_manager.windows import draw_places
+        from .sync_manager.panel import draw_place_commands
         draw_places(self.layout, context)
+        draw_place_commands(self.layout, context)
 
 
 class EM_MT_settings(bpy.types.Menu):

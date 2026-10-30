@@ -155,9 +155,10 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     ("VIEW3D_PT_SurfaceAreale", "EM Scene"),
     ("VIEW3D_PT_proxy_offset", "EM Scene"),
     ("EM_PT_georef", "EM Scene"),
-    # T1 · «Where you work» in testa a EM; il Deck nel 3D, dopo Files. Gli
-    # export non sono più pannelli (EM ▸ Export), EM Server è in _dead_code (D1)
-    ("VIEW3D_PT_em_sync", "EM"),
+    # T1 · il Deck nel 3D, dopo Files. Gli export non sono più pannelli
+    # (EM ▸ Export), EM Server è in _dead_code (D1). MICRO-EMTOOLS-PANNELLO ·
+    # «Where you work» non è più un pannello: la prima riga dell'EM Data Tree
+    ("EM_SetupPanel", "EM"),
     ("VIEW3D_PT_em_publication_deck", "EM Scene"),
 ])
 def test_OGNI_PANNELLO_E_DOVE_IL_PROMPT_DICE(classe, categoria):
@@ -192,9 +193,14 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     MICRO tre pannelli (13 ott 2026): «Project storage»
     (`EM_PT_project_storage`), le impostazioni del progetto tolte dai gesti
     quotidiani di Files: 32.
+    MICRO-EMTOOLS-PANNELLO (30 ott 2026): «Where you work»
+    (`VIEW3D_PT_em_sync`) diventa la prima riga dell'EM Data Tree, e i tre
+    figli Import from tables / Re-import a table / Auxiliary files diventano
+    UN figlio, «Import» (`VIEW3D_PT_em_import`): 32 − 1 − 3 + 1 = 29.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 32, sorted(PANNELLI)
+    assert len(PANNELLI) == 29, sorted(PANNELLI)
+    assert "VIEW3D_PT_em_sync" not in PANNELLI
     # P3 · the two heads of EM Scene (EMStudio's Contents and Space) and P2 ·
     # Graph info as a sub-panel: 28 + 3 = 31
     assert PANNELLI["EM_PT_scene_contents"]["label"] == "Contents"
@@ -212,9 +218,10 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     for gone in ("VIEW3D_PT_ExportPanel", "EM_PT_ExportPanel", "VIEW3D_PT_ServerPanel"):
         assert gone not in PANNELLI, gone
     assert "TAPESTRY_PT_main_panel" not in PANNELLI
-    assert PANNELLI["VIEW3D_PT_reimport_table"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
-    assert PANNELLI["VIEW3D_PT_auxiliary_files"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
-    assert PANNELLI["VIEW3D_PT_import_from_tables"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
+    assert PANNELLI["VIEW3D_PT_em_import"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
+    for gone in ("VIEW3D_PT_reimport_table", "VIEW3D_PT_auxiliary_files",
+                 "VIEW3D_PT_import_from_tables"):
+        assert gone not in PANNELLI, gone
     assert not any(n.startswith("GRAPHEDIT_PT_") or n == "VIEW3D_PT_graphedit_sync" for n in PANNELLI)
     assert PANNELLI["VIEW3D_PT_em_readings"]["parent"] == "VIEW3D_PT_visual_panel"
     assert "VIEW3D_PT_EM_Overview" not in PANNELLI
@@ -393,19 +400,21 @@ def test_C1_LA_RIGA_DI_COMANDI_RIEMPIE_LA_RIGA():
     i = tree.index("def draw_toolbar(")
     bar = tree[i:tree.index("class EM_MT_graph_more", i)]
     assert "grid_flow" not in bar
-    for idname in ("em_tools.add_file", "export.em_save", "em_tools.remove_file"):
+    # MICRO-EMTOOLS-PANNELLO · the bar is the right end of the first row
+    # (the chip of where you work): + − ▾; ↻ is on each graph's row, Save on
+    # the file's row
+    for idname in ("em_tools.add_file", "em_tools.remove_file"):
         assert f'"{idname}", text=""' in bar, idname
-    assert "load_op(sub," in bar, "↻ Reload, with the one dispatch"
-    assert bar.index("em_tools.add_file") < bar.index("load_op(sub,") \
-        < bar.index("export.em_save") < bar.index("em_tools.remove_file")
+    assert "export.em_save" not in bar and "load_op(" not in bar
+    assert bar.index("em_tools.add_file") < bar.index("em_tools.remove_file")
     assert 'bar.menu("EM_MT_graph_more"' in bar
     menu = tree[tree.index("class EM_MT_graph_more"):tree.index("CLASSES = (")]
     for idname in ("export.em_saveas", "em.graph_save_all",
                    "em.toggle_landscape_mode", "EM_MT_LandscapeInfo"):
         assert idname in menu, idname
     corpo = _data_tree()
-    j = corpo.index("draw_toolbar(layout, context, em_tools, _stato)")
-    assert j < corpo.index("draw_graph_tree(layout, context, em_tools)"), "the bar is above"
+    j = corpo.index("draw_mode_row(layout, context, tools=lambda bar: draw_toolbar(")
+    assert j < corpo.index("draw_graph_tree(layout, context, em_tools"), "the bar is above"
     assert "_riga_comandi" not in corpo
 
 def test_C1_E_I_TOOLTIP_VENGONO_DAGLI_OPERATORI_non_da_una_tupla_morta():
@@ -686,8 +695,9 @@ def test_B_STATO_VUOTO_una_strada_sola_e_col_testo():
     i = corpo.index('if not _stato["ha_grafo"]:')
     vuoto = corpo[i:i + 600]
     assert 'text="Add graph"' in vuoto and "em_tools.add_file" in vuoto
-    k = corpo.index("if len(em_tools.graphml_files):")
-    assert "draw_toolbar(" in corpo[k:k + 300]
+    # MICRO-EMTOOLS-PANNELLO · the bar (+ − ▾) is on the first row with
+    # where you work, drawn always; − is off with no graph
+    assert "draw_toolbar(" in corpo[:corpo.index('if not _stato["ha_grafo"]:')]
 
 def test_B_LA_GUIDA_USA_draw_requirement_row_e_SPARISCE():
     """P2 (6 Oct 2026) · the step guide «To see a content: 1 Add graph · 2 Set

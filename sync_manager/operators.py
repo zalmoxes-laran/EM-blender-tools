@@ -1621,7 +1621,7 @@ def applica_modo(context, richiesto: str) -> dict:
             # nuovo un modo che mente, che è esattamente ciò che C4 toglie.
             return {"ok": False, "mode": vero,
                     "message": ("A collaborative room means being in one: "
-                                "enter it first (EM ▸ Where you work ▸ Enter a "
+                                "enter it first (EM ▸ Mode ▸ In a "
                                 "collaborative room…)")}
         if is_running():
             quanti = _annuncia_transizione(

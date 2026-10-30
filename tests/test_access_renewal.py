@@ -145,7 +145,7 @@ def test_a_realm_that_will_not_renew_says_expired_not_broken_pipe(world):
     with pytest.raises(access.AccessExpired) as caught:
         _get(world, old)
     sentence = str(caught.value)
-    assert "has expired: sign in again (EM ▸ Where you work ▸ Sign in again)" in sentence
+    assert "has expired: sign in again (EM ▸ Mode ▸ Sign in again)" in sentence
     assert "Broken pipe" not in sentence and "Session not active" in sentence
     assert access.EXPIRED["base"] == world
     assert _World.seen == [], "nothing is sent on an access that is known dead"

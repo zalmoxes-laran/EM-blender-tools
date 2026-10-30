@@ -84,7 +84,7 @@ def forget_token() -> None:
 
 
 #: What the sentence of an expired access tells the person to do, here.
-SIGN_IN_HINT = "sign in again (EM ▸ Where you work ▸ Sign in again)"
+SIGN_IN_HINT = "sign in again (EM ▸ Mode ▸ Sign in again)"
 
 
 def _follow(base: str, token: str) -> None:

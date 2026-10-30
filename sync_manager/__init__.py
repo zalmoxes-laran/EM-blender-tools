@@ -7,8 +7,9 @@ an EM proxy in Blender highlights the node in EMStudio and vice versa.
 
 Modules:
 - operators   : server lifecycle, the bpy.app.timers main-thread pump, toggle op
-- panel       : «Where you work», the head of the tab EM: four zones and the
-                commands of the place (T1/Z1, 5 Oct 2026)
+- panel       : «Where you work», the first row of the EM Data Tree (a chip
+                that opens EM ▸ Mode) and the commands of the place in that
+                menu (MICRO-EMTOOLS-PANNELLO, 30 Oct 2026; a panel 5–30 Oct)
 - where       : the four zones, pure (where you work, who you are, message, log)
 - windows     : the windows the panel opens: Change…, Choose the node, Enter a
                 collaborative room…, Permissions…, Log…, Room settings…, The

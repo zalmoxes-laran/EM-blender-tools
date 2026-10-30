@@ -84,9 +84,13 @@ def test_NESSUNA_FRASE_ITALIANA_NELL_INTERFACCIA():
 
 def test_I_NOMI_DELLE_TAB_E_DEI_PANNELLI():
     sync = (_REPO / "sync_manager" / "panel.py").read_text()
-    # T1/Z1 (E.D., 5 Oct 2026) · two tabs: «Where you work» heads the tab EM
+    # T1/Z1 (E.D., 5 Oct 2026) · two tabs. MICRO-EMTOOLS-PANNELLO (30 Oct) ·
+    # «Where you work» is no longer a panel: the first row of the EM Data Tree
+    # (its chip, the operator of the same name) and the menu EM ▸ Mode
     assert 'bl_label = "Where you work"' in sync
-    assert 'bl_category = "EM"' in sync
+    assert "bpy.types.Panel" not in sync
+    setup = (_REPO / "em_setup" / "ui.py").read_text()
+    assert 'bl_category = "EM"' in setup and "draw_mode_row(" in setup
     info = (_REPO / "graph_info" / "ui.py").read_text()
     assert 'bl_label = "The graph"' in info
     assert 'text="The graph"' in info

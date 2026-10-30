@@ -373,7 +373,10 @@ def test_one_open_in_emstudio_and_the_room_panel_uses_it():
     ops_src = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
     assert "room_open_elsewhere" not in ops_src
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
-    inside = panel[panel.index("def _in_room"):]
+    # MICRO-EMTOOLS-PANNELLO · in a room, among the commands of the place
+    # that EM ▸ Mode lists under the three places
+    inside = panel[panel.index("def draw_place_commands"):]
+    inside = inside[inside.index("if place == where.PLACE_ROOM"):]
     assert panel.count('"em.open_in_emstudio"') == 1 and '"em.open_in_emstudio"' in inside
     oe = (_REPO / "sync_manager" / "open_in_emstudio.py").read_text(encoding="utf-8")
     web = oe[oe.index("def web_link"):]
@@ -648,7 +651,11 @@ def test_every_door_of_the_panels_waits_without_freezing_blender():
     zones = (_REPO / "sync_manager" / "where.py").read_text(encoding="utf-8")
     assert '"em.sign_in_cancel"' in zones and '"em.sign_in_again"' in zones
     panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
-    assert 'row.operator(msg["op"], text=msg["op_text"])' in panel
+    # MICRO-EMTOOLS-PANNELLO · the gesture stays in sight under the chip of
+    # the EM Data Tree (`where.chip`'s action) and is in EM ▸ Mode too
+    assert 'fix.operator(a["op"], text=a["op_text"])' in panel
+    assert 'layout.operator(msg["op"], text=msg["op_text"]' in panel
+    assert 'action = {"icon": msg.get("icon")' in zones
 
 
 def _wait_for(pages, seconds=5):

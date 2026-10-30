@@ -305,7 +305,7 @@ def _draw_archives(layout, context):
         box.label(text=backups.note()[:90], icon="ERROR")
     snaps = backups.listing()
     if not snaps and not backups.note():
-        box.label(text="None kept yet (Where you work ▸ ⋯ ▸ Archive this .blend).")
+        box.label(text="None kept yet (EM ▸ Mode ▸ Room ▸ Archive this .blend).")
     for snap in snaps[:8]:
         line = box.row(align=True)
         name = str(snap.get("label") or snap.get("filename") or "snapshot")

@@ -165,3 +165,50 @@ def test_the_package_comes_first_and_recommended_when_the_room_has_one():
     without = entry.choices(False)
     assert [c["id"] for c in without][:2] == ["NEW", "MERGE"]
     assert not next(c for c in without if c["id"] == "PACKAGE")["enabled"]
+
+
+# ── MICRO-EMTOOLS-PANNELLO (E.D., 30 Oct 2026) · the chip of the EM Data Tree ──
+
+def test_the_chip_is_a_short_word_and_the_lines_go_to_its_tooltip():
+    # the state E.D. saw: on this computer, signed in to dev, the bridge just
+    # stopped — three lines of the old panel, now one word and a tooltip
+    s = {"place": "here", "study_file": "GT16.em.json",
+         "signed_in_to": "https://em.localhost:8443/em", "user": "dev",
+         "transition": "bridge stopped (0 client(s) told)"}
+    c = where.chip(s)
+    assert (c["icon"], c["text"], c["dot"]) == ("FILE_BLEND", "On this computer", where.DOT_IDLE)
+    tip = "\n".join(c["tip"])
+    for said in ("GT16.em.json", "dev ✓ on em.localhost:8443/em",
+                 "bridge stopped (0 client(s) told)", "EM ▸ Mode"):
+        assert said in tip, said
+    assert c["action"] is None, "nothing to fix: no row under the chip"
+
+
+def test_the_chip_with_emstudio_is_green_only_with_someone_there():
+    alone = where.chip({"place": "emstudio", "clients": 0})
+    assert alone["text"] == "With EMStudio" and alone["dot"] == where.DOT_IDLE
+    two = where.chip({"place": "emstudio", "clients": 2, "same_document": True})
+    assert two["dot"] == where.DOT_ON
+    assert any("2 clients" in t for t in two["tip"])
+
+
+def test_the_chip_in_a_room_names_it_and_turns_red_when_out_of_it():
+    s = {"place": "room", "room_title": "templumare", "connected": True,
+         "members": 2, "author": "dev", "role": "owner",
+         "node": "https://em.localhost:8443/em"}
+    c = where.chip(s)
+    assert (c["text"], c["dot"]) == ("Room: templumare", where.DOT_ON)
+    assert any("dev · owner · em.localhost:8443" == t for t in c["tip"])
+    out = where.chip({**s, "connected": False, "not_connected": True})
+    assert out["dot"] == where.DOT_PROBLEM and out["icon"] == "UNLINKED"
+    # the room's Reconnect stays in sight, under the chip
+    assert out["action"]["op"] == "em.room_reconnect"
+
+
+def test_a_gesture_that_fixes_something_stays_in_sight():
+    reopened = where.chip({"place": "here", "declared": "emstudio"})
+    assert reopened["action"]["op"] == "em.set_mode"
+    assert reopened["action"]["op_props"] == {"mode": "sidecar"}
+    assert reopened["dot"] == where.DOT_IDLE, "a sentence, not an alarm"
+    expired = where.chip({"place": "here", "expired": "https://em.localhost:8443/em"})
+    assert expired["action"]["op"] == "em.sign_in_again" and expired["dot"] == where.DOT_PROBLEM

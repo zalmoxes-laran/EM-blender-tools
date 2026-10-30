@@ -654,7 +654,7 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
 
     show_warnings_section: BoolProperty(
         name="Show EM Warnings",
-        description="Expand/collapse the EM warnings section",
+        description="The warnings of this graph: show or hide their list",
         default=False
     )  # type: ignore
 

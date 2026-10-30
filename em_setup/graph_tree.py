@@ -49,7 +49,7 @@ def room_state(origin) -> tuple:
         return (f"joined{role} · {people} here", "LINKED")
     if session is not None and session.offline:
         return (f"offline · {session.waiting()} edit(s) waiting", "TIME")
-    return ("not connected: Reconnect in Where you work to send edits", "UNLINKED")
+    return ("not connected: Reconnect (the first row, EM ▸ Mode) to send edits", "UNLINKED")
 
 
 def _text_of(name) -> str:
@@ -244,6 +244,11 @@ class EM_OT_graph_activate(bpy.types.Operator):
         except Exception:  # noqa: BLE001
             return cls.bl_description
         if not origin.is_room:
+            if properties.index == context.scene.em_tools.active_file_index:
+                # MICRO-EMTOOLS-PANNELLO · «Writing in:» left its own row:
+                # the pencil on this row says it, and so does this tooltip
+                return (f"Writing in: {graph_name(row, origin)[0]} — the lists "
+                        f"show it and edits apply to it")
             return cls.bl_description
         writing = writing_in(origin, rows, context.scene.em_tools.active_file_index)
         said = [f"{study_title(origin)} · the study in the room",
@@ -265,6 +270,59 @@ class EM_OT_graph_activate(bpy.types.Operator):
             print(f"[graph tree] room activation skipped: {exc}")
         if _loaded(row):
             bpy.ops.em_tools.populate_lists(graphml_index=self.index)
+        return {"FINISHED"}
+
+
+def origin_tooltip(context, index: int) -> str:
+    """MICRO-EMTOOLS-PANNELLO · what the file row's lines used to say, as the
+    tooltip of the file's name: the whole path, saved or why not, the schema
+    of the em.json (once the last line of Graph info), the graph written in."""
+    rows = _rows(context.scene.em_tools)
+    if not (0 <= index < len(rows)):
+        return ""
+    row = rows[index]
+    origin = graph_origins.origin_of(row, abspath=_abspath)
+    said = [origin.path or "No file yet: Save as em.json… gives it one"]
+    if origin.is_emjson:
+        unsaved = _unsaved_reasons(origin)
+        said.append(("● Unsaved: " + " · ".join(unsaved)) if unsaved
+                    else "✓ Saved: the file says what the scene says")
+    active = context.scene.em_tools.active_file_index
+    writing = writing_in(origin, rows, active)
+    if writing:
+        said.append(f"Writing in: {writing}")
+        try:
+            from .ui import _format_version_banner
+            banner = _format_version_banner(rows[active])
+        except Exception:  # noqa: BLE001 — a tooltip never fails
+            banner = ""
+        if banner:
+            said.append(banner)
+    return "\n".join(said)
+
+
+class EM_OT_graph_origin_info(bpy.types.Operator):
+    """The file of these graphs: its whole path and its state are the tooltip"""
+
+    bl_idname = "em.graph_origin_info"
+    bl_label = "File"
+    bl_description = "The file these graphs are in"
+    bl_options = {"INTERNAL"}
+
+    index: IntProperty(default=-1, options={"SKIP_SAVE"})  # type: ignore
+
+    @classmethod
+    def description(cls, context, properties):
+        try:
+            return origin_tooltip(context, properties.index) or cls.bl_description
+        except Exception:  # noqa: BLE001
+            return cls.bl_description
+
+    def execute(self, context):
+        # a click says the path where it can be copied (the Info editor)
+        said = origin_tooltip(context, self.index)
+        if said:
+            self.report({"INFO"}, said.split("\n")[0])
         return {"FINISHED"}
 
 
@@ -483,8 +541,14 @@ class EM_OT_graph_delete(bpy.types.Operator):
         return {"FINISHED"}
 
 
-def draw_graph_tree(layout, context, em_tools) -> None:
-    """The tree: a branch per origin, a row per graph, the active one marked."""
+def draw_graph_tree(layout, context, em_tools, warnings: int = 0) -> None:
+    """The tree: a branch per origin, a row per graph, the active one marked.
+
+    MICRO-EMTOOLS-PANNELLO (E.D., 30 Oct 2026) · the file is ONE row: its
+    name (✓ saved / ● to save; the whole path and the why in the tooltip),
+    then Save, Save as…, Open the folder and the warnings' counter ⚠ n. The
+    rows «Save em.json · Save as…», «Unsaved: …», «Writing in: …» and the path
+    of a loaded graph are gone: the pencil marks the graph written in."""
     from s3dgraphy import get_graph
 
     rows = _rows(em_tools)
@@ -500,25 +564,37 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             continue
         head = col.row(align=True)
         unsaved = _unsaved_reasons(origin)
+        is_active = origin.key == active_key
+        # the name expands, the icons on its right keep an icon's width
+        # (alignment LEFT/RIGHT on two sub-rows overlapped them, measured)
+        name = head
         if origin.is_file:
             # MICRO salva · ● before the name: the graph in memory moved away
             # from the file since it was loaded or saved
-            head.label(text=f"● {origin.label}" if unsaved else origin.label,
-                       icon="FILE" if origin.is_emjson else "FILE_BLANK")
+            op = name.operator(
+                "em.graph_origin_info",
+                text=f"● {origin.label}" if unsaved else origin.label,
+                icon="FILE" if origin.is_emjson else "FILE_BLANK", emboss=False)
         else:
-            head.label(text="No file", icon="QUESTION")
-        if origin.key == active_key:
-            # EMStudio's «⌘S» mark: the active graph is in this branch, and
-            # Save (the bar above) writes this branch. P2 · one way of saving
-            # a branch: the per-branch save icon and «Save all files» left the
-            # view (Save all files is in the ▾ menu)
-            head.label(text="", icon="CHECKMARK")
-            draw_save_row(col, origin, unsaved)
-        writing = writing_in(origin, rows, active)
-        if writing:
-            sub = col.row()
-            sub.separator(factor=2.0)
-            sub.label(text=f"Writing in: {writing}", icon="GREASEPENCIL")
+            op = name.operator("em.graph_origin_info", text="No file",
+                               icon="QUESTION", emboss=False)
+        op.index = indices[0]
+        right = head
+        if origin.is_emjson and not unsaved:
+            right.label(text="", icon="CHECKMARK")
+        if is_active:
+            # EMStudio's «⌘S» mark: Save writes the branch of the active graph
+            draw_save_row(right, origin, unsaved)
+        if origin.is_file and origin.path:
+            import os
+            right.operator("wm.path_open", text="",
+                           icon="FILE_FOLDER").filepath = os.path.dirname(origin.path)
+        if is_active and warnings and 0 <= active < len(rows):
+            # ⚠ n — opens the list under the tree; nothing when zero
+            count = right.row(align=True)
+            count.ui_units_x = 2.0 + 0.5 * (len(str(warnings)) - 1)
+            count.prop(rows[active], "show_warnings_section", text=str(warnings),
+                       icon="ERROR", toggle=True)
         for i in indices:
             row = rows[i]
             graph = get_graph(row.name)
@@ -526,9 +602,10 @@ def draw_graph_tree(layout, context, em_tools) -> None:
             line = col.row(align=True)
             line.separator(factor=2.0)
             label = graph_name(row, origin)[0]
+            # the pencil: the graph the edits are written in («Writing in:»)
             op = line.operator(
                 "em.graph_activate", text=label,
-                icon="RADIOBUT_ON" if i == active else "RADIOBUT_OFF",
+                icon="GREASEPENCIL" if i == active else "RADIOBUT_OFF",
                 emboss=(i == active), depress=(i == active))
             op.index = i
             from ..functions import get_compatible_icon
@@ -552,27 +629,21 @@ def _unsaved_reasons(origin) -> list:
         return []
 
 
-def draw_save_row(col, origin, unsaved) -> None:
+def draw_save_row(row, origin, unsaved) -> None:
     """MICRO salva (17 Oct 2026) · E.D. never found the save: it was a bare
-    icon (FILE_TICK) between + ↻ and − in the bar, «Save as…» in the ▾ menu.
-    Under the name of the active graph's file, two buttons WITH words: «Save
-    em.json» (in place) and «Save as…»; a GraphML or a graph with no file
-    gets «Save as em.json…» alone. When the file is behind the scene, the
-    button is lit and one line says why."""
-    line = col.row(align=True)
-    line.separator(factor=2.0)
+    icon in the bar, «Save as…» in the ▾ menu, so it became a row of two
+    buttons with words under the file's name. MICRO-EMTOOLS-PANNELLO (30 Oct)
+    · the same two commands, now icons ON the file's row, beside its name:
+    Save (lit when the file is behind the scene, the why in the name's
+    tooltip) and Save as…; a GraphML or a graph with no file gets Save as
+    em.json… alone. Their names are the operators' tooltips."""
     if origin.is_emjson:
-        save = line.row(align=True)
+        save = row.row(align=True)
         save.alert = bool(unsaved)
-        save.operator("export.em_save", text="Save em.json", icon="FILE_TICK")
-        line.operator("export.em_saveas", text="Save as…", icon="FILE_NEW")
-        if unsaved:
-            note = col.row()
-            note.separator(factor=2.0)
-            note.label(text="Unsaved: " + " · ".join(unsaved), icon="INFO")
+        save.operator("export.em_save", text="", icon="FILE_TICK")
+        row.operator("export.em_saveas", text="", icon="FILE_NEW")
     else:
-        line.operator("export.em_saveas", text="Save as em.json…",
-                      icon="FILE_NEW")
+        row.operator("export.em_saveas", text="", icon="FILE_NEW")
 
 
 def room_alignment(origin) -> tuple:
@@ -635,6 +706,9 @@ def _draw_active_path(col, row, index, present, origin) -> None:
     the Path is not drawn (V2: the study is the room's)."""
     if origin.is_room and not row.graphml_path:
         return
+    if row.graphml_path and present:
+        # MICRO-EMTOOLS-PANNELLO · loaded, the path is the file row's tooltip
+        return
     line = col.row(align=True)
     line.separator(factor=4.0)
     if row.graphml_path and not present:
@@ -665,28 +739,25 @@ def in_room() -> bool:
         return False
 
 
-def draw_toolbar(layout, context, em_tools, stato) -> None:
-    """P2 (6 Oct 2026) · the commands on the graphs as a compact bar of icons
-    above the tree, like the toolbar of EMStudio's EMtree: + Add graph,
-    ↻ Reload, Save, − Remove, and the rest in the ▾ menu (Save as…, Save all
-    files, Multigraph). The names are the tooltips (the operators'
-    descriptions; a button off says why with `poll_message_set`)."""
-    bar = layout.row(align=True)
+def draw_toolbar(bar, context, em_tools, stato) -> None:
+    """P2 (6 Oct 2026) · the commands on the graphs as a compact bar of icons,
+    like the toolbar of EMStudio's EMtree. MICRO-EMTOOLS-PANNELLO (30 Oct) ·
+    no longer a row of its own: the right end of the first row, beside where
+    you work — + Add graph, − Remove, and the rest in ▾ (Save as…, Save all
+    files, Multigraph, Delete). ↻ is on each graph's row, Save on the file's
+    row. The names are the operators' tooltips."""
     if in_room():
         # MICRO una verità (13 Oct 2026) · in a room the study is the room's:
-        # + ↻ 💾 − speak of local files. Only ▾, with Save as… for a copy
+        # + and − speak of local files. Only ▾, with Save as… for a copy
         bar.menu("EM_MT_graph_more", text="", icon="DOWNARROW_HLT")
         return
     bar.operator("em_tools.add_file", text="", icon="ADD")
     sub = bar.row(align=True)
-    sub.enabled = bool(stato.get("ha_path"))
-    load_op(sub, bool(stato.get("emjson")), stato["indice"])
-    bar.operator("export.em_save", text="", icon="FILE_TICK")
-    bar.operator("em_tools.remove_file", text="", icon="REMOVE")
+    sub.enabled = bool(stato.get("ha_grafo"))
+    sub.operator("em_tools.remove_file", text="", icon="REMOVE")
     if getattr(context.scene, "landscape_mode_active", False):
         # the one state of the bar worth seeing: the scene shows every graph
-        bar.label(text="Multigraph", icon="WORLD")
-    bar.separator()
+        bar.label(text="", icon="WORLD")
     bar.menu("EM_MT_graph_more", text="", icon="DOWNARROW_HLT")
 
 
@@ -718,7 +789,7 @@ class EM_MT_graph_more(bpy.types.Menu):
         layout.operator("em.graph_delete", icon="TRASH")
 
 
-CLASSES = (EM_OT_graph_activate, EM_OT_graph_origin_save, EM_OT_graph_save_all,
+CLASSES = (EM_OT_graph_activate, EM_OT_graph_origin_info, EM_OT_graph_origin_save, EM_OT_graph_save_all,
            EM_OT_graph_delete, EM_MT_graph_more)
 
 
