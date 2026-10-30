@@ -266,7 +266,10 @@ def populate_document_node(scene, node, index, graph=None):
             em_item.certainty_class = node.attributes.get('certainty_class', '')
             em_item.border_color = node.attributes.get('border_color', '#000000')
         if hasattr(node, 'data'):
-            em_item.absolute_time_start = node.data.get('absolute_time_start', '')
+            # a year may arrive as a number (a writer other than the GraphML
+            # importer): the list's field is text (MICRO-INGRESSO-ASSET-1)
+            ats = node.data.get('absolute_time_start')
+            em_item.absolute_time_start = '' if ats is None else str(ats)
             em_item.source_type = (
                 node.data.get('source_type')
                 or node.data.get('role')
