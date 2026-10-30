@@ -29,6 +29,7 @@ import, the operators) sits below them.
 # annotations in this module's globals (the same note as scene_check).
 import os
 import re
+import shutil
 from typing import Any, Callable, Dict, List, Optional
 
 #: on the OBJECT: which asset it shows, and at which level now
@@ -2322,7 +2323,66 @@ def _operator_classes():  # pragma: no cover — bpy
         ("ALL", "All versions",
          "Every version of each selected object's asset; the master stays"),
         ("ONE", "This version", "One version, chosen in the list"),
+        #: MICRO-PREPARA-DIAGNOSI · the versions ON DISK, in versions/ beside
+        #: the .blend: listed with their profile, triangles, weight, date and
+        #: stamp, removed with the nodes of the graph that name them
+        ("DISK", "Files in versions/",
+         "The versions in versions/ beside the .blend (the selected models' "
+         "first), to remove and make again with other criteria"),
     ]
+
+    class EM_PG_version_file(bpy.types.PropertyGroup):
+        """One version on disk (``use_profiles.list_versions``)."""
+        entry: bpy.props.StringProperty()  # type: ignore
+        profile: bpy.props.StringProperty()  # type: ignore
+        destination: bpy.props.StringProperty()  # type: ignore
+        triangles: bpy.props.IntProperty()  # type: ignore
+        size_mb: bpy.props.FloatProperty()  # type: ignore
+        files: bpy.props.IntProperty()  # type: ignore
+        date: bpy.props.StringProperty()  # type: ignore
+        stamped: bpy.props.BoolProperty()  # type: ignore
+        nodes: bpy.props.StringProperty()  # type: ignore
+        remove: bpy.props.BoolProperty(name="", default=False)  # type: ignore
+
+    def _disk_models(context):
+        """The model names the selection stands for: each selected object's
+        name and its container's label (the names versions/ files carry)."""
+        from . import prepare_diagnosis as PD
+        names = set()
+        for o in _selected_meshes(context):
+            names.add(o.name)
+            c = PD.container_of(context.scene, o)
+            if c is not None:
+                names.add(c.label or c.doc_name)
+        return names
+
+    def _disk_rows(context, op):
+        """Fill ``op.files`` from versions/ beside the .blend."""
+        import time as _t
+        from . import prepare_diagnosis as PD
+        UP = PD.use_profiles()
+        op.files.clear()
+        if not bpy.data.filepath:
+            return []
+        folder = UP.versions_folder(bpy.data.filepath)
+        #: every version of versions/ (a model may carry a name given by hand),
+        #: those of the selection first
+        models = _disk_models(context)
+        rows = sorted(UP.list_versions(folder),
+                      key=lambda r: (r["model"] not in models, r["name"]))
+        graph = _graph(context)
+        nodes = PD.nodes_for_files(graph, rows) if graph is not None else {}
+        for r in rows:
+            it = op.files.add()
+            it.name, it.entry = r["name"], r["entry"]
+            it.profile, it.destination = r.get("profile") or "", r.get("destination") or ""
+            it.triangles = int(r.get("triangles") or 0)
+            it.size_mb = round((r.get("bytes") or 0) / 1048576, 2)
+            it.files = len(r.get("files") or [])
+            it.date = _t.strftime("%Y-%m-%d %H:%M", _t.localtime(r["modified"]))
+            it.stamped = bool(r.get("stamp"))
+            it.nodes = "\n".join(f"{n['id']}\t{n['name']}" for n in nodes.get(r["name"], []))
+        return rows
 
     def _remove_ids(context, graph, op):
         """The versions the operator is about to remove, and the objects it
@@ -2364,6 +2424,10 @@ def _operator_classes():  # pragma: no cover — bpy
             name="Remove", default="SHOWN", items=REMOVE_MODES)
         version_id: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})  # type: ignore
         object_name: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})  # type: ignore
+        files: bpy.props.CollectionProperty(type=EM_PG_version_file)  # type: ignore
+        names: bpy.props.StringProperty(  # type: ignore
+            default="", options={"HIDDEN", "SKIP_SAVE"},
+            description="DISK without the dialog: comma-separated file names to remove")
         delete_files: bpy.props.BoolProperty(  # type: ignore
             name="Delete their files and dtcstamps from disk", default=True,
             description="The files EM Tools wrote in its cache (em_cache) and "
@@ -2382,6 +2446,14 @@ def _operator_classes():  # pragma: no cover — bpy
             return removal_plan_here(graph, ids), ids, objs
 
         def invoke(self, context, event):
+            if self.mode == "DISK":
+                try:
+                    _disk_rows(context, self)
+                except RuntimeError as exc:
+                    self.report({"ERROR"}, str(exc))
+                    return {"CANCELLED"}
+                return context.window_manager.invoke_props_dialog(
+                    self, width=640, title="Versions on disk", confirm_text="Remove the ticked")
             plan, ids, _objs = self._plan(context)
             if plan is None:
                 self.report({"ERROR"}, "no graph loaded")
@@ -2389,9 +2461,44 @@ def _operator_classes():  # pragma: no cover — bpy
             return context.window_manager.invoke_props_dialog(
                 self, width=500, title="Remove versions", confirm_text="Remove")
 
+        def _draw_disk(self, col):
+            if not bpy.data.filepath:
+                col.label(text="Save the .blend first: versions/ is beside it", icon="ERROR")
+                return
+            if not len(self.files):
+                col.label(text="No version in versions/ beside the .blend", icon="INFO")
+                return
+            head = col.row()
+            for t in ("", "Version", "Profile", "Triangles", "Size", "Date", "Stamp"):
+                head.label(text=t)
+            for it in self.files:
+                r = col.row()
+                r.prop(it, "remove", text="")
+                r.label(text=it.name)
+                r.label(text=it.profile or it.destination)
+                r.label(text=f"{it.triangles:,}")
+                r.label(text=f"{it.size_mb:.1f} MB")
+                r.label(text=it.date)
+                r.label(text="yes" if it.stamped else "no", icon="CHECKMARK" if it.stamped else "BLANK1")
+            gone = [it for it in self.files if it.remove]
+            if gone:
+                box = col.box()
+                box.label(text=f"{len(gone)} version(s) go, with every file that goes with them:",
+                          icon="TRASH")
+                for it in gone:
+                    box.label(text=f"{it.name}: {it.files} file(s), {it.size_mb:.1f} MB",
+                              icon="FILE")
+                    for ln in [x for x in it.nodes.split("\n") if x]:
+                        box.label(text=f"graph: {ln.split(chr(9))[-1]} (its node and its step)",
+                                  icon="NODETREE")
+                col.label(text="This cannot be undone. Save the graph afterwards.", icon="ERROR")
+
         def draw(self, context):
             from .. import version_removal as VRM
             col = self.layout.column()
+            if self.mode == "DISK":
+                self._draw_disk(col)
+                return
             if self.mode != "ONE":
                 row = col.row(align=True)
                 for key in ("SHOWN", "DERIVED", "ALL"):
@@ -2435,7 +2542,70 @@ def _operator_classes():  # pragma: no cover — bpy
             col.label(text="This cannot be undone. Save the graph afterwards.",
                       icon="ERROR")
 
+        def _execute_disk(self, context):
+            from . import prepare_diagnosis as PD
+            if not len(self.files):
+                try:
+                    _disk_rows(context, self)
+                except RuntimeError as exc:
+                    self.report({"ERROR"}, str(exc))
+                    return {"CANCELLED"}
+            if self.names:
+                want = {x for x in self.names.split(",") if x}
+                for it in self.files:
+                    it.remove = it.name in want
+            gone = [it for it in self.files if it.remove]
+            if not gone:
+                self.report({"WARNING"}, "tick the versions to remove")
+                return {"CANCELLED"}
+            UP = PD.use_profiles()
+            folder = UP.versions_folder(bpy.data.filepath)
+            rows = {r["name"]: r for r in UP.list_versions(folder)}
+            graph = _graph(context)
+            from s3dgraphy import api
+            removed_nodes, deleted, failed = 0, 0, []
+            for it in gone:
+                ids = [ln.split("\t")[0] for ln in it.nodes.split("\n") if ln]
+                if graph is not None and ids:
+                    versions = []
+                    for i in ids:
+                        try:
+                            is_version = any(e["id"] == i and not e["master"]
+                                             for e in api.versions_of(graph, api.asset_of(graph, i)))
+                        except Exception:  # noqa: BLE001
+                            is_version = False
+                        if is_version:
+                            versions.append(i)
+                        elif graph.find_node_by_id(i) is not None:
+                            removed_nodes += len(PD.drop_resource(graph, i))
+                    if versions:
+                        out = remove_versions(context, graph, versions, delete=True, outside=True)
+                        removed_nodes += int(out.get("nodes") or 0)
+                        deleted += len(out.get("deleted") or [])
+                r = rows.get(it.name)
+                for f in ([r["path"]] + list(r["files"])) if r else []:
+                    try:
+                        if os.path.isdir(f):
+                            shutil.rmtree(f)
+                            deleted += 1
+                        elif os.path.isfile(f):
+                            os.remove(f)
+                            deleted += 1
+                    except OSError as exc:
+                        failed.append(f"{os.path.basename(f)}: {exc}")
+            for f in failed[:4]:
+                self.report({"WARNING"}, f"not deleted: {f}")
+            if graph is not None and removed_nodes:
+                gid = str(getattr(graph, "graph_id", "") or "")
+                UNSAVED.setdefault(gid, []).extend(f"removed {it.name}" for it in gone)
+            self.report({"INFO"}, f"removed {len(gone)} version(s) from versions/: {deleted} "
+                                  f"file(s) deleted, {removed_nodes} node(s) of the graph"
+                                  + (" · save the graph" if removed_nodes else ""))
+            return {"FINISHED"}
+
         def execute(self, context):
+            if self.mode == "DISK":
+                return self._execute_disk(context)
             graph = _graph(context)
             if graph is None:
                 self.report({"ERROR"}, "no graph loaded")
@@ -2616,6 +2786,13 @@ def _operator_classes():  # pragma: no cover — bpy
             op = col.operator("em.asset_remove_versions", icon="TRASH",
                               text="Remove versions…" + on)
             op.mode = "SHOWN"
+            # MICRO-PREPARA-DIAGNOSI · what the model costs for a use, what can
+            # be improved, the version made with the ticks; the versions on disk
+            col.operator("em.prepare_diagnose", icon="VIEWZOOM",
+                         text="Prepare for a use: diagnosis…")
+            op = col.operator("em.asset_remove_versions", icon="FILE_FOLDER",
+                              text="Versions on disk…")
+            op.mode = "DISK"
             if obj is not None and obj.get(PROP_ASSET):
                 # D1 · what the shown version IS: computed level, uses, measures
                 info = _version_info(context, obj)
@@ -2651,7 +2828,7 @@ def _operator_classes():  # pragma: no cover — bpy
             # F1 · the starting package is in «The .blend in the room…», with
             # the snapshots (Project storage)
 
-    return (EM_OT_asset_add_version, EM_OT_asset_prepare_for_use,
+    return (EM_PG_version_file, EM_OT_asset_add_version, EM_OT_asset_prepare_for_use,
             EM_OT_asset_remove_versions, EM_OT_asset_lod_step, EM_OT_asset_set_level,
             EM_OT_asset_level_menu, EM_MT_asset_levels_selected, VIEW3D_PT_em_asset_versions)
 
