@@ -66,7 +66,36 @@ def import_container_from_emjson(filepath: str, *, replace: bool = False):
     loaded costs more than having one graph too many.
     """
     from s3dgraphy.multigraph.multigraph import multi_graph_manager
-    return multi_graph_manager.load_container(filepath, replace=replace)
+    container, warnings = multi_graph_manager.load_container(filepath, replace=replace)
+    warnings = list(warnings or []) + repair_prepared_versions(container, filepath)
+    return container, warnings
+
+
+def repair_prepared_versions(container, filepath: str) -> List[str]:
+    """MICRO-VERSIONE-CONTENITORE (E.D. 30 Oct 2026) · the versions «Prepare
+    for a use» wrote before: a container's version gets the container's hat
+    (``has_linked_resource``), an absolute url inside the project becomes
+    relative to the em.json's folder — in memory; the file changes when it is
+    saved. → one line per graph mended (said, never silent)."""
+    import os
+    try:
+        from s3dgraphy.project_tree import find_project_root
+        from .sync_manager.prepare_diagnosis import repair_container_versions
+    except ImportError:
+        return []
+    emjson_dir = os.path.dirname(os.path.abspath(filepath))
+    root = find_project_root(filepath) or emjson_dir
+    out: List[str] = []
+    for gid, graph in (getattr(container, "graphs", None) or {}).items():
+        try:
+            r = repair_container_versions(graph, emjson_dir, root)
+        except Exception as exc:  # noqa: BLE001 — a repair never stops an opening
+            out.append(f"{gid}: the prepared versions could not be checked ({exc})")
+            continue
+        if r["linked"] or r["relative"]:
+            out.append(f"{gid}: {len(r['linked'])} container version(s) linked to their container, "
+                       f"{len(r['relative'])} url(s) made relative to the em.json — save to keep it")
+    return out
 
 
 def export_container_to_emjson(output_path: str, *, active_graph_id=None) -> str:

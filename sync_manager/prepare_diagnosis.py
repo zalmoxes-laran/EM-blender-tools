@@ -162,6 +162,98 @@ def level_for(checked_kinds: Iterable[str]) -> str:
     return "lod1" if "decimate" in set(checked_kinds) else "lod0"
 
 
+def level_of(ch: Dict[str, Any]) -> str:
+    """The level of the version the choices make: ``lod1`` when they decimate
+    a geometry, else ``lod0`` — the dialog's line and the file's name read the
+    SAME choices (MICRO-VERSIONE-CONTENITORE: the dialog said ``lod0-mobile``,
+    the file was ``lod1-mobile``)."""
+    return "lod1" if ch.get("decimated") else "lod0"
+
+
+# ── a container's version in the graph (MICRO-VERSIONE-CONTENITORE, E.D. 30 Oct 2026)
+#
+# A version of a whole RM container (``data.represents: container``) is the
+# container's: the container HATS it with ``has_linked_resource`` (connections
+# 1.6.41, RepresentationModelNodeGroup → ResourceNode), as a tileset of the
+# whole is — EMStudio then shows it as a level of the container, drawn in place
+# of its members. ``data.container`` stays, a hint; the edge is the statement.
+# Its ``url`` is relative to the em.json's folder, as the other versions in
+# versions/ (``../SB/versions/…``).
+
+HAT_EDGE = "has_linked_resource"
+CONTAINER_TYPE = "RepresentationModelNodeGroup"
+
+
+def _is_abs(url: str) -> bool:
+    return bool(url) and (url.startswith("/") or bool(re.match(r"^[A-Za-z]:[\\/]", url))
+                          or url.startswith("\\\\"))
+
+
+def _inside(path: str, folder: str) -> bool:
+    try:
+        return os.path.commonpath([os.path.abspath(path), os.path.abspath(folder)]) == os.path.abspath(folder)
+    except ValueError:  # another drive
+        return False
+
+
+def relative_locator(path: str, emjson_dir: str, root: Optional[str] = None) -> str:
+    """``path`` as the graph writes it: relative to the em.json's folder with
+    ``/`` — when ``root`` is given, only for a path inside it (the project);
+    else (no em.json, another drive, outside the project) as it is."""
+    if not emjson_dir or not _is_abs(path):
+        return path
+    if root and not _inside(path, root):
+        return path
+    try:
+        return os.path.relpath(os.path.abspath(path), os.path.abspath(emjson_dir)).replace(os.sep, "/")
+    except ValueError:
+        return path
+
+
+def link_to_container(graph, rid: str, gid: str) -> bool:
+    """``gid -has_linked_resource-> rid`` (the id s3Dgraphy's
+    ``declare_alternative`` gives it), once. → True when added."""
+    g = graph.find_node_by_id(gid) if gid else None
+    if g is None or graph.find_node_by_id(rid) is None:
+        return False
+    if CONTAINER_TYPE not in (getattr(g, "node_type", ""), type(g).__name__):
+        return False
+    if any(e.edge_type == HAT_EDGE and e.edge_source == gid and e.edge_target == rid for e in graph.edges):
+        return False
+    graph.add_edge(f"{gid}_{HAT_EDGE}_{rid}", gid, rid, HAT_EDGE)
+    return True
+
+
+def repair_container_versions(graph, emjson_dir: str = "", root: Optional[str] = None) -> Dict[str, Any]:
+    """The versions «Prepare for a use» wrote before this MICRO, mended where
+    they are READ (in memory: the file changes when it is saved): a version of
+    a container (``data.container`` and no hat) is hatted by its container; an
+    absolute ``url`` inside the project (``root``) becomes relative to the
+    em.json's folder. → ``{linked: [ids], relative: [ids]}``."""
+    out: Dict[str, Any] = {"linked": [], "relative": []}
+    for n in list(graph.nodes):
+        if getattr(n, "node_type", "") != "resource":
+            continue
+        d = getattr(n, "data", None)
+        if not isinstance(d, dict) or "represents" not in d:
+            continue
+        gid = str(d.get("container") or "")
+        if d.get("represents") == "container" and gid and link_to_container(graph, n.node_id, gid):
+            out["linked"].append(n.node_id)
+        url = str(d.get("url") or "")
+        if emjson_dir and root and _is_abs(url):
+            rel = relative_locator(url, emjson_dir, root)
+            if rel != url:
+                d["url"] = rel
+                if hasattr(n, "url"):
+                    try:
+                        n.url = rel
+                    except Exception:  # noqa: BLE001
+                        pass
+                out["relative"].append(n.node_id)
+    return out
+
+
 def target_name(folder: str, model: str, level: str, prof: Dict[str, Any],
                 packaging: Optional[str] = None) -> str:
     """Where the version goes: ``<folder>/<model>@<level>-<destination>.glb``
@@ -754,6 +846,17 @@ def register_version(context, graph, objs, entry: str, diagnosis: Dict[str, Any]
     if graph.find_node_by_id(rid) is not None:
         drop_resource(graph, rid)
     files = AV.files_of_entry(entry)["files"]
+    # MICRO-VERSIONE-CONTENITORE · relative to the em.json's folder, as the
+    # other versions (``../SB/versions/…``); absolute only with no em.json
+    try:
+        from .project_files import active_emjson
+        emjson = active_emjson(context)
+    except Exception:  # noqa: BLE001
+        emjson = ""
+    if emjson:
+        for f in files:
+            if f.get("url"):
+                f["url"] = relative_locator(f["url"], os.path.dirname(emjson))
     res = api.add_resource(
         graph, name=label, kind="3d_model", tier="distribution",
         packaging="file_set" if len(files) > 1 else None, files=files,
@@ -765,6 +868,13 @@ def register_version(context, graph, objs, entry: str, diagnosis: Dict[str, Any]
             "container": getattr(container, "group_node_id", "") or None,
             "estimate": {"download_bytes": diagnosis["after"]["download_bytes"],
                          "gpu_bytes": diagnosis["after"]["gpu_bytes"]}}.items() if v})
+    # MICRO-VERSIONE-CONTENITORE · the container's version: the container hats it
+    gid = getattr(container, "group_node_id", "") if container is not None else ""
+    if gid and not link_to_container(graph, res.node_id, gid) \
+            and not any(e.edge_type == HAT_EDGE and e.edge_source == gid and e.edge_target == res.node_id
+                        for e in graph.edges):
+        warnings.append(f"the container {getattr(container, 'label', gid)} is not in the graph: "
+                        f"the version is not linked to it (sync the containers, then prepare it again)")
     if masters:
         declare_derivation(graph, res.node_id, masters, dtc_kind=BS.resolve_kind(BS.KIND_EXPORT),
                            technique=technique, parameters=params,
@@ -1028,6 +1138,13 @@ def _operator_classes():  # pragma: no cover — bpy
         def _checked(self):
             return [r.row_id for r in self.rows if r.checked and r.available and not r.separate]
 
+        def _choices(self, d, checked, params):
+            UP = use_profiles()
+            try:
+                return UP.choices(d, list(checked), params)
+            except TypeError:  # a table before MICRO-PREPARA-RITOCCHI
+                return UP.choices(d, list(checked))
+
         def _estimate(self, d, checked, params):
             UP = use_profiles()
             try:
@@ -1143,17 +1260,21 @@ def _operator_classes():  # pragma: no cover — bpy
             if any(r.kind == "decimate" and r.checked for r in self.rows):
                 col.label(text="Decimation with baked normals: 3D Survey Collection's LOD generator "
                                "(make_lod_set / rebake_atlas)", icon="MOD_DECIM")
-            level = self.level or level_for(r.kind for r in self.rows if r.row_id in checked)
+            try:
+                ch = self._choices(d, checked, params)
+            except Exception as exc:  # noqa: BLE001
+                col.label(text=str(exc), icon="ERROR")
+                return
+            auto = level_of(ch)
+            level = self.level or auto
             row = col.row()
             row.prop(self, "model")
-            row.prop(self, "level", text=f"Level (auto: {level_for(r.kind for r in self.rows if r.row_id in checked)})"
-                     if not self.level else "Level")
+            row.prop(self, "level", text=f"Level (auto: {auto})" if not self.level else "Level")
             folder = self._folder()
             if not folder:
                 col.label(text="Save the .blend first: the versions go beside it", icon="ERROR")
                 return
             try:
-                ch = use_profiles().choices(d, checked)
                 entry = target_name(folder, self.model or "model", level,
                                     use_profiles().profile(d["profile"]), ch["packaging"])
             except Exception as exc:  # noqa: BLE001
@@ -1184,8 +1305,8 @@ def _operator_classes():  # pragma: no cover — bpy
                    else self._checked())
             ids = [i for i in ids if i != "none"]
             params = self._params(d)
-            kinds = {r["id"]: r["kind"] for r in d["improvements"]}
-            level = self.level or level_for(kinds.get(i, "") for i in ids)
+            # the same choices as the dialog's line and apply's: one level
+            level = self.level or level_of(self._choices(d, ids, params))
             folder = self._folder()
             if not folder:
                 self.report({"ERROR"}, "save the .blend first: the versions go beside it")
