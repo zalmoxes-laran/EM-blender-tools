@@ -110,3 +110,13 @@ def test_a_cache_file_is_never_a_document():
     prop = types.SimpleNamespace(node_id="p")
     with pytest.raises(ValueError, match="cite the document"):
         PD.document_through_extractor(types.SimpleNamespace(nodes=[], edges=[]), prop, doc)
+
+
+def test_emstudio_says_read_only_when_it_opens_a_held_blend():
+    told_readonly = BL.told_readonly
+    held = {"key": "SB/GT.blend", "person": "orcid:EL", "display": "Elisa", "host": "pc-lab",
+            "since": 1000.0, "renewed": 1000.0, "person_here": "orcid:ED"}
+    import json
+    assert told_readonly(json.dumps(held))["display"] == "Elisa"
+    assert told_readonly(held)["person_here"] == "orcid:ED"
+    assert told_readonly("") is None and told_readonly("not json") is None and told_readonly("{}") is None

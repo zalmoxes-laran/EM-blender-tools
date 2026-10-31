@@ -44,7 +44,21 @@ NEEDS_DEV79 = ("the leases of the room need s3dgraphy ≥ 1.6.0.dev79 (the next 
 
 #: this Blender's view of the open .blend's lease
 STATE: Dict[str, Any] = {"key": "", "path": "", "sent": 0.0, "mine": False, "mode": "", "say": "",
-                         "lease": None, "switched": "", "person": ""}
+                         "lease": None, "switched": "", "person": "", "told": None}
+
+
+def told_readonly(raw: Any) -> Optional[Dict[str, Any]]:
+    """The holder EMStudio passes when it opens a .blend somebody else holds
+    («Apri in Blender», ``EM_BLEND_READONLY`` / ``em.blend_open_readonly``:
+    the room's lease plus ``person_here``). → the lease, or None."""
+    import json
+    if not raw:
+        return None
+    try:
+        got = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    except (TypeError, ValueError):
+        return None
+    return got if isinstance(got, dict) and (got.get("person") or got.get("display")) else None
 
 
 def br():
@@ -131,11 +145,23 @@ def tick(context=None, *, headless: bool = False) -> Dict[str, Any]:  # pragma: 
     s = _session()
     if STATE["path"] and STATE["path"] != path:
         release(reason="another file")
+        # what EMStudio said was about the file it opened, not this one
+        STATE["told"] = None
+        os.environ.pop("EM_BLEND_READONLY", None)
     key = key_of(context, path) if path else ""
     person = str(getattr(s, "author", "") or "") if s else ""
     got = decide(leases=list(getattr(s, "leases", []) or []), key=key, person=person,
                  host=platform.node(), supported=bool(getattr(s, "holds_supported", False)),
                  joined=s is not None)
+    told = STATE.get("told") or told_readonly(os.environ.get("EM_BLEND_READONLY"))
+    if told and got["mode"] not in ("readonly", "mine_elsewhere", "mine"):
+        # opened by EMStudio on a file held by somebody else: read only even
+        # without this Blender being in the room (the sidecar is not a room)
+        B = br()
+        label = B.lease_label(told) if B is not None else str(told.get("display") or told.get("person"))
+        got = dict(got, mode="readonly", lease=told, send=None,
+                   say=label + ": sola lettura — salvare fa una nuova versione col tuo nome")
+        person = person or str(told.get("person_here") or "")
     now = time.time()
     STATE.update(key=key, path=path, mode=got["mode"], say=got["say"], lease=got["lease"], person=person)
     if s is not None and got["send"] == "take" and now - STATE["sent"] > 5:
@@ -204,7 +230,7 @@ def save_as_version(context) -> str:  # pragma: no cover — bpy
 
 def _operator_classes():  # pragma: no cover — bpy
     bpy = _bpy()
-    from bpy.props import BoolProperty
+    from bpy.props import BoolProperty, StringProperty
 
     class EM_OT_blend_save_guard(bpy.types.Operator):
         """Save: read-only (somebody else has this .blend open in the room), a new version with
@@ -249,7 +275,23 @@ def _operator_classes():  # pragma: no cover — bpy
             self.report({"INFO"} if ok else {"WARNING"}, "Released" if ok else "Nothing to release")
             return {"FINISHED"}
 
-    return (EM_OT_blend_save_guard, EM_OT_blend_lease_release)
+    class EM_OT_blend_open_readonly(bpy.types.Operator):
+        """This .blend is held in the room by somebody else (said by EMStudio when it opened it):
+        work read-only, a save becomes a new version with your name"""
+        bl_idname = "em.blend_open_readonly"
+        bl_label = "Open read-only"
+        bl_options = {"INTERNAL"}
+        holder: StringProperty(default="")  # type: ignore
+
+        def execute(self, context):
+            got = told_readonly(self.holder)
+            if not got:
+                return {"CANCELLED"}
+            STATE["told"] = got
+            tick(context)
+            return {"FINISHED"}
+
+    return (EM_OT_blend_save_guard, EM_OT_blend_lease_release, EM_OT_blend_open_readonly)
 
 
 def draw(layout, context) -> None:  # pragma: no cover — bpy
