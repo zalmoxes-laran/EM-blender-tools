@@ -227,11 +227,19 @@ dest = os.path.join(PROJECT, "SB", "versions", f"Column_entrance1@manual-{day}.g
 shutil.copyfile(src_glb, dest)
 sha = "sha256:" + hashlib.sha256(open(dest, "rb").read()).hexdigest()
 asset = asset_of(graph, tags_before["em_version_id"])
-new = api.add_version(graph, asset, use=["realtime"], level=f"manual-{day}", files=[{
-    "path": os.path.basename(dest), "url": os.path.relpath(dest, em_folder).replace(os.sep, "/"),
-    "checksum": sha}])
+# MICRO-CONSOLIDA-2 · «Aggiorna» is the same model at the SAME level: the
+# version shown made again (a revision at its level, with its uses); a
+# version by hand for another use would be «another version»
+here_level = tags_before.get("em_level") or "lod1"
+here_entry = next(e for e in versions_of(graph, asset_of(graph, tags_before["em_version_id"]))
+                  if e["id"] == tags_before["em_version_id"])
+asset = asset_of(graph, tags_before["em_version_id"])
+new = api.add_version(graph, asset, use=list(here_entry.get("use") or ["realtime"]), level=here_level,
+                      revise=True, files=[{
+                          "path": os.path.basename(dest), "url": os.path.relpath(dest, em_folder).replace(os.sep, "/"),
+                          "checksum": sha}])
 status = G.update_status(graph, tags_before)
-check("the graph has a newer version", status["state"] == "newer"
+check("the graph has a newer version at its level", status["state"] in ("newer", "revised")
       and status["action"].get("resource_id") == new["version_id"], status["say_it"])
 res = BO.check_here(ctx)
 lines = drawn(next(c for c in BO._CLASSES if c.__name__ == "EM_OT_blend_check_graph"), source="disk", index=0)
@@ -251,7 +259,7 @@ col = bpy.data.objects.get("Column_entrance1")
 tags_after = BO.object_tags(col)
 check("the mesh changed", len(col.data.vertices) != verts_before, (verts_before, len(col.data.vertices)))
 check("the tags follow the new version", tags_after.get("em_version_id") == new["version_id"]
-      and tags_after.get("em_asset_sha256") == sha and tags_after.get("em_level") == f"manual-{day}",
+      and tags_after.get("em_asset_sha256") == sha and tags_after.get("em_level") == here_level,
       {k: tags_after.get(k) for k in ("em_version_id", "em_level")})
 ctx.view_layer.update()
 check("name, place and collections kept", col.name == "Column_entrance1"
@@ -310,18 +318,19 @@ check("the recipe goes to D.01 (in the graph, and to the room when joined)",
 # ── the same, from «the room» (a fake fetch: the room's bytes by sha256) ────
 ids = ["Column_entrance1_model", "Architrave_1_BAKE_SM_Architrave_1_BAKE_model"]
 FS.ULTIMI.update({"graph_id": str(graph.graph_id), "results": [], "at": "smoke"})
+# the entries of NOW (section 3 registered a revision of Column_entrance1)
+_fresh = G.compose_from_graph(graph, "modelling", em_folder=em_folder, project_folder=PROJECT, models=ids)
 room_plan = G.compose_from_graph(graph, "modelling", em_folder=em_folder, project_folder=PROJECT, models=ids,
                                  resolved=[{"id": i["entry"]["id"], "state": "on_node"}
-                                           for i in plan["items"] if i["model_id"] in ids],
+                                           for i in _fresh["items"]],
                                  in_room=True)
 room_plan = BC.decorate_plan(graph, room_plan, em_folder=em_folder, project_folder=PROJECT, em_json=emjson)
 check("from the room: every file fetched by sha256 into em_cache/files",
       len(room_plan["items"]) == 2 and all(i["source"]["how"] == "fetch" for i in room_plan["items"])
       and all("/em_cache/files/" in f["to"] for f in room_plan["fetch"]), room_plan["say_it"])
 disk = {}
-for i in plan["items"]:
-    if i["model_id"] in ids:
-        disk[BC.sha_hex(i["entry"]["checksum"])] = i["source"]["file"]
+for i in _fresh["items"]:
+    disk[BC.sha_hex(i["entry"]["checksum"])] = i["source"]["file"]
 asked = []
 
 

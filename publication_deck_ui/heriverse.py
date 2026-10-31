@@ -174,6 +174,46 @@ def _in_room() -> bool:
         return False
 
 
+def _whole_containers(graph) -> List[str]:
+    """The RM containers with a 3D resource of their own (s3Dgraphy's
+    ``published_models``, the containers only)."""
+    try:
+        from s3dgraphy.resources import consolidate as C
+        hats = C._hats()["container"]
+        return [m for m in C.published_models(graph)
+                if str(getattr(graph.find_node_by_id(m), "node_type", "")) in hats]
+    except Exception:  # noqa: BLE001 — an older s3dgraphy: no container rows
+        return []
+
+
+def _resolved(context, graph) -> List[Dict[str, Any]]:
+    """The resolver's answers for ``graph`` with their paths: the last «Check
+    files» (hashed: it says the files modified after their stamp), else a
+    quick resolution on this disk only (no node, no hashing) — enough to
+    measure the versions' files."""
+    try:
+        from ..sync_manager.file_states import ULTIMI
+        if ULTIMI.get("graph_id") == str(getattr(graph, "graph_id", "")) and ULTIMI.get("results"):
+            return list(ULTIMI["results"])
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from s3dgraphy import api
+        from ..sync_manager.file_states import project_root
+        roots, caches = _roots_and_caches(context)
+        return api.resolve_files(graph, project_root=project_root(context), base_dirs=roots,
+                                 cache_dirs=[c for c in caches if os.path.isdir(c)])
+    except Exception:  # noqa: BLE001 — no measure: the graph's estimate
+        return []
+
+
+def _graph_with(context, node_id: str):
+    for _gid, graph in publishable_graphs(context):
+        if graph.find_node_by_id(node_id) is not None:
+            return graph
+    return None
+
+
 def make_consolidation(context, platform: str = "heriverse") -> Dict[str, Any]:
     """«Consolidate for…» (s3Dgraphy ``resources.consolidate``, the answers of
     EMStudio) on the published models of every publishable graph."""
@@ -183,8 +223,13 @@ def make_consolidation(context, platform: str = "heriverse") -> Dict[str, Any]:
     parts = []
     for gid, graph in publishable_graphs(context):
         models = [(rid, name) for rid, name, _cat in published(context, graph)]
+        # MICRO-CONSOLIDA-2 · a container with a whole of its own (a tileset)
+        # has its row too: its base is its lowest level, its master is asked
+        models += [(cid, "") for cid in _whole_containers(graph)]
+        disk = PH.disk_measures(_resolved(context, graph))
         parts.append((gid, PH.consolidation(graph, models, platform=platform,
-                                            states=_states(graph), in_room=room)))
+                                            states=_states(graph), in_room=room,
+                                            measure=disk.get("measure"), changed=disk.get("changed"))))
     if not parts:
         return {"available": True, "rows": [], "counts": {}, "totals": [], "graphs": [],
                 "say_it": ["no publishable graph"], "in_room": room}
@@ -258,8 +303,11 @@ class EM_OT_deck_heriverse(bpy.types.Operator):
             layout.label(text=line, icon="WORLD_DATA")
         for line in PH.totals_lines(cons):
             layout.label(text=line, icon="MEMORY")
+        # the containers first (a few, each the whole of a survey: its master
+        # is asked there), then the models from the one that blocks
         rows = sorted(cons.get("rows") or [],
-                      key=lambda r: (_ORDER.get(r.get("status") or "ok", 9), r.get("name") or ""))
+                      key=lambda r: (r.get("kind") != "container",
+                                     _ORDER.get(r.get("status") or "ok", 9), r.get("name") or ""))
         col = layout.column(align=True)
         for row in rows[:20]:
             line = col.row(align=True)
@@ -275,6 +323,14 @@ class EM_OT_deck_heriverse(bpy.types.Operator):
                     op.resource_id = a["resource_id"]
                 elif a["kind"] == "check":
                     line.operator("em.files_check", text="", icon="FILE_REFRESH")
+                elif a["kind"] == "register_new_version" and a["resource_id"]:
+                    op = line.operator("em.deck_register_new_version", text="", icon="FILE_NEW")
+                    op.resource_id = a["resource_id"]
+                    op.checksum_now = a.get("checksum_now") or ""
+                elif a["kind"] == "declare_master" and a["resource_id"]:
+                    op = line.operator("em.deck_declare_tileset_master", text="", icon="OUTLINER_OB_GROUP_INSTANCE")
+                    op.tileset_id = a["resource_id"]
+                    op.container_id = a.get("container_id") or ""
         if len(rows) > 20:
             col.label(text=f"… and {len(rows) - 20} more")
         no_base = [r for r in rows if r.get("kind") == "rm" and not r.get("base") and r.get("object")]
@@ -640,8 +696,110 @@ class EM_OT_deck_heriverse_write_disk(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EM_OT_deck_register_new_version(bpy.types.Operator):
+    """The file of this version was modified after its stamp (today it has
+    another sha256): register it as a new version — a revision at the same
+    level, with the same uses, carrying the new sha256"""
+
+    bl_idname = "em.deck_register_new_version"
+    bl_label = "Register as a new version"
+    bl_options = {"REGISTER", "UNDO"}
+
+    resource_id: bpy.props.StringProperty()  # type: ignore
+    checksum_now: bpy.props.StringProperty()  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+    def execute(self, context):
+        from s3dgraphy.resources import graph_compose as G
+        if not hasattr(G, "register_new_version"):
+            self.report({"ERROR"}, "needs s3dgraphy ≥ 1.6.0.dev81")
+            return {"CANCELLED"}
+        graph = _graph_with(context, self.resource_id)
+        if graph is None:
+            self.report({"ERROR"}, f"{self.resource_id}: not in a publishable graph")
+            return {"CANCELLED"}
+        try:
+            out = G.register_new_version(graph, self.resource_id, checksum=self.checksum_now)
+        except ValueError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        LAST["consolidated"] = make_consolidation(context, "heriverse")
+        self.report({"INFO"}, f"registered {out['level']} again: {out['version_id']} "
+                              f"(revision of {out.get('revises')}); save the study to keep it")
+        return {"FINISHED"}
+
+
+class EM_OT_deck_declare_tileset_master(bpy.types.Operator):
+    """Declare the master of this tileset: the meshes it was tiled from (an
+    existing file or resource), or say it is not available with a note that
+    stays in the graph. Not blocking: a container made of a tileset alone
+    works without it"""
+
+    bl_idname = "em.deck_declare_tileset_master"
+    bl_label = "Declare the master…"
+    bl_options = {"REGISTER", "UNDO"}
+
+    tileset_id: bpy.props.StringProperty()  # type: ignore
+    container_id: bpy.props.StringProperty()  # type: ignore
+    mode: bpy.props.EnumProperty(  # type: ignore
+        name="Master", items=[("MEMBERS", "The container's meshes", "the meshes of its members"),
+                              ("IDS", "These resources", "resource ids, separated by commas"),
+                              ("UNAVAILABLE", "Not available", "a note that stays in the graph")],
+        default="MEMBERS")
+    sources: bpy.props.StringProperty(name="Resources")  # type: ignore
+    note: bpy.props.StringProperty(name="Note")  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=480)
+
+    def _candidates(self, context):
+        from s3dgraphy.resources import graph_compose as G
+        graph = _graph_with(context, self.tileset_id)
+        if graph is None or not hasattr(G, "master_candidates"):
+            return graph, []
+        return graph, G.master_candidates(graph, self.tileset_id, self.container_id or None)
+
+    def draw(self, context):
+        col = self.layout.column()
+        col.prop(self, "mode", expand=True)
+        if self.mode == "MEMBERS":
+            _g, cands = self._candidates(context)
+            col.label(text=f"{len(cands)} mesh(es) of the container's members"
+                           + (": " + ", ".join(c["name"] for c in cands[:3]) if cands else ""), icon="MESH_DATA")
+        elif self.mode == "IDS":
+            col.prop(self, "sources")
+        else:
+            col.prop(self, "note")
+
+    def execute(self, context):
+        from s3dgraphy.resources import graph_compose as G
+        if not hasattr(G, "declare_tileset_master"):
+            self.report({"ERROR"}, "needs s3dgraphy ≥ 1.6.0.dev81")
+            return {"CANCELLED"}
+        graph, cands = self._candidates(context)
+        if graph is None:
+            self.report({"ERROR"}, f"{self.tileset_id}: not in a publishable graph")
+            return {"CANCELLED"}
+        try:
+            if self.mode == "UNAVAILABLE":
+                out = G.declare_tileset_master(graph, self.tileset_id, unavailable=self.note)
+            else:
+                ids = ([c["id"] for c in cands] if self.mode == "MEMBERS"
+                       else [x.strip() for x in self.sources.split(",") if x.strip()])
+                out = G.declare_tileset_master(graph, self.tileset_id, ids)
+        except ValueError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        LAST["consolidated"] = make_consolidation(context, "heriverse")
+        self.report({"INFO"}, out["say_it"] + "; save the study to keep it")
+        return {"FINISHED"}
+
+
 CLASSES = (EM_OT_deck_heriverse, EM_OT_deck_heriverse_prepare,
-           EM_OT_deck_heriverse_make_missing, EM_OT_deck_heriverse_write_disk)
+           EM_OT_deck_heriverse_make_missing, EM_OT_deck_heriverse_write_disk,
+           EM_OT_deck_register_new_version, EM_OT_deck_declare_tileset_master)
 
 
 def register():

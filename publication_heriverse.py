@@ -825,9 +825,37 @@ def consolidate_function() -> Optional[Callable[..., Any]]:
     return getattr(C, "consolidate", None)
 
 
+def _accepts(fn: Callable[..., Any], name: str) -> bool:
+    import inspect
+    try:
+        return name in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def disk_measures(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """MICRO-CONSOLIDA-2 · from the resolver's answers (``{id, path, changed,
+    sha256_now}``): ``measure`` — the versions' glTF/glb found here measured
+    (the GPU from the real textures, the same image once) — and ``changed``,
+    the files whose sha256 today is not the registered one. ``{}`` with a
+    s3dgraphy without them (≤ dev80)."""
+    try:
+        from s3dgraphy.resources import consolidate as C
+    except ImportError:
+        return {}
+    out: Dict[str, Any] = {}
+    rs = list(results or [])
+    if hasattr(C, "measure_from_disk"):
+        out["measure"] = C.measure_from_disk(rs)
+    if hasattr(C, "changed_from"):
+        out["changed"] = C.changed_from(rs)
+    return out
+
+
 def consolidation(graph, models: Iterable[Any], *, platform: str = "heriverse",
                   states: Optional[Dict[str, str]] = None, in_room: bool = False,
-                  fn: Optional[Callable[..., Any]] = None) -> Dict[str, Any]:
+                  fn: Optional[Callable[..., Any]] = None, measure=None,
+                  changed: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """«Consolidate for…» ``platform`` on the Deck's published models.
 
     ``models``: ids or ``(id, object_name[, category])`` as :func:`plan_for`
@@ -854,7 +882,9 @@ def consolidation(graph, models: Iterable[Any], *, platform: str = "heriverse",
         ids.append(mid)
         if obj:
             objects[mid] = obj
-    out = dict(fn(graph, platform, models=ids, states=states or {}, in_room=in_room))
+    extra = {k: v for k, v in (("measure", measure), ("changed", changed))
+             if v is not None and _accepts(fn, k)}
+    out = dict(fn(graph, platform, models=ids, states=states or {}, in_room=in_room, **extra))
     out["available"] = True
     out["rows"] = [dict(r, object=objects.get(r["id"], "")) for r in out.get("rows") or []]
     return out
@@ -892,6 +922,13 @@ def _summary_line(e: Optional[Dict[str, Any]]) -> str:
     return (lvl or e.get("name") or "?") + (f" · {tris:,} tri" if isinstance(tris, int) else "")
 
 
+#: why the web loads what it loads (s3Dgraphy ``consolidate.web_choice``,
+#: lightness by default — MICRO-CONSOLIDA-2)
+LOADED_WHY = {"scene_light": "the scene stays light: the best", "simple": "simple: the best",
+              "light": "light by default: the mobile base", "lightest": "no base: the lightest for the web",
+              "best": "no lighter one", "tileset": "a tileset, streamed", "master": "the master"}
+
+
 def consolidation_row_line(row: Dict[str, Any]) -> str:
     """One line of a model: sign, name, base and the version loaded, the first
     finding's sentence."""
@@ -899,7 +936,10 @@ def consolidation_row_line(row: Dict[str, Any]) -> str:
     base = _summary_line(row.get("base"))
     loaded = _summary_line(row.get("loaded"))
     head = f"{sign} {row.get('name')} · base {base} · loads {loaded}"
-    if row.get("loaded_is") and row.get("loaded_is") != "best":
+    why = LOADED_WHY.get(row.get("loaded_why") or "")
+    if why:
+        head += f" ({why})"
+    elif row.get("loaded_is") and row.get("loaded_is") != "best":
         head += f" ({row['loaded_is']})"
     first = next(iter(row.get("findings") or []), None)
     return head + (f" — {first['say_it']}" if first else "")
@@ -929,6 +969,14 @@ def row_actions(row: Dict[str, Any], *, platform: str = "heriverse") -> List[Dic
         elif kind == "upload":
             out.append({"kind": kind, "label": "Upload to the room", "profile": "", "uses": (),
                         "object": row.get("object") or "", "resource_id": a.get("resource_id") or ""})
+        elif kind == "register_new_version":
+            out.append({"kind": kind, "label": "Register as a new version", "profile": "", "uses": (),
+                        "object": row.get("object") or "", "resource_id": a.get("resource_id") or "",
+                        "checksum_now": a.get("checksum_now") or ""})
+        elif kind == "declare_master":
+            out.append({"kind": kind, "label": "Declare the master…", "profile": "", "uses": (),
+                        "object": row.get("object") or "", "resource_id": a.get("tileset_id") or "",
+                        "container_id": a.get("container_id") or row.get("id") or ""})
         elif kind in ("check", "disk", "find", "stamp"):
             labels = {"check": "Check files", "disk": "The package on disk",
                       "find": "Find the file", "stamp": "Stamp it"}

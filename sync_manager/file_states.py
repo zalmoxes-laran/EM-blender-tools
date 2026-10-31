@@ -78,10 +78,14 @@ def resolve_active(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover 
     root = project_root(context)
     caches = [d for d in (cache, os.path.join(cache, "files"),
                           os.path.join(root, ".em_cache") if root else "") if d and os.path.isdir(d)]
-    results = api.resolve_files(graph, project_root=root,
-                                base_dirs=base_dirs(context),
-                                cache_dirs=caches,
-                                on_node=node_probe(), hasher=sha256_of_file)
+    kw = dict(project_root=root, base_dirs=base_dirs(context), cache_dirs=caches,
+              on_node=node_probe(), hasher=sha256_of_file)
+    try:
+        # MICRO-CONSOLIDA-2 · a file here whose sha256 is not the registered
+        # one is said «modified after its stamp» (s3dgraphy ≥ dev81)
+        results = api.resolve_files(graph, verify=True, **kw)
+    except TypeError:
+        results = api.resolve_files(graph, **kw)
     ULTIMI.update({"graph_id": str(getattr(graph, "graph_id", "")),
                    "results": results,
                    # MICRO-BLEND-OFFICINA-1 · when: «Check against the graph»

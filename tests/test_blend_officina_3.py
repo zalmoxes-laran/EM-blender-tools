@@ -190,9 +190,23 @@ def test_update_status_on_a_real_graph_sees_the_newer_version():
                 if e.edge_type == EDGE_HAD_OUTPUT and e.edge_target == new["version_id"])
     g.find_node_by_id(step).data["created_at"] = "2099-01-01T10:00:00Z"
     rows = BO.ba_rows(G.before_after(g, [{"name": "PODIO", "props": tags}]))
-    assert rows and rows[0]["name"] == "PODIO" and rows[0]["state"] == "newer"
-    assert rows[0]["resource_id"] == new["version_id"]
-    assert "→ in the graph manual-2026-10-31 (2099-01-01 10:00)" in rows[0]["label"]
+    if not hasattr(G, "level_key"):        # ≤ dev80: «newer» was any version made again
+        assert rows and rows[0]["state"] == "newer"
+        return
+    # MICRO-CONSOLIDA-2 · a version by hand for desktop realtime is ANOTHER
+    # version of the one for Heriverse shown: said, not an update
+    assert rows and rows[0]["name"] == "PODIO" and rows[0]["state"] == "aligned"
+    assert "another version, not an update" in rows[0]["label"] and not rows[0]["tick"]
+    # the file of the version shown modified after its stamp → offered, not ticked
+    now = _sha(b"touched")
+    ba = G.before_after(g, [{"name": "PODIO", "props": tags}], files_now={heri["version_id"]: now})
+    mod = BO.ba_rows(ba)[0]
+    assert mod["state"] == "modified" and mod["action"] == "register_new_version" and not mod["tick"]
+    assert mod["checksum_now"].endswith(now.split(":")[-1])
+    # registered as a new version: the one shown has a newer revision → ↓ Update, ticked
+    got = G.register_new_version(g, heri["version_id"], checksum=now, at="2099-01-02T10:00:00Z")
+    up = BO.ba_rows(G.before_after(g, [{"name": "PODIO", "props": tags}]))[0]
+    assert up["state"] == "revised" and up["tick"] and up["resource_id"] == got["version_id"]
 
 
 # ── the detail box ───────────────────────────────────────────────────────────

@@ -272,6 +272,31 @@ def disk_files(doc: Dict[str, Any], em_folder: str) -> Dict[str, Dict[str, Any]]
     return bf().disk_files(doc, em_folder)
 
 
+def files_now(context, graph, tagged: List[Dict[str, Any]]) -> Dict[str, str]:  # pragma: no cover — bpy
+    """``{resource_id: sha256 today}`` of the files of the versions the
+    tagged objects show, when it is not the registered one: each file found
+    on this disk is hashed here (only the versions shown, not the masters)."""
+    want = {str(o["props"].get("em_version_id") or "") for o in tagged} - {""}
+    out: Dict[str, str] = {}
+    if not want:
+        return out
+    try:
+        from s3dgraphy.resources.locate import entries_of, resolve
+        from s3dgraphy.room_import.node import sha256_of_file
+        from . import file_states
+        from .bring import base_dirs
+        root = file_states.project_root(context)
+        for e in entries_of(graph):
+            if e["id"] not in want:
+                continue
+            r = resolve(e, project_root=root, base_dirs=base_dirs(context), hasher=sha256_of_file, verify=True)
+            if r.get("changed"):
+                out[e["id"]] = str(r.get("sha256_now") or "")
+    except Exception:  # noqa: BLE001 — an older s3dgraphy: no radar
+        pass
+    return out
+
+
 def check_here(context, *, source: str = "disk") -> Dict[str, Any]:  # pragma: no cover — bpy
     """«Check against the graph» on the open .blend and the active graph."""
     bpy = _bpy()
@@ -301,7 +326,13 @@ def check_here(context, *, source: str = "disk") -> Dict[str, Any]:  # pragma: n
         objs = [{"name": o["name"], "props": object_tags(bpy.data.objects[o["name"]])}
                 for o in inv.get("objects") or [] if o.get("name") in bpy.data.objects
                 and not bpy.data.objects[o["name"]].library]
-        res["before_after"] = G.before_after(graph, [o for o in objs if has_graph_tags(o["props"])])
+        tagged = [o for o in objs if has_graph_tags(o["props"])]
+        try:
+            # MICRO-CONSOLIDA-2 · the sha256 of the versions' files TODAY: a
+            # version modified after its stamp is said, «Register as a new version»
+            res["before_after"] = G.before_after(graph, tagged, files_now=files_now(context, graph, tagged))
+        except TypeError:
+            res["before_after"] = G.before_after(graph, tagged)
     except ImportError:
         res["before_after"] = []
         res["before_after_note"] = "the before/after needs s3dgraphy ≥ 1.6.0.dev80"
@@ -843,12 +874,26 @@ def ba_rows(before_after: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out = []
     for b in before_after or []:
         st = b.get("state")
-        if st not in ("aligned", "newer", "revised"):
+        if st not in ("aligned", "newer", "revised", "modified"):
             continue
         here, latest = b.get("here") or {}, b.get("latest") or {}
         here_s = f"{here.get('level') or here.get('name') or '?'} ({here.get('made_say') or '—'})"
+        if st == "modified":
+            # MICRO-CONSOLIDA-2 · the file was modified after its stamp:
+            # offered, not ticked (it writes the graph)
+            act = b.get("action") or {}
+            out.append({"key": f"register_new:{b.get('name')}", "name": b.get("name") or "",
+                        "object": b.get("name") or "", "sign": "~",
+                        "label": f"{b.get('name')}: {here_s} — modified after its stamp (another sha256 today)",
+                        "state": st, "action": "register_new_version", "actions": ["register_new_version"],
+                        "tick": False, "resource_id": act.get("resource_id") or "",
+                        "checksum_now": act.get("checksum_now") or "", "why": b.get("say_it") or ""})
+            continue
         if st == "aligned":
-            label = f"{b.get('name')}: {here_s} — the latest registered"
+            label = f"{b.get('name')}: {here_s} — the latest registered at its level"
+            others = [o.get("level_say") or o.get("level") or "?" for o in b.get("others") or []]
+            if others:
+                label += f" (also {', '.join(others[:2])}: another version, not an update)"
         else:
             lat_s = f"{latest.get('level') or latest.get('name') or '?'} ({latest.get('made_say') or '—'})"
             label = f"{b.get('name')}: in the scene {here_s} → in the graph {lat_s}"
@@ -978,6 +1023,11 @@ def apply_rows(context, graph, rows: List[Dict[str, Any]], em_json: str, *, em_f
                 export_master(context, graph, obj, em_json)
             elif act == "take_epochs_from_graph":
                 take_epochs(graph, obj, list(r.get("epochs_graph") or []))
+            elif act == "register_new_version":
+                from s3dgraphy.resources import graph_compose as G
+                if not r.get("resource_id") or not r.get("checksum_now"):
+                    raise RuntimeError("no version or no sha256 of today")
+                G.register_new_version(graph, r["resource_id"], checksum=r["checksum_now"])
             elif act == "update_version":
                 if obj is None:
                     raise RuntimeError("no such object")
@@ -1043,7 +1093,9 @@ def _operator_classes():  # pragma: no cover — bpy
                ("unpack_texture", "Unpack the texture", "write it beside the .blend"),
                ("relink_library", "Find the library", "look for the .blend in the project"),
                ("update_version", "Update", "the mesh of the latest registered version (name, place, "
-                                            "collections kept; the tags follow)")]
+                                            "collections kept; the tags follow)"),
+               ("register_new_version", "Register as a new version",
+                "the file was modified after its stamp: a revision at the same level with today's sha256")]
 
     class EM_PG_check_row(bpy.types.PropertyGroup):
         key: StringProperty()  # type: ignore
@@ -1113,8 +1165,10 @@ def _operator_classes():  # pragma: no cover — bpy
             ba = res.get("before_after") or []
             if ba:
                 newer = sum(1 for b in ba if b.get("state") in ("newer", "revised"))
-                col.label(text=f"Versions: {len(ba)} tagged object(s), {newer} with a newer one in the graph "
-                               "(↓ Update)", icon="SORTTIME")
+                modified = sum(1 for b in ba if b.get("state") == "modified")
+                col.label(text=f"Versions: {len(ba)} tagged object(s), {newer} with a newer one at their level "
+                               "(↓ Update)" + (f", {modified} modified after the stamp" if modified else ""),
+                          icon="SORTTIME")
             elif res.get("before_after_note"):
                 col.label(text=res["before_after_note"], icon="INFO")
             col.template_list("EM_UL_check_rows", "", context.window_manager, "em_check_rows", self, "index",
