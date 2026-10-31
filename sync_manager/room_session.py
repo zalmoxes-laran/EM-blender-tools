@@ -391,6 +391,13 @@ class RoomSession:
         #: document at the entry, kept up with the operations both ways; None
         #: when unknown (then the sync sends what it sent before)
         self.holds: Optional[Dict[str, Any]] = None
+        #: MICRO-BLEND-OFFICINA-2 (D7, D8) · the LEASES of the room's files
+        #: (who has a .blend open to change it), as the last `holds` frame
+        #: said; whether the room keeps them at all (`host_info.holds`); the
+        #: last `hold_refused` (the holder, the reason)
+        self.leases: List[Dict[str, Any]] = []
+        self.holds_supported: bool = False
+        self.hold_refused: Optional[Dict[str, Any]] = None
 
     # ── joining ──────────────────────────────────────────────────────────────
 
@@ -470,6 +477,9 @@ class RoomSession:
         self.role = None
         self.can_write = True
         self.sent_ops = self.answered_ops = self.refused_ops = 0
+        self.leases = []
+        self.holds_supported = False
+        self.hold_refused = None
 
     # ── traffic ──────────────────────────────────────────────────────────────
 
@@ -564,6 +574,18 @@ class RoomSession:
         return self.send("select", {"node_ids": list(node_ids),
                                     "node_id": active})
 
+    def send_hold(self, action: str, key: str, *, host: str = "", force: bool = False) -> bool:
+        """D7, D8 · take / renew / release the lease of a file of the room
+        (``key``: its path relative to the project root). Sent only to a room
+        that keeps leases (`host_info.holds`): an older server would not know
+        the verb."""
+        if not self.holds_supported or action not in ("take", "renew", "release"):
+            return False
+        body: Dict[str, Any] = {"action": action, "key": key, "host": host, "client": "blender"}
+        if force:
+            body["force"] = True
+        return self.send("hold", body)
+
     def request_snapshot(self) -> bool:
         return self.send("request_snapshot")
 
@@ -609,6 +631,12 @@ class RoomSession:
             # the question does not arise
             self.can_write = bool(body.get("can_write", True))
             self.gc_watermark = body.get("gc_watermark") or self.gc_watermark
+            self.holds_supported = bool(body.get("holds"))
+        elif kind == "holds":
+            got = body.get("holds")
+            self.leases = [h for h in got if isinstance(h, dict)] if isinstance(got, list) else []
+        elif kind == "hold_refused":
+            self.hold_refused = dict(body)
         elif kind == "presence":
             members = body.get("members")
             self.members = list(members) if isinstance(members, list) else []

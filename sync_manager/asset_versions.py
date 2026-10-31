@@ -2369,8 +2369,26 @@ def _operator_classes():  # pragma: no cover — bpy
         #: every version of versions/ (a model may carry a name given by hand),
         #: those of the selection first
         models = _disk_models(context)
-        rows = sorted(UP.list_versions(folder),
-                      key=lambda r: (r["model"] not in models, r["name"]))
+        # MICRO-BLEND-OFFICINA-2 (D5, D6) · the versions made by hand sit
+        # beside their master (``<container>/versions/``, ``_master/<container>/
+        # versions/``): those folders of the selected objects are read too
+        folders = [folder]
+        try:
+            from . import blend_officina as BO
+            from .project_files import active_emjson
+            graph0 = _graph(context)
+            em = active_emjson(context)
+            for o in context.selected_objects:
+                if o.type == "MESH":
+                    f = BO.master_target(context, graph0, o, em)["versions"]
+                    if f not in folders:
+                        folders.append(f)
+        except Exception:  # noqa: BLE001 — the folder beside the .blend is enough
+            pass
+        listed = []
+        for f in folders:
+            listed += UP.list_versions(f)
+        rows = sorted(listed, key=lambda r: (r["model"] not in models, r["name"]))
         graph = _graph(context)
         nodes = PD.nodes_for_files(graph, rows) if graph is not None else {}
         for r in rows:
@@ -2799,6 +2817,13 @@ def _operator_classes():  # pragma: no cover — bpy
             op.mode = "DISK"
             # the gestures of who models, on the selection
             blend_officina.draw_modeller(layout, context)
+            # MICRO-BLEND-OFFICINA-2 · who has this .blend open (the room's
+            # lease), a working .blend for a profile, detail on request
+            from . import blend_detail, blend_lease
+            blend_lease.draw(layout, context)
+            layout.operator("em.compose_working_blend", icon="FILE_BLEND",
+                            text="Compose a working .blend for…")
+            blend_detail.draw(layout, context)
             if obj is not None and obj.get(PROP_ASSET):
                 # D1 · what the shown version IS: computed level, uses, measures
                 info = _version_info(context, obj)

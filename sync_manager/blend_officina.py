@@ -358,10 +358,22 @@ def _presence_timer():  # pragma: no cover — bpy
         write_presence()
     except Exception as exc:  # noqa: BLE001 — a presence never breaks a session
         print(f"[officina] presence: {exc}")
+    try:
+        # MICRO-BLEND-OFFICINA-2 · the lease in the room rides the presence
+        from . import blend_lease
+        blend_lease.tick()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[officina] lease: {exc}")
     return PRESENCE_EVERY_S
 
 
 def _on_load_pre(*_a):  # pragma: no cover — bpy
+    try:
+        from . import blend_lease
+        blend_lease.release(reason="another file")
+        blend_lease.STATE["switched"] = ""
+    except Exception:  # noqa: BLE001
+        pass
     if _PRESENCE["path"]:
         drop_presence(_PRESENCE["path"])
         _PRESENCE.update(path="", dirty=None, written=0.0)
@@ -411,9 +423,98 @@ def container_of(context, graph, obj) -> str:  # pragma: no cover — bpy
     return ""
 
 
+def br():
+    """s3Dgraphy's ``resources.blend_room`` (D5–D8), or None when this
+    Blender's bundled s3dgraphy predates it (< 1.6.0.dev79)."""
+    try:
+        from s3dgraphy.resources import blend_room
+        return blend_room
+    except ImportError:
+        return None
+
+
+NEEDS_DEV79 = ("needs s3dgraphy ≥ 1.6.0.dev79 (the next bundle of EM Tools): this Blender's "
+               "s3dgraphy has no resources.detail / resources.blend_room")
+
+
+def master_place(*, project_root: str, em_folder: str, container: str, branch: str = "",
+                 registered: str = "") -> Dict[str, Any]:
+    """D5 · where a master goes: s3Dgraphy's ``blend_room.master_place``; the
+    copy below only while the bundled s3dgraphy predates it (the test checks
+    the two agree)."""
+    B = br()
+    if B is not None:
+        return B.master_place(project_root=project_root, em_folder=em_folder, container=container,
+                              branch=branch, registered=registered)
+    if registered:
+        return {"folder": registered, "rule": "registered", "say": "where the graph already has the master"}
+    name = str(container or "").strip()
+    for base in [project_root] + ([os.path.join(project_root, branch)] if branch else []):
+        try:
+            for entry in sorted(os.listdir(base)):
+                if name and entry.lower() == name.lower() and os.path.isdir(os.path.join(base, entry)):
+                    return {"folder": os.path.join(base, entry, "master"), "rule": "container",
+                            "say": f"master/ in the folder of «{container}»"}
+        except OSError:
+            continue
+    import re as _re
+    safe = _re.sub(r"[^A-Za-z0-9 ._-]+", "_", name).strip(" ._") or "Container"
+    return {"folder": os.path.join(em_folder or project_root, "_master", safe), "rule": "fallback",
+            "say": f"«{container}» has no folder: _master/{safe}/ beside the em.json"}
+
+
+def versions_place(master_folder: str) -> str:
+    B = br()
+    if B is not None:
+        return B.versions_place(master_folder)
+    norm = os.path.normpath(master_folder)
+    if os.path.basename(norm) == "master":
+        return os.path.join(os.path.dirname(norm), "versions")
+    return os.path.join(master_folder, "versions")
+
+
+def manual_level(existing, day: Optional[str] = None) -> str:
+    """D6 · ``manual-YYYY-MM-DD``, ``-2``, ``-3`` the same day."""
+    B = br()
+    if B is not None:
+        return B.manual_level(existing, day)
+    import re as _re
+    day = day or time.strftime("%Y-%m-%d")
+    taken = set()
+    for lv in existing or []:
+        m = _re.match(r"^manual-(\d{4}-\d{2}-\d{2})(?:-(\d+))?$", str(lv or ""))
+        if m and m.group(1) == day:
+            taken.add(int(m.group(2) or 1))
+    n = 1
+    while n in taken:
+        n += 1
+    return f"manual-{day}" + ("" if n == 1 else f"-{n}")
+
+
+def _registered_master_folder(context, graph, obj, em_folder: str) -> str:  # pragma: no cover — bpy
+    """The folder of the master the graph already cites as a FILE (not a
+    datablock, not a web address): D5 respects it."""
+    if graph is None:
+        return ""
+    try:
+        from .asset_versions import master_of
+        mid = master_of(graph, obj, context.scene)
+    except Exception:  # noqa: BLE001
+        return ""
+    node = graph.find_node_by_id(mid) if mid else None
+    url = str(((node.data or {}) if node is not None else {}).get("url") or "")
+    if not url or "://" in url:
+        return ""
+    path = url if os.path.isabs(url) else os.path.normpath(os.path.join(em_folder, url))
+    return os.path.dirname(path)
+
+
 def master_target(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragma: no cover — bpy
-    """Where «Export as master» writes ``obj``: the folder, the format, the
-    file (the default convention ``<SB|RB>/<Container>/master/``)."""
+    """Where «Export as master» writes ``obj`` (D5, E.D. 31 Oct): ``master/``
+    in the container's folder (``SB/master/``, ``RB/master/``); a container
+    with no folder → ``_master/<container>/`` beside the em.json; a master
+    the graph already has as a file stays where it is. An object in no
+    container takes its branch (SB / RB) as its container."""
     bpy = _bpy()
     B = bf()
     root = project_root_for(context, em_json)
@@ -422,11 +523,15 @@ def master_target(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragm
     branch = B.branch_of(src, root)
     if obj.get("em_alternative_of") is None and any(c.name == "RB" for c in obj.users_collection):
         branch = "RB"
-    cont = container_of(context, graph, obj) or ("Survey" if branch == "RB" else "Reconstruction")
-    folder = B.master_folder(root, branch, cont)
+    cont = container_of(context, graph, obj) or branch
+    em_folder = os.path.dirname(em_json) if em_json else root
+    place = master_place(project_root=root, em_folder=em_folder, container=cont, branch=branch,
+                         registered=_registered_master_folder(context, graph, obj, em_folder))
+    folder = place["folder"]
     fmt = B.master_format(branch)
     from .asset_versions import safe
     return {"root": root, "branch": branch, "container": cont, "folder": folder, "format": fmt,
+            "rule": place["rule"], "versions": versions_place(folder),
             "path": os.path.join(folder, safe(obj.name) + fmt["ext"])}
 
 
@@ -494,11 +599,22 @@ def _mark(obj, digest: str, version_id: str = "", asset_id: str = "") -> None:  
     record_fingerprint(obj)
 
 
+def _refuse_detail(obj) -> None:
+    """A detail downloaded on request is CACHE (D2): never stamped, never a
+    master; its paradata cite the document it comes from."""
+    from .blend_detail import P_DOC, is_detail
+    if is_detail(obj):
+        doc = obj.get(P_DOC) or "its document"
+        raise RuntimeError(f"{obj.name} is a detail in the cache (em_cache/local): it is never stamped "
+                           f"— cite {doc}")
+
+
 def export_master(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragma: no cover — bpy
     """«Export as master»: the object's bytes as its branch wants them, in its
     container's master/ folder, stamped; the graph's master of its RM points
     at the file (url relative to the em.json), the datablock's locator kept as
     ``from_datablock``. → ``{path, digest, master_id, state}``."""
+    _refuse_detail(obj)
     t = master_target(context, graph, obj, em_json)
     if not t["root"]:
         raise RuntimeError("no project here: save the .blend or the em.json in a project first")
@@ -534,6 +650,26 @@ def export_master(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragm
             "state": st.get("state"), "folder": t["folder"]}
 
 
+def _levels_taken(graph, obj, context, folder: str, stem: str) -> List[str]:  # pragma: no cover — bpy
+    taken: List[str] = []
+    try:
+        from .asset_versions import master_of
+        from s3dgraphy import api
+        mid = master_of(graph, obj, context.scene) if graph is not None else None
+        for e in (api.versions_of(graph, mid) if mid else []):
+            if e.get("level"):
+                taken.append(str(e["level"]))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        for n in os.listdir(folder):
+            if n.startswith(stem + "@manual-"):
+                taken.append(os.path.splitext(n[len(stem) + 1:])[0])
+    except OSError:
+        pass
+    return taken
+
+
 def register_version(context, graph, obj, em_json: str, *, as_resource: bool = False
                      ) -> Dict[str, Any]:  # pragma: no cover — bpy
     """«Register as a version…» (of the object's master: a child resource,
@@ -542,13 +678,17 @@ def register_version(context, graph, obj, em_json: str, *, as_resource: bool = F
     own, tied to the object's RM when it has one). Exported as a glb in the
     container's versions/ folder, stamped, url relative to the em.json."""
     from .asset_versions import add_version_from_mesh, _stamper, safe, write_version
+    _refuse_detail(obj)
     if graph is None:
         raise RuntimeError("no active graph")
     t = master_target(context, graph, obj, em_json)
-    folder = os.path.join(os.path.dirname(t["folder"]), "versions")
+    folder = t["versions"]
     os.makedirs(folder, exist_ok=True)
     em_folder = os.path.dirname(em_json) if em_json else t["root"]
-    base = f"{safe(obj.name)}@manual-{time.strftime('%Y%m%d-%H%M%S')}"
+    # D6 · manual-YYYY-MM-DD, -2, -3 the same day: the levels the master's
+    # versions already have, and the files already in the folder
+    level = manual_level(_levels_taken(graph, obj, context, folder, safe(obj.name)))
+    base = f"{safe(obj.name)}@{level}"
     recipe = {"format": "glb", "draco": False}
     if as_resource:
         made = write_version(obj, obj.data, recipe, folder, base)
@@ -570,7 +710,7 @@ def register_version(context, graph, obj, em_json: str, *, as_resource: bool = F
                      label=f"{obj.name} (manual work in Blender)")
     # a version made by hand is not a level of the LOD chain (lodN counts
     # lod_generation steps): it is NAMED, by when it was registered
-    out = add_version_from_mesh(graph, obj, obj.data.copy(), level="manual-" + time.strftime("%Y%m%d-%H%M%S"),
+    out = add_version_from_mesh(graph, obj, obj.data.copy(), level=level,
                                 purpose="",
                                 files=files, room=None, technique=MANUAL_TECHNIQUE,
                                 parameters={"step": MANUAL_STEP}, stamp=stamp)

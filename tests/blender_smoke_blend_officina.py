@@ -11,7 +11,8 @@ Templu Mare, Blender 5.2, EM Tools as the working copy::
 ``RB/TempluMare_2021.blend``, ``EM/TempluMare_v6_optimized.em.json``). The
 .blend as a folder (208 objects, the RB library, the Walls master in
 em_cache); «Check against the graph»; «Export as master» of an architrave
-(glTF + external textures in SB/Reconstruction II AC/master/, stamped, the
+(glTF + external textures — D5 of 31 Oct: the container «Reconstruction II AC»
+has no folder, so EM/_master/Reconstruction II AC/ —, stamped, the
 graph's master pointing at it); the mesh changed → ↑; «Register as a
 version…» → aligned again; the object deleted → ✗, «Restore from the master»
 → back. The .blend and the em.json are never saved."""
@@ -100,14 +101,15 @@ check("source room, not resolved: offline, said", rr["offline"] and rr["as_of"] 
 obj = bpy.data.objects[OBJ]
 out = BO.export_master(bpy.context, graph, obj, emjson)
 print("[SMOKE] master:", out)
-check("the master is in SB/<Container>/master/", "/SB/Reconstruction II AC/master/" in out["path"], out["path"])
+check("D5: a container with no folder → _master/<container>/ beside the em.json",
+      "/EM/_master/Reconstruction II AC/" in out["path"], out["path"])
 check("glTF with external textures", out["path"].endswith(".gltf") and
       any(f.endswith((".jpg", ".png", ".jpeg")) for f in os.listdir(os.path.dirname(out["path"]))),
       os.listdir(os.path.dirname(out["path"])))
 check("stamped", os.path.isfile(out["path"] + ".stamp.json") or out["state"] in ("stamped", "revised"), out["state"])
 node = graph.find_node_by_id(out["master_id"])
 check("the graph's master points at the file, relative", node is not None and
-      node.data.get("url") == out["rel"] and out["rel"].startswith("../SB/"), node.data.get("url") if node else None)
+      node.data.get("url") == out["rel"] and out["rel"].startswith("_master/"), node.data.get("url") if node else None)
 check("the datablock it came from is kept", str(node.data.get("from_datablock") or "").startswith("blend://"))
 
 res = BO.check_here(bpy.context)
@@ -124,8 +126,17 @@ v = BO.register_version(bpy.context, graph, obj, emjson)
 print("[SMOKE] version:", v)
 vn = graph.find_node_by_id(v["version_id"])
 check("the version is in the graph", vn is not None)
-check("its url relative to the em.json", vn is not None and str(vn.data.get("url") or "").startswith("../SB/"),
+check("its url relative to the em.json, in the versions beside the master",
+      vn is not None and str(vn.data.get("url") or "").startswith("_master/Reconstruction II AC/versions/"),
       vn.data.get("url") if vn else None)
+import re as _re  # noqa: E402
+import time as _time  # noqa: E402
+check("D6: the level is manual-YYYY-MM-DD", v.get("level") == "manual-" + _time.strftime("%Y-%m-%d"), v.get("level"))
+obj.data.vertices[0].co.z += 0.5
+v2 = BO.register_version(bpy.context, graph, obj, emjson)
+check("D6: a second one the same day is -2", v2.get("level") == "manual-" + _time.strftime("%Y-%m-%d") + "-2",
+      v2.get("level"))
+v = v2
 check("born from the master", any(e.edge_type == "dtc_derived_from" and e.edge_source == v["version_id"]
                                   for e in graph.edges))
 res = BO.check_here(bpy.context)

@@ -218,7 +218,42 @@ def _node_id_for_object(obj, graph) -> str | None:
     node_name = proxy_name_to_node_name(obj.name)
     finder = getattr(graph, "find_node_by_name", None)
     node = finder(node_name) if callable(finder) else None
-    return getattr(node, "node_id", None) if node else None
+    if node:
+        return getattr(node, "node_id", None)
+    # MICRO-BLEND-OFFICINA-2 · any object of the inventory: the graph ids it
+    # carries (its RM, asset, version, resource, document)
+    from .selection_ids import first_known
+    by_id = getattr(graph, "find_node_by_id", None)
+    got = first_known(obj, lambda i: callable(by_id) and by_id(i) is not None)
+    return got or None
+
+
+def _objects_for_ids(ids) -> list:
+    """MICRO-BLEND-OFFICINA-2 · the objects that stand for these graph ids
+    through their properties (not only the proxies, found by name)."""
+    from .selection_ids import names_for_ids
+    names = names_for_ids(list(bpy.data.objects), ids)
+    return [bpy.data.objects[n] for n in names if n in bpy.data.objects]
+
+
+def _select_objects(objs, active=None) -> bool:
+    if not objs:
+        return False
+    try:
+        bpy.ops.object.select_all(action="DESELECT")
+    except Exception:
+        pass
+    for o in objs:
+        try:
+            o.hide_set(False)
+            o.select_set(True)
+        except Exception:
+            pass
+    try:
+        bpy.context.view_layer.objects.active = active or objs[0]
+    except Exception:
+        pass
+    return True
 
 
 def _frame_selected():
@@ -318,6 +353,15 @@ def _apply_incoming_select(node_id: str, context, graph) -> bool:
     matching object was selected."""
     finder = getattr(graph, "find_node_by_id", None)
     node = finder(node_id) if callable(finder) else None
+    # MICRO-BLEND-OFFICINA-2 · an RM, an asset, a version, a resource, a
+    # document: the objects that carry its id (a proxy keeps its way, by name)
+    if node is None or getattr(node, "node_type", "") in ("representation_model", "resource", "document",
+                                                          "link", "RM", "representation_model_doc"):
+        objs = _objects_for_ids([node_id])
+        if objs:
+            _select_objects(objs)
+            _frame_selected()
+            return True
     if not node:
         # SCARTO 4 · il nodo non è in questo grafo. Era un `return False`
         # muto, e chi guardava non poteva distinguere «non è arrivato
@@ -373,6 +417,15 @@ def _apply_incoming_select_many(node_ids, active_id, context, graph) -> bool:
                 obj.select_set(True)
             except Exception:
                 pass
+    # MICRO-BLEND-OFFICINA-2 · the objects that carry the ids (RM, asset,
+    # version, resource, document), added to what the proxies selected
+    for obj in _objects_for_ids(list(node_ids) + ([active_id] if active_id else [])):
+        try:
+            obj.hide_set(False)
+            obj.select_set(True)
+            trovati += 1
+        except Exception:
+            pass
     if not trovati:
         dove = _etichetta_del_grafo(graph)
         esito = disallineamento(context, graph)

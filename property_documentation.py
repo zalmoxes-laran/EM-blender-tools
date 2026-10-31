@@ -16,6 +16,12 @@ import uuid
 from s3dgraphy.edges.connection_resolver import connection_read_only
 
 
+def is_cache_path(path: str) -> bool:
+    """A file of ``em_cache/local`` (the detail downloaded on request, D2)."""
+    p = "/" + str(path or "").replace("\\", "/").strip("/") + "/"
+    return "/em_cache/local/" in p
+
+
 def documents_through_extractor(source_node, document_node) -> bool:
     """True when ``source ─has_documentation→ document`` is read-only in the
     datamodel: the link must go through an extractor."""
@@ -58,6 +64,11 @@ def document_through_extractor(graph, property_node, document_node, *,
     already reads that document is reused. The new extractor joins the
     property's paradata group(s), as EMStudio's ``chain.extractBetween``."""
     from s3dgraphy.nodes.extractor_node import ExtractorNode
+    url = str(getattr(document_node, "url", "") or (getattr(document_node, "data", None) or {}).get("url") or "")
+    if is_cache_path(url):
+        # MICRO-BLEND-OFFICINA-2 (E.D. 30 Oct) · a detail downloaded on request
+        # is cache: the paradata cite the DOCUMENT it comes from, never it
+        raise ValueError(f"{url} is in the detail cache (em_cache/local): cite the document it comes from")
     pid, did = property_node.node_id, document_node.node_id
     by_id = {n.node_id: n for n in graph.nodes}
     for e in graph.edges:

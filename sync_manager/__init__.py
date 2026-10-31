@@ -43,7 +43,7 @@ Modules:
 
 from __future__ import annotations
 
-from . import (asset_versions, backups, blend_officina, bring, entry, file_states, files_list, materialise, node_choice,
+from . import (asset_versions, backups, blend_compose, blend_detail, blend_lease, blend_officina, bring, entry, file_states, files_list, materialise, node_choice,
                open_in_emstudio, signin_ui,
                operators, panel, prepare_diagnosis, project_files, proxy_hook, room, rooms_ui,
                scene_check, scene_package, windows)
@@ -60,6 +60,9 @@ def register():
     asset_versions.register()
     prepare_diagnosis.register()
     blend_officina.register()
+    blend_detail.register()
+    blend_compose.register()
+    blend_lease.register()
     project_files.register()
     file_states.register()
     files_list.register()
@@ -85,6 +88,9 @@ def unregister():
     files_list.unregister()
     file_states.unregister()
     project_files.unregister()
+    blend_lease.unregister()
+    blend_compose.unregister()
+    blend_detail.unregister()
     blend_officina.unregister()
     prepare_diagnosis.unregister()
     asset_versions.unregister()

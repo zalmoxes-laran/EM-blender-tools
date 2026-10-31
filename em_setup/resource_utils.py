@@ -379,6 +379,19 @@ def create_document_for_resource(graph, target_node, file_path, filename, folder
     Returns:
         DocumentNode: The created or existing DocumentNode
     """
+    # MICRO-BLEND-OFFICINA-2 (E.D. 30 Oct) · a file of the detail cache is
+    # never a document: its recipe's DOCUMENT is cited instead
+    from ..property_documentation import is_cache_path
+    if is_cache_path(file_path):
+        from ..sync_manager.blend_detail import document_for_cache_path
+        doc = document_for_cache_path(graph, file_path)
+        if doc is None:
+            raise ValueError(f"{filename} is in the detail cache (em_cache/local) and no recipe of the "
+                             "graph names its document: cite the document it comes from")
+        if documents_through_extractor(target_node, doc):
+            document_through_extractor(graph, target_node, doc)
+        return doc
+
     # Calculate path relative to base_resource_folder
     try:
         relative_path = os.path.relpath(file_path, base_resource_folder)

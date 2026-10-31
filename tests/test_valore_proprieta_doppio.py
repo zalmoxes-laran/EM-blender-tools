@@ -113,4 +113,6 @@ def test_the_next_extractor_name_counts_on():
 
 def test_resource_utils_routes_a_property_through_the_extractor():
     src = (_REPO / "em_setup" / "resource_utils.py").read_text(encoding="utf-8")
-    assert src.count("documents_through_extractor(target_node,") == 2
+    # three: an existing document, a new one, and (MICRO-BLEND-OFFICINA-2) the
+    # document a detail-cache file is redirected to
+    assert src.count("documents_through_extractor(target_node,") == 3
