@@ -165,6 +165,36 @@ def make_plan(context, *, rm=True, rmdoc=True, rmsf=True) -> Dict[str, Any]:
     return total
 
 
+def _in_room() -> bool:
+    """A room is open: «Consolidate for…» says the bucket, not the disk."""
+    try:
+        from ..sync_manager import room as room_cfg
+        return bool((room_cfg.room() or {}).get("room_id"))
+    except Exception:  # noqa: BLE001 — no room module, no room
+        return False
+
+
+def make_consolidation(context, platform: str = "heriverse") -> Dict[str, Any]:
+    """«Consolidate for…» (s3Dgraphy ``resources.consolidate``, the answers of
+    EMStudio) on the published models of every publishable graph."""
+    if PH.consolidate_function() is None:
+        return {"available": False, "note": PH.NEEDS_CONSOLIDATE}
+    room = _in_room()
+    parts = []
+    for gid, graph in publishable_graphs(context):
+        models = [(rid, name) for rid, name, _cat in published(context, graph)]
+        parts.append((gid, PH.consolidation(graph, models, platform=platform,
+                                            states=_states(graph), in_room=room)))
+    if not parts:
+        return {"available": True, "rows": [], "counts": {}, "totals": [], "graphs": [],
+                "say_it": ["no publishable graph"], "in_room": room}
+    return PH.merge_consolidations(parts)
+
+
+_ORDER = {lv: i for i, lv in enumerate(("necessary", "recommended", "opportune", "sufficient",
+                                        "presence", "ok"))}
+
+
 def _roots_and_caches(context) -> Tuple[List[str], List[str]]:
     from ..sync_manager.asset_versions import CACHE_DIR, cache_folder
     from ..sync_manager.bring import base_dirs
@@ -208,16 +238,74 @@ class EM_OT_deck_heriverse(bpy.types.Operator):
     bl_label = "Heriverse"
 
     road: bpy.props.EnumProperty(name="Road", items=ROADS, default="NODE")  # type: ignore
+    platform: bpy.props.EnumProperty(  # type: ignore
+        name="Consolidate for", items=list(PH.PLATFORMS), default="heriverse",
+        update=lambda self, context: LAST.update(
+            consolidated=make_consolidation(context, self.platform)))
 
     def invoke(self, context, event):
+        LAST["consolidated"] = make_consolidation(context, self.platform)
         LAST["plan"] = make_plan(context)
         LAST["disk"] = make_disk_plan(context, LAST["plan"]) if LAST["plan"].get("available") else {}
         LAST["folder"] = package_folder(context)
         return context.window_manager.invoke_popup(self, width=560)
 
+    def _draw_consolidated(self, layout, cons) -> None:
+        """MICRO-BLEND-OFFICINA-3 · «Consolidate for…»: the rows of s3Dgraphy's
+        ``consolidate`` (the same as EMStudio's), their gestures, the totals."""
+        layout.row().prop(self, "platform", expand=True)
+        for line in cons.get("say_it") or []:
+            layout.label(text=line, icon="WORLD_DATA")
+        for line in PH.totals_lines(cons):
+            layout.label(text=line, icon="MEMORY")
+        rows = sorted(cons.get("rows") or [],
+                      key=lambda r: (_ORDER.get(r.get("status") or "ok", 9), r.get("name") or ""))
+        col = layout.column(align=True)
+        for row in rows[:20]:
+            line = col.row(align=True)
+            line.label(text=PH.consolidation_row_line(row),
+                       icon=PH.STATUS_ICON.get(row.get("status") or "ok", "DOT"))
+            for a in PH.row_actions(row, platform=self.platform):
+                if a["kind"] == "prepare" and a["object"]:
+                    op = line.operator("em.deck_heriverse_prepare", text="", icon="MOD_DECIM")
+                    op.object_name = a["object"]
+                    op.uses = ",".join(a["uses"])
+                elif a["kind"] == "upload" and a["resource_id"]:
+                    op = line.operator("em.files_upload", text="", icon="EXPORT")
+                    op.resource_id = a["resource_id"]
+                elif a["kind"] == "check":
+                    line.operator("em.files_check", text="", icon="FILE_REFRESH")
+        if len(rows) > 20:
+            col.label(text=f"… and {len(rows) - 20} more")
+        no_base = [r for r in rows if r.get("kind") == "rm" and not r.get("base") and r.get("object")]
+        if no_base:
+            op = layout.operator("em.deck_heriverse_make_missing",
+                                 text=f"Prepare the missing bases, mobile webXR ({len(no_base)})",
+                                 icon="MOD_DECIM")
+            op.profile = "mobile_webxr"
+            op.platform = self.platform
+
     def draw(self, context):
         layout = self.layout
         plan = LAST.get("plan") or {}
+        cons = LAST.get("consolidated") or {}
+        if cons.get("available"):
+            self._draw_consolidated(layout, cons)
+            layout.separator()
+            layout.row().prop(self, "road", expand=True)
+            if self.road == "NODE":
+                layout.label(text="Publishing = the em.json and these assets in the room "
+                                  "(Push the study, Upload): nothing is exported", icon="INFO")
+                return
+            layout.label(text=LAST.get("folder", ""), icon="FILE_FOLDER")
+            layout.operator("em.deck_heriverse_write_disk", text="Write the package on disk",
+                            icon="EXPORT")
+            last = LAST.get("package")
+            if last:
+                layout.label(text=PH.package_sentence(last), icon="INFO")
+            return
+        if cons.get("note"):
+            layout.label(text=cons["note"], icon="ERROR")
         layout.row().prop(self, "road", expand=True)
         layout.label(text=PH.summary(plan) if plan else "no plan", icon="WORLD_DATA")
         if not plan.get("available", True):
@@ -276,6 +364,9 @@ class EM_OT_deck_heriverse_prepare(bpy.types.Operator):
     bl_label = "Prepare for Heriverse…"
 
     object_name: bpy.props.StringProperty()  # type: ignore
+    #: MICRO-BLEND-OFFICINA-3 · the uses of the row's profile («Consolidate
+    #: for…»: the base → mobile_ar); empty → the package's (heriverse, aton)
+    uses: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})  # type: ignore
 
     def execute(self, context):
         obj = bpy.data.objects.get(self.object_name)
@@ -283,9 +374,10 @@ class EM_OT_deck_heriverse_prepare(bpy.types.Operator):
             self.report({"WARNING"}, f"{self.object_name}: no mesh object in this scene")
             return {"CANCELLED"}
         _select_only(context, obj)
+        uses = {u for u in self.uses.split(",") if u} or set(PH.PACKAGE_USES)
         #: the recipe is the object's category's (`version_recipe`): a glTF
         #: with its textures, as the old exporter wrote it
-        return bpy.ops.em.asset_prepare_for_use("INVOKE_DEFAULT", use=set(PH.PACKAGE_USES))
+        return bpy.ops.em.asset_prepare_for_use("INVOKE_DEFAULT", use=uses)
 
 
 class EM_OT_deck_heriverse_make_missing(bpy.types.Operator):
@@ -301,19 +393,33 @@ class EM_OT_deck_heriverse_make_missing(bpy.types.Operator):
     bl_label = "Make the missing versions"
     bl_options = {"REGISTER", "UNDO"}
 
+    #: MICRO-BLEND-OFFICINA-3 · ``mobile_webxr``: the models «Consolidate
+    #: for…» finds without the BASE get it (use mobile_ar); empty: as before
+    profile: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})  # type: ignore
+    platform: bpy.props.StringProperty(default="heriverse", options={"SKIP_SAVE"})  # type: ignore
+
     def execute(self, context):
         plan = make_plan(context)
+        uses = set(PH.PACKAGE_USES)
+        todo = plan.get("missing") or []
+        if self.profile:
+            cons = make_consolidation(context, self.platform or "heriverse")
+            uses = set(PH.prepare_uses(self.profile, self.platform or "heriverse"))
+            todo = [{"rm_name": r["name"], "object": r.get("object") or ""}
+                    for r in cons.get("rows") or []
+                    if r.get("kind") == "rm" and not r.get("base")] if self.profile == "mobile_webxr" else \
+                [{"rm_name": r["name"], "object": r.get("object") or ""}
+                 for r in cons.get("rows") or [] if not r.get("best")]
         made, failed = [], []
         active = context.view_layer.objects.active
-        for row in plan.get("missing") or []:
+        for row in todo:
             obj = bpy.data.objects.get(row.get("object") or "")
             if obj is None or obj.type != "MESH":
                 failed.append(f"{row['rm_name']}: no mesh object")
                 continue
             _select_only(context, obj)
             try:
-                res = bpy.ops.em.asset_prepare_for_use(
-                    "EXEC_DEFAULT", use=set(PH.PACKAGE_USES))
+                res = bpy.ops.em.asset_prepare_for_use("EXEC_DEFAULT", use=uses)
             except RuntimeError as exc:
                 failed.append(f"{row['rm_name']}: {exc}")
                 continue
@@ -325,6 +431,7 @@ class EM_OT_deck_heriverse_make_missing(bpy.types.Operator):
                 pass
         LAST["plan"] = make_plan(context)
         LAST["disk"] = make_disk_plan(context, LAST["plan"])
+        LAST["consolidated"] = make_consolidation(context, self.platform or "heriverse")
         LAST["made"] = {"made": made, "failed": failed}
         if failed:
             self.report({"WARNING"}, "not made: " + "; ".join(str(f) for f in failed[:4]))

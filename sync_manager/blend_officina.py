@@ -39,6 +39,7 @@ measured by ``tests/test_blend_officina.py``.
 import hashlib
 import json
 import os
+import re
 import platform
 import time
 from typing import Any, Dict, List, Optional
@@ -273,6 +274,7 @@ def disk_files(doc: Dict[str, Any], em_folder: str) -> Dict[str, Dict[str, Any]]
 
 def check_here(context, *, source: str = "disk") -> Dict[str, Any]:  # pragma: no cover — bpy
     """«Check against the graph» on the open .blend and the active graph."""
+    bpy = _bpy()
     graph, doc, em_folder = active_graph_doc(context)
     if doc is None:
         raise RuntimeError("no active graph: load an em.json first")
@@ -292,6 +294,17 @@ def check_here(context, *, source: str = "disk") -> Dict[str, Any]:  # pragma: n
                                      for r in results for p in (r.get("positions") or []))
         as_of = str(known.get("at") or "") if results else "never resolved"
     res = bf().check(inv, doc, files=files, source=source, offline=offline, as_of=as_of, em_folder=em_folder)
+    # MICRO-BLEND-OFFICINA-3 · each tagged object: the version in the scene,
+    # the last in the graph, who made it and when, «Update»
+    try:
+        from s3dgraphy.resources import graph_compose as G
+        objs = [{"name": o["name"], "props": object_tags(bpy.data.objects[o["name"]])}
+                for o in inv.get("objects") or [] if o.get("name") in bpy.data.objects
+                and not bpy.data.objects[o["name"]].library]
+        res["before_after"] = G.before_after(graph, [o for o in objs if has_graph_tags(o["props"])])
+    except ImportError:
+        res["before_after"] = []
+        res["before_after_note"] = "the before/after needs s3dgraphy ≥ 1.6.0.dev80"
     LAST.clear()
     LAST.update({"result": res, "inventory_counts": inv["counts"], "at": time.strftime("%H:%M")})
     return res
@@ -793,6 +806,136 @@ def restore_from_master(context, graph, obj_name: str, master_id: str, em_folder
     return {"object": obj.name, "from": url}
 
 
+# ── MICRO-BLEND-OFFICINA-3 · «Update» to the latest registered version ──────
+
+def object_tags(obj) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The graph's tags an object carries (``_props``; the epochs as names)."""
+    props = _props(obj)
+    eps = props.get("EM_ep_belong_ob")
+    if isinstance(eps, list):
+        props["EM_ep_belong_ob"] = [e.get("epoch") if isinstance(e, dict) else str(e) for e in eps]
+    return props
+
+
+def has_graph_tags(props: Dict[str, Any]) -> bool:
+    return any(props.get(k) for k in ("em_version_id", "em_resource_id", "em_asset_id", "em_rm_node_id"))
+
+
+_RUNG = re.compile(r"^lod\d+$", re.I)
+
+
+def other_rung(here_level: Any, latest_level: Any) -> bool:
+    """The «newer» one is ANOTHER RUNG of the LOD chain (lod1 → lod4: the
+    chain made in one batch, a minute apart — measured on Templu Mare), not a
+    newer making of this one: «Update» is offered, not ticked."""
+    a, b = str(here_level or ""), str(latest_level or "")
+    return bool(_RUNG.match(a) and _RUNG.match(b) and a.lower() != b.lower())
+
+
+def ba_rows(before_after: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """«Check against the graph» · the before/after of each tagged object as
+    rows of the dialog: ``{key, name, object, sign, label, state, action,
+    tick}``. ↓ and ticked when the graph has a newer version or revision (the
+    rule of round 1: what brings in what is outside is ticked) — not ticked
+    when the newer one is another rung of the LOD chain (:func:`other_rung`);
+    ✔ aligned;
+    nothing for an object whose tags name nothing of the graph."""
+    out = []
+    for b in before_after or []:
+        st = b.get("state")
+        if st not in ("aligned", "newer", "revised"):
+            continue
+        here, latest = b.get("here") or {}, b.get("latest") or {}
+        here_s = f"{here.get('level') or here.get('name') or '?'} ({here.get('made_say') or '—'})"
+        if st == "aligned":
+            label = f"{b.get('name')}: {here_s} — the latest registered"
+        else:
+            lat_s = f"{latest.get('level') or latest.get('name') or '?'} ({latest.get('made_say') or '—'})"
+            label = f"{b.get('name')}: in the scene {here_s} → in the graph {lat_s}"
+        newer = st in ("newer", "revised")
+        out.append({"key": f"update:{b.get('name')}", "name": b.get("name") or "",
+                    "object": b.get("name") or "", "sign": "↓" if newer else "✔", "label": label,
+                    "state": st, "action": "update_version" if newer else "leave",
+                    "actions": ["update_version"] if newer else [],
+                    "tick": newer and not other_rung(here.get("level"), latest.get("level")),
+                    "resource_id": (b.get("action") or {}).get("resource_id") or "",
+                    "why": b.get("say_it") or ""})
+    return out
+
+
+def update_object(context, graph, obj, em_folder: str, *, project_folder: str = "", in_room: bool = False,
+                  get=None, resolved=None) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """«Update»: the object's mesh becomes the one of the LAST version
+    registered for its asset (``graph_compose.update_status``): the file
+    imported (from the disk, or fetched from the room by its sha256 into the
+    project's cache), its meshes joined; the object keeps its name, its
+    transformation and its collections; its tags become the new version's.
+    → ``{done, here, latest, say}``."""
+    bpy = _bpy()
+    from . import blend_compose as BC
+    from s3dgraphy.resources.versions import asset_of, versions_of
+    G = BC.gc()
+    tags = object_tags(obj)
+    st = G.update_status(graph, tags)
+    act = st.get("action") or {}
+    if act.get("kind") != "update":
+        return {"done": False, "say": st.get("say_it") or "nothing to update", "state": st.get("state")}
+    rid = act["resource_id"]
+    asset = asset_of(graph, rid)
+    entry = next((dict(e, asset_id=asset) for e in versions_of(graph, asset) if e.get("id") == rid), None)
+    if entry is None:
+        raise RuntimeError(f"{obj.name}: {rid} is not a version of its asset")
+    project_folder = project_folder or os.path.dirname(em_folder)
+    if resolved is None:
+        from . import file_states
+        known = file_states.ULTIMI if file_states.ULTIMI.get("graph_id") == str(getattr(graph, "graph_id", "")) else {}
+        resolved = known.get("results") or []
+    res = {str(r.get("id")): r for r in resolved or []}
+    # the source of a version: s3Dgraphy's rule of «Compose from the graph»
+    src = G._source(graph, entry, how="append", em_folder=em_folder, project_folder=project_folder,
+                    resolved=res, in_room=in_room)
+    if src["how"] == "fetch":
+        if get is None:
+            from . import room as room_cfg
+            get = room_cfg.get_asset
+        got = BC.fetch_files(src["fetch"], get)
+        if got["failed"]:
+            raise RuntimeError("; ".join(got["failed"][:3]))
+    if src["how"] == "missing" or not src.get("file") or not os.path.exists(src["file"]):
+        raise RuntimeError(f"{obj.name}: {src.get('say_it') or 'the new version is not on this computer'}")
+    if src["how"] in ("import", "fetch"):
+        tmp = BC.import_joined(src["file"], obj.name + "__update")
+        mesh = tmp.data
+        bpy.data.objects.remove(tmp, do_unlink=True)
+    else:
+        mesh = BC.load_block(src["file"], src.get("block") or "", src.get("block_type") or "Mesh", link=False)
+        if mesh is None:
+            raise RuntimeError(f"{obj.name}: {src.get('block')} not in {os.path.basename(src['file'])}")
+    old = obj.data
+    old_name = old.name if old is not None else obj.name
+    obj.data = mesh
+    if old is not None and old.users == 0:
+        bpy.data.meshes.remove(old)
+    try:
+        mesh.name = old_name
+    except Exception:  # noqa: BLE001 — a linked mesh keeps its own name
+        pass
+    rm = str(tags.get("em_rm_node_id") or "")
+    if not rm:
+        rm = next((e.edge_source for e in graph.edges if e.edge_type == "has_linked_resource"
+                   and e.edge_target == asset), "")
+    new_tags = G.graph_tags(graph, rm, entry, container_id=str(tags.get("em_belong_id") or "") or None)
+    BC.write_tags(obj, new_tags)
+    try:
+        from .scene_sync import record_fingerprint
+        record_fingerprint(obj)
+    except Exception:  # noqa: BLE001 — outside the add-on
+        pass
+    return {"done": True, "here": st.get("here"), "latest": st.get("latest"),
+            "say": f"{obj.name}: {(st.get('here') or {}).get('level')} → {(st.get('latest') or {}).get('level')} "
+                   f"({(st.get('latest') or {}).get('made_say')})", "file": src["file"]}
+
+
 def take_epochs(graph, obj, epochs: List[str]) -> None:  # pragma: no cover — bpy
     eps = getattr(obj, "EM_ep_belong_ob", None)
     if eps is None:
@@ -835,6 +978,12 @@ def apply_rows(context, graph, rows: List[Dict[str, Any]], em_json: str, *, em_f
                 export_master(context, graph, obj, em_json)
             elif act == "take_epochs_from_graph":
                 take_epochs(graph, obj, list(r.get("epochs_graph") or []))
+            elif act == "update_version":
+                if obj is None:
+                    raise RuntimeError("no such object")
+                got = update_object(context, graph, obj, em_folder)
+                if not got.get("done"):
+                    raise RuntimeError(got.get("say") or "nothing to update")
             elif act == "unpack_texture":
                 im = bpy.data.images.get(name)
                 if im is not None and im.packed_file is not None:
@@ -892,7 +1041,9 @@ def _operator_classes():  # pragma: no cover — bpy
                ("take_epochs_from_graph", "Take the graph's epochs", "the object's epochs as the graph says"),
                ("relink_texture", "Find the texture", "look for it beside the .blend"),
                ("unpack_texture", "Unpack the texture", "write it beside the .blend"),
-               ("relink_library", "Find the library", "look for the .blend in the project")]
+               ("relink_library", "Find the library", "look for the .blend in the project"),
+               ("update_version", "Update", "the mesh of the latest registered version (name, place, "
+                                            "collections kept; the tags follow)")]
 
     class EM_PG_check_row(bpy.types.PropertyGroup):
         key: StringProperty()  # type: ignore
@@ -944,7 +1095,13 @@ def _operator_classes():  # pragma: no cover — bpy
                 it.allowed = ",".join(allowed)
                 it.action = r.get("action") if r.get("action") in allowed else "leave"
                 it.tick = bool(r.get("tick"))
-            return context.window_manager.invoke_props_dialog(self, width=640)
+            for r in ba_rows(res.get("before_after") or []):
+                it = rows.add()
+                it.key, it.label, it.sign, it.why = r["key"], r["label"], r["sign"], r["why"]
+                it.allowed = ",".join(r["actions"])
+                it.action = r["action"]
+                it.tick = r["tick"]
+            return context.window_manager.invoke_props_dialog(self, width=720)
 
         def draw(self, context):
             res = LAST.get("result") or {}
@@ -953,6 +1110,13 @@ def _operator_classes():  # pragma: no cover — bpy
             if res.get("offline"):
                 col.label(text=f"The room was not reached: the last state known ({res.get('as_of') or '?'})",
                           icon="INFO")
+            ba = res.get("before_after") or []
+            if ba:
+                newer = sum(1 for b in ba if b.get("state") in ("newer", "revised"))
+                col.label(text=f"Versions: {len(ba)} tagged object(s), {newer} with a newer one in the graph "
+                               "(↓ Update)", icon="SORTTIME")
+            elif res.get("before_after_note"):
+                col.label(text=res["before_after_note"], icon="INFO")
             col.template_list("EM_UL_check_rows", "", context.window_manager, "em_check_rows", self, "index",
                               rows=10)
             col.label(text="Ticked rows are applied with OK («Apply»); nothing overwrites a change made here.")
@@ -960,6 +1124,7 @@ def _operator_classes():  # pragma: no cover — bpy
         def execute(self, context):
             res = LAST.get("result") or {}
             by_key = {r["key"]: r for r in res.get("rows") or []}
+            by_key.update({r["key"]: r for r in ba_rows(res.get("before_after") or [])})
             todo = []
             for it in context.window_manager.em_check_rows:
                 if not it.tick or it.action == "leave":
@@ -1032,6 +1197,45 @@ def _operator_classes():  # pragma: no cover — bpy
             self.report({"INFO"}, f"Restored {ok}")
             return {"FINISHED"}
 
+    class EM_OT_blend_update_version(bpy.types.Operator, _OnSelection):
+        """Update the selected objects to the LATEST version registered for their asset: the mesh of
+        that version (from this disk or the room), name, place and collections kept, the graph's
+        tags following"""
+        bl_idname = "em.blend_update_version"
+        bl_label = "Update to the latest version"
+        bl_options = {"REGISTER", "UNDO"}
+        object_name: StringProperty(default="", options={"SKIP_SAVE"})  # type: ignore
+
+        def invoke(self, context, event):
+            return context.window_manager.invoke_confirm(self, event)
+
+        def execute(self, context):
+            graph, _d, em_folder = active_graph_doc(context)
+            if graph is None:
+                self.report({"ERROR"}, "no active graph")
+                return {"CANCELLED"}
+            objs = [bpy.data.objects[self.object_name]] if self.object_name in bpy.data.objects \
+                else self._objs(context)
+            in_room = False
+            try:
+                from . import room as _room
+                in_room = bool((_room.room() or {}).get("room_id"))
+            except Exception:  # noqa: BLE001
+                pass
+            ok = 0
+            for o in objs:
+                try:
+                    got = update_object(context, graph, o, em_folder, in_room=in_room)
+                    if got.get("done"):
+                        ok += 1
+                        self.report({"INFO"}, got["say"])
+                    else:
+                        self.report({"INFO"}, f"{o.name}: {got.get('say')}")
+                except Exception as exc:  # noqa: BLE001
+                    self.report({"WARNING"}, str(exc))
+            self.report({"INFO"}, f"Updated {ok}")
+            return {"FINISHED"}
+
     class EM_OT_blend_export_master(bpy.types.Operator, _OnSelection):
         """Export the selected objects as masters: glTF + external textures (SB), OBJ + textures (RB),
         in <SB|RB>/<Container>/master/, stamped, the graph's master pointing at the file"""
@@ -1092,7 +1296,8 @@ def _operator_classes():  # pragma: no cover — bpy
             return {"CANCELLED"}
 
     return (EM_PG_check_row, EM_UL_check_rows, EM_OT_blend_check_graph, EM_OT_blend_register_version,
-            EM_OT_blend_restore_master, EM_OT_blend_export_master, EM_OT_prepare_in_emstudio)
+            EM_OT_blend_restore_master, EM_OT_blend_update_version, EM_OT_blend_export_master,
+            EM_OT_prepare_in_emstudio)
 
 
 def draw_check(layout, context) -> None:  # pragma: no cover — bpy
@@ -1115,6 +1320,7 @@ def draw_modeller(layout, context) -> None:  # pragma: no cover — bpy
     op = col.operator("em.blend_register_version", icon="ADD", text="Register as a new resource…" + on)
     op.as_resource = True
     col.operator("em.blend_restore_master", icon="LOOP_BACK", text="Restore from the master" + on)
+    col.operator("em.blend_update_version", icon="SORTTIME", text="Update to the latest version" + on)
     col.operator("em.blend_export_master", icon="EXPORT", text="Export as master" + on)
 
 

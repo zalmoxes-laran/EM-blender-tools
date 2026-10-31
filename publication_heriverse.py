@@ -789,3 +789,185 @@ def package_sentence(report: Dict[str, Any]) -> str:
         parts.append(f"{len(f)} left out: " + "; ".join(f"{x['rm_name']} ({x['why']})"
                                                        for x in f[:3]))
     return " · ".join(parts)
+
+
+# ── «Consolida per…» (MICRO-BLEND-OFFICINA-3, E.D. 31 Oct 2026) ─────────────
+#
+# The Deck asks s3Dgraphy's ``resources.consolidate`` (the same function as
+# EMStudio's «Consolida per…»): one row per published model with the BASE
+# mobile webXR (necessary), the BEST for the platform (recommended), what is
+# OPPORTUNE, the SUFFICIENT (the totals against the band) and the PRESENCE
+# (in the room's bucket, or on this disk out of a room). Nothing is exported.
+# A s3dgraphy without it: one line says so and the plan above (``plan_for``)
+# is what the Deck shows, as before.
+
+NEEDS_CONSOLIDATE = ("«Consolidate for…» needs s3dgraphy ≥ 1.6.0.dev80 (the next bundle of EM "
+                     "Tools): this s3dgraphy has no resources.consolidate — the rule's plan below")
+
+#: the platforms of «Consolidate for…» (``consolidate.PLATFORMS``)
+PLATFORMS = (("heriverse", "Heriverse", "Heriverse reads the em.json (heriverse, aton, web, realtime)"),
+             ("aton", "ATON", "An ATON app (aton, heriverse, web, realtime)"),
+             ("web", "Web", "A web viewer (web, heriverse, aton, realtime)"))
+
+#: the sign of a row's status, from the one that blocks to the one that informs
+STATUS_SIGN = {"ok": "✔", "necessary": "✗", "recommended": "↑", "opportune": "~",
+               "sufficient": "Σ", "presence": "↓"}
+STATUS_ICON = {"ok": "CHECKMARK", "necessary": "ERROR", "recommended": "INFO",
+               "opportune": "MODIFIER", "sufficient": "INFO", "presence": "IMPORT"}
+
+
+def consolidate_function() -> Optional[Callable[..., Any]]:
+    """``s3dgraphy.resources.consolidate.consolidate``, or None (≤ dev79)."""
+    try:
+        from s3dgraphy.resources import consolidate as C
+    except ImportError:
+        return None
+    return getattr(C, "consolidate", None)
+
+
+def consolidation(graph, models: Iterable[Any], *, platform: str = "heriverse",
+                  states: Optional[Dict[str, str]] = None, in_room: bool = False,
+                  fn: Optional[Callable[..., Any]] = None) -> Dict[str, Any]:
+    """«Consolidate for…» ``platform`` on the Deck's published models.
+
+    ``models``: ids or ``(id, object_name[, category])`` as :func:`plan_for`
+    takes them (the RM list's publishable rows, the RMDocs, the RMSFs); the
+    object's name travels on each row (``object``) for «Prepare». The models
+    the dissemination policy removes are left out here, as the package does.
+    → s3Dgraphy's answer plus ``available``; ``{available: False, note}``
+    without the function."""
+    fn = fn if fn is not None else consolidate_function()
+    if fn is None:
+        return {"available": False, "note": f"{NEEDS_CONSOLIDATE} (s3dgraphy {s3dgraphy_version()})"}
+    ids, objects, seen = [], {}, set()
+    for item in models or ():
+        if isinstance(item, (tuple, list)):
+            mid, obj = str(item[0] or ""), str(item[1] if len(item) > 1 else "")
+        else:
+            mid, obj = str(item or ""), ""
+        if not mid or mid in seen:
+            continue
+        node = graph.find_node_by_id(mid) if graph is not None else None
+        if node is None or is_removed(node):
+            continue
+        seen.add(mid)
+        ids.append(mid)
+        if obj:
+            objects[mid] = obj
+    out = dict(fn(graph, platform, models=ids, states=states or {}, in_room=in_room))
+    out["available"] = True
+    out["rows"] = [dict(r, object=objects.get(r["id"], "")) for r in out.get("rows") or []]
+    return out
+
+
+def merge_consolidations(parts: Iterable[Any]) -> Dict[str, Any]:
+    """Several graphs (the Deck publishes every publishable one) → one answer:
+    rows with their ``graph_id``, counts summed, the totals of each graph."""
+    out: Dict[str, Any] = {"available": True, "rows": [], "counts": {}, "totals": [], "say_it": [],
+                           "graphs": []}
+    for gid, part in parts:
+        if not part.get("available"):
+            return part
+        out["graphs"].append(gid)
+        out["rows"] += [dict(r, graph_id=gid) for r in part.get("rows") or []]
+        out["totals"].append(dict(part.get("totals") or {}, graph_id=gid))
+        out["say_it"].append(part.get("say_it") or "")
+        out["in_room"] = part.get("in_room", False)
+        out["platform"] = part.get("platform")
+        for k, v in (part.get("counts") or {}).items():
+            if isinstance(v, dict):
+                d = out["counts"].setdefault(k, {})
+                for kk, vv in v.items():
+                    d[kk] = d.get(kk, 0) + vv
+            else:
+                out["counts"][k] = out["counts"].get(k, 0) + v
+    return out
+
+
+def _summary_line(e: Optional[Dict[str, Any]]) -> str:
+    if not e:
+        return "—"
+    lvl = str(e.get("level") or e.get("lod_level") or ("master" if e.get("master") else "")).strip()
+    tris = e.get("triangles")
+    return (lvl or e.get("name") or "?") + (f" · {tris:,} tri" if isinstance(tris, int) else "")
+
+
+def consolidation_row_line(row: Dict[str, Any]) -> str:
+    """One line of a model: sign, name, base and the version loaded, the first
+    finding's sentence."""
+    sign = STATUS_SIGN.get(row.get("status") or "ok", "?")
+    base = _summary_line(row.get("base"))
+    loaded = _summary_line(row.get("loaded"))
+    head = f"{sign} {row.get('name')} · base {base} · loads {loaded}"
+    if row.get("loaded_is") and row.get("loaded_is") != "best":
+        head += f" ({row['loaded_is']})"
+    first = next(iter(row.get("findings") or []), None)
+    return head + (f" — {first['say_it']}" if first else "")
+
+
+def row_actions(row: Dict[str, Any], *, platform: str = "heriverse") -> List[Dict[str, Any]]:
+    """The gestures a row offers, one per kind, in the order of its findings:
+    ``{kind, label, profile, uses, resource_id, object}``. ``prepare`` → EM
+    Tools' «Prepare for a use…» on the row's object with the uses of the
+    profile (the base: mobile webXR → ``mobile_ar``); ``upload`` → «Upload to
+    the room» (through the room); ``check`` → «Check files»; ``disk`` →
+    the package on disk (the road that already exists)."""
+    out, seen = [], set()
+    for f in row.get("findings") or []:
+        a = f.get("action") or {}
+        kind = a.get("kind") or ""
+        key = (kind, a.get("profile") or a.get("resource_id") or "")
+        if not kind or key in seen:
+            continue
+        seen.add(key)
+        if kind == "prepare":
+            uses = prepare_uses(a.get("profile") or "", platform)
+            label = ("Prepare the base (mobile webXR)" if a.get("profile") == "mobile_webxr"
+                     else f"Prepare for {platform}")
+            out.append({"kind": kind, "label": label, "profile": a.get("profile") or "",
+                        "uses": uses, "object": row.get("object") or "", "resource_id": ""})
+        elif kind == "upload":
+            out.append({"kind": kind, "label": "Upload to the room", "profile": "", "uses": (),
+                        "object": row.get("object") or "", "resource_id": a.get("resource_id") or ""})
+        elif kind in ("check", "disk", "find", "stamp"):
+            labels = {"check": "Check files", "disk": "The package on disk",
+                      "find": "Find the file", "stamp": "Stamp it"}
+            out.append({"kind": kind, "label": labels[kind], "profile": "", "uses": (),
+                        "object": row.get("object") or "", "resource_id": a.get("resource_id") or ""})
+    return out
+
+
+#: the uses EM Tools' «Prepare for a use…» knows (``asset_versions.USES``)
+_OPERATOR_USES = ("analysis", "realtime", "web", "mobile_ar", "print", "render", "preview",
+                  "heriverse", "aton")
+
+
+def prepare_uses(profile: str, platform: str = "heriverse") -> tuple:
+    """The uses «Prepare» gives EM Tools' «Prepare for a use…» for a row's
+    profile: the base (``mobile_webxr``) → ``mobile_ar``; the version for
+    Heriverse or ATON → the package's uses (``heriverse``, ``aton``: the
+    model as it is, Q5, as «Make the missing versions» made it); otherwise the
+    uses of the profile (s3Dgraphy ``use_profiles``)."""
+    if profile == "mobile_webxr":
+        return ("mobile_ar",)
+    if profile == "webxr" and platform in ("heriverse", "aton"):
+        return tuple(PACKAGE_USES)
+    try:
+        from s3dgraphy.resources.use_profiles import PROFILES
+        uses = tuple(PROFILES.get(profile, {}).get("uses") or ())
+    except ImportError:
+        uses = ()
+    return tuple(u for u in uses if u in _OPERATOR_USES) or ("web",)
+
+
+def totals_lines(result: Dict[str, Any]) -> List[str]:
+    """The «sufficient» lines: the platform's and the floor's, per graph."""
+    out = []
+    tots = result.get("totals")
+    tots = tots if isinstance(tots, list) else [tots] if tots else []
+    for t in tots:
+        for key in ("platform", "floor"):
+            one = t.get(key) or {}
+            if one.get("say_it"):
+                out.append(("✔ " if one.get("ok") else "✗ ") + one["say_it"])
+    return out

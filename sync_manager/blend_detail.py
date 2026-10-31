@@ -179,6 +179,78 @@ def document_for_cache_path(graph, path: str) -> Optional[Any]:
     return recipe_document(graph, key) if key else None
 
 
+# ── MICRO-BLEND-OFFICINA-3 · the detail box (point 5) ───────────────────────
+
+#: an Empty «cube» marked as the area of «More detail here»
+BOX_PROP = "em_detail_box"
+BOX_COLLECTION = "Detail boxes"
+LAST_BOX = "em_detail_last_box"
+
+
+def ray_plane(origin: Sequence[float], direction: Sequence[float], point: Sequence[float],
+              normal: Sequence[float] = (0.0, 0.0, 1.0)) -> Optional[List[float]]:
+    """Where the ray ``origin + t·direction`` (t ≥ 0) meets the plane through
+    ``point`` with ``normal``; None when parallel or behind."""
+    den = sum(d * n for d, n in zip(direction, normal))
+    if abs(den) < 1e-9:
+        return None
+    t = sum((p - o) * n for p, o, n in zip(point, origin, normal)) / den
+    if t < 0:
+        return None
+    return [o + t * d for o, d in zip(origin, direction)]
+
+
+def rect_box(points: Iterable[Sequence[float]], z_lo: float, z_hi: float,
+             min_half: float = 0.05) -> Optional[Dict[str, List[float]]]:
+    """The box of a rectangle drawn on the ground: the xy bounds of
+    ``points`` (the corners where the screen's rectangle meets the plane),
+    from ``z_lo`` to ``z_hi``. → ``{center, half}`` (an Empty cube of display
+    size 1: its scale is ``half``), None without points."""
+    pts = [p for p in points if p is not None]
+    if not pts:
+        return None
+    lo = [min(p[0] for p in pts), min(p[1] for p in pts), min(z_lo, z_hi)]
+    hi = [max(p[0] for p in pts), max(p[1] for p in pts), max(z_lo, z_hi)]
+    return {"center": [(a + b) / 2 for a, b in zip(lo, hi)],
+            "half": [max(min_half, (b - a) / 2) for a, b in zip(lo, hi)]}
+
+
+def box_area(matrix_rows: Sequence[Sequence[float]], size: float = 1.0) -> List[float]:
+    """The area (min xyz, max xyz) of an Empty cube: its 8 corners (±size in
+    its own space) through its world matrix (4×4, rows)."""
+    corners = []
+    for x in (-size, size):
+        for y in (-size, size):
+            for z in (-size, size):
+                v = (x, y, z, 1.0)
+                corners.append(tuple(sum(matrix_rows[r][c] * v[c] for c in range(4)) for r in range(3)))
+    return area_from_boxes([corners])
+
+
+def z_span(areas: Iterable[Sequence[float]]) -> Optional[Tuple[float, float]]:
+    """The heights the loaded detail covers (its boxes), to give a box drawn
+    on the ground the height of what it cuts; None when nothing is loaded."""
+    got = [a for a in areas if a]
+    if not got:
+        return None
+    return (min(a[2] for a in got), max(a[5] for a in got))
+
+
+def pick_area(selected_box: Optional[Sequence[float]], last_box: Optional[Sequence[float]],
+              selection: Optional[Sequence[float]]) -> Tuple[Optional[List[float]], str]:
+    """The area of «More detail here» / «Less detail»: the detail box
+    selected, else the last one made, else the box of the selection (as in
+    round 2). → (area, where it comes from: ``box`` / ``last_box`` /
+    ``selection`` / "")."""
+    if selected_box:
+        return list(selected_box), "box"
+    if last_box:
+        return list(last_box), "last_box"
+    if selection:
+        return list(selection), "selection"
+    return None, ""
+
+
 def source_texture_px(path: str) -> int:
     """The texture pixels a mesh file brings (an OBJ's .mtl maps, a glTF's
     images beside it), read from the images' first bytes: a crop keeps the
@@ -422,10 +494,37 @@ def _keep_recipe(context, r: Dict[str, Any], document_node) -> str:  # pragma: n
     return "recipe kept in the graph (and sent to the room when joined)"
 
 
+def document_for_resource(graph, res) -> Optional[Any]:
+    """The document a resource stands for. s3Dgraphy's
+    ``graph_compose.document_of_resource`` when there (≥ 1.6.0.dev80): it
+    follows a version to its asset's document, a repackaging (the .3tz) up to
+    its version, and a container's whole (a tileset registered as the level
+    «Intero») to the only document of the container's meshes — on Templu
+    Mare the RB tileset → D.01. Else (or when it finds none) the node joined
+    to it by any edge, as before."""
+    if graph is None or res is None:
+        return None
+    if getattr(res, "node_type", None) != "document":
+        try:
+            from s3dgraphy.resources.graph_compose import document_of_resource
+        except ImportError:
+            document_of_resource = None
+        if document_of_resource is not None:
+            try:
+                did = document_of_resource(graph, res.node_id)
+            except Exception:  # noqa: BLE001 — a graph the function does not read
+                did = None
+            if did:
+                node = graph.find_node_by_id(did)
+                if node is not None:
+                    return node
+    return document_of(graph, res)
+
+
 def source_document(context, path: str):  # pragma: no cover — bpy
     graph = _graph(context)
     res = resource_for_path(graph, path, em_folder_of(context))
-    return res, document_of(graph, res)
+    return res, document_for_resource(graph, res)
 
 
 def plan_light(context, path: str, level: Optional[int]) -> Dict[str, Any]:  # pragma: no cover — bpy
@@ -557,7 +656,7 @@ def master_ladder(context, obj) -> Dict[str, Any]:  # pragma: no cover — bpy
             entries.append(e)
     got = dt().master_levels(entries)
     got["master_id"] = mid
-    got["document"] = getattr(document_of(graph, graph.find_node_by_id(mid)), "node_id", "") or ""
+    got["document"] = getattr(document_for_resource(graph, graph.find_node_by_id(mid)), "node_id", "") or ""
     return got
 
 
@@ -604,6 +703,97 @@ def selection_area(context, pad: float = 0.0) -> Optional[List[float]]:  # pragm
             continue
         boxes.append([tuple(o.matrix_world @ Vector(c)) for c in o.bound_box])
     return area_from_boxes(boxes, pad)
+
+
+def _rows(m) -> List[List[float]]:  # pragma: no cover — bpy
+    return [[m[r][c] for c in range(4)] for r in range(4)]
+
+
+def area_of_box(obj) -> List[float]:  # pragma: no cover — bpy
+    return box_area(_rows(obj.matrix_world), float(getattr(obj, "empty_display_size", 1.0) or 1.0))
+
+
+def is_box(obj) -> bool:
+    try:
+        return bool(obj is not None and obj.get(BOX_PROP))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def last_box(context):  # pragma: no cover — bpy
+    bpy = _bpy()
+    obj = bpy.data.objects.get(str(context.scene.get(LAST_BOX) or ""))
+    if is_box(obj):
+        return obj
+    boxes = [o for o in context.scene.objects if is_box(o)]
+    return boxes[-1] if boxes else None
+
+
+def detail_area(context, pad: float = 0.0) -> Tuple[Optional[List[float]], str]:  # pragma: no cover — bpy
+    """MICRO-BLEND-OFFICINA-3 · the area asked: the detail box (selected, else
+    the last), else the box of the selection (:func:`pick_area`)."""
+    sel = next((o for o in context.selected_objects if is_box(o)), None)
+    last = last_box(context) if sel is None else None
+
+    def grown(a):
+        return [a[0] - pad, a[1] - pad, a[2] - pad, a[3] + pad, a[4] + pad, a[5] + pad] if a else None
+    others = [o for o in context.selected_objects if not is_box(o)]
+    selection = None
+    if others:
+        from mathutils import Vector
+        boxes = [[tuple(o.matrix_world @ Vector(c)) for c in o.bound_box] for o in others
+                 if o.type in ("MESH", "EMPTY", "CURVE")]
+        selection = area_from_boxes(boxes, pad)
+    return pick_area(grown(area_of_box(sel)) if sel is not None else None,
+                     grown(area_of_box(last)) if last is not None else None, selection)
+
+
+def loaded_z_span(context) -> Optional[Tuple[float, float]]:  # pragma: no cover — bpy
+    from mathutils import Vector
+    areas = []
+    for o in context.scene.objects:
+        if o.type == "MESH" and is_detail(o):
+            areas.append(area_from_boxes([[tuple(o.matrix_world @ Vector(c)) for c in o.bound_box]]))
+    return z_span(areas)
+
+
+def make_box(context, center: Sequence[float], half: Sequence[float], name: str = "Detail box"):  # pragma: no cover
+    """An Empty «cube» marked as a detail box, selected and active."""
+    bpy = _bpy()
+    obj = bpy.data.objects.new(name, None)
+    obj.empty_display_type = "CUBE"
+    obj.empty_display_size = 1.0
+    obj.location = tuple(center)
+    obj.scale = tuple(half)
+    obj[BOX_PROP] = True
+    col = bpy.data.collections.get(BOX_COLLECTION)
+    if col is None:
+        col = bpy.data.collections.new(BOX_COLLECTION)
+    if col.name not in context.scene.collection.children:
+        context.scene.collection.children.link(col)
+    col.objects.link(obj)
+    for o in context.view_layer.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    context.view_layer.objects.active = obj
+    context.scene[LAST_BOX] = obj.name
+    return obj
+
+
+def view_box(context) -> Dict[str, List[float]]:  # pragma: no cover — bpy
+    """A box at the centre of the view (or at the 3D cursor), about a sixth
+    of what is seen, as high as the loaded detail when there is one."""
+    rv3d = getattr(getattr(context, "space_data", None), "region_3d", None)
+    if rv3d is not None:
+        c = list(rv3d.view_location)
+        h = max(0.5, min(50.0, float(rv3d.view_distance) / 6.0))
+    else:
+        c = list(context.scene.cursor.location)
+        h = 2.0
+    zs = loaded_z_span(context)
+    if zs:
+        return {"center": [c[0], c[1], (zs[0] + zs[1]) / 2], "half": [h, h, max(0.05, (zs[1] - zs[0]) / 2)]}
+    return {"center": c, "half": [h, h, h]}
 
 
 def is_detail(obj) -> bool:
@@ -701,7 +891,8 @@ def _operator_classes():  # pragma: no cover — bpy
            ("0.01", "1 cm", "only on a small area (a few metres a side)")]
 
     class EM_OT_detail_more_here(bpy.types.Operator):
-        """More detail on the box of the selected objects: the estimate before confirming"""
+        """More detail on the detail box (the selected one, else the last), else on the box of the
+        selected objects: the estimate before confirming"""
         bl_idname = "em.detail_more_here"
         bl_label = "More detail here"
         bl_options = {"REGISTER", "UNDO"}
@@ -715,17 +906,20 @@ def _operator_classes():  # pragma: no cover — bpy
             except RuntimeError as exc:
                 self.report({"ERROR"}, str(exc))
                 return {"CANCELLED"}
-            if selection_area(context) is None:
-                self.report({"WARNING"}, "Select the objects whose box asks for more detail")
+            if detail_area(context)[0] is None:
+                self.report({"WARNING"}, "Add or draw a detail box, or select the objects whose box "
+                                         "asks for more detail")
                 return {"CANCELLED"}
             return context.window_manager.invoke_props_dialog(self, width=520)
 
         def draw(self, context):
             col = self.layout.column()
             st = get_state(context)
-            area = selection_area(context, self.pad)
+            area, frm = detail_area(context, self.pad)
             a = area or [0] * 6
-            col.label(text=f"Area {a[3] - a[0]:.1f} × {a[4] - a[1]:.1f} × {a[5] - a[2]:.1f} m")
+            said = {"box": "the detail box selected", "last_box": "the last detail box",
+                    "selection": "the box of the selection"}.get(frm, "")
+            col.label(text=f"Area {a[3] - a[0]:.1f} × {a[4] - a[1]:.1f} × {a[5] - a[2]:.1f} m — {said}")
             col.prop(self, "pad")
             if st["kind"] == "tileset":
                 col.prop(self, "to")
@@ -745,7 +939,7 @@ def _operator_classes():  # pragma: no cover — bpy
 
         def execute(self, context):
             st = get_state(context)
-            area = selection_area(context, self.pad)
+            area = detail_area(context, self.pad)[0]
             try:
                 if st["kind"] == "tileset":
                     got = do_more(context, area, self.to)
@@ -794,9 +988,9 @@ def _operator_classes():  # pragma: no cover — bpy
             return context.window_manager.invoke_props_dialog(self)
 
         def execute(self, context):
-            area = selection_area(context)
+            area = detail_area(context)[0]
             if area is None:
-                self.report({"WARNING"}, "Select the tiles (or objects) where to free detail")
+                self.report({"WARNING"}, "Select the tiles (or objects, or a detail box) where to free detail")
                 return {"CANCELLED"}
             try:
                 got = do_less(context, area, self.to)
@@ -833,7 +1027,98 @@ def _operator_classes():  # pragma: no cover — bpy
             self.report({"INFO"}, f"Regenerated {n} of {len(recs)}")
             return {"FINISHED"}
 
-    return (EM_OT_detail_load_set, EM_OT_detail_more_here, EM_OT_detail_less, EM_OT_detail_regenerate)
+    class EM_OT_detail_add_box(bpy.types.Operator):
+        """Add a detail box: an Empty cube at the centre of the view, to move and scale over
+        where you want more detail («More detail here» uses it)"""
+        bl_idname = "em.detail_add_box"
+        bl_label = "Add a detail box"
+        bl_options = {"REGISTER", "UNDO"}
+
+        def execute(self, context):
+            b = view_box(context)
+            obj = make_box(context, b["center"], b["half"])
+            self.report({"INFO"}, f"{obj.name}: move and scale it, then «More detail here»")
+            return {"FINISHED"}
+
+    class EM_OT_detail_draw_box(bpy.types.Operator):
+        """Draw a detail box: drag a rectangle in the 3D view over the ground (the plane of the
+        loaded detail, else of the 3D cursor); it becomes the area of «More detail here».
+        Esc or right click: cancel"""
+        bl_idname = "em.detail_draw_box"
+        bl_label = "Draw a detail box"
+        bl_options = {"REGISTER", "UNDO"}
+
+        _start = None
+        _now = None
+        _handle = None
+
+        @classmethod
+        def poll(cls, context):
+            return context.area is not None and context.area.type == "VIEW_3D"
+
+        def _draw(self, context):
+            if self._start is None or self._now is None:
+                return
+            import gpu
+            from gpu_extras.batch import batch_for_shader
+            (x0, y0), (x1, y1) = self._start, self._now
+            sh = gpu.shader.from_builtin("UNIFORM_COLOR")
+            batch = batch_for_shader(sh, "LINE_LOOP", {"pos": [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]})
+            sh.uniform_float("color", (1.0, 0.6, 0.1, 1.0))
+            batch.draw(sh)
+
+        def _stop(self, context):
+            if self._handle is not None:
+                bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")
+                self._handle = None
+            context.area.header_text_set(None)
+            context.area.tag_redraw()
+
+        def invoke(self, context, event):
+            self._start = self._now = None
+            self._handle = bpy.types.SpaceView3D.draw_handler_add(self._draw, (context,), "WINDOW", "POST_PIXEL")
+            context.area.header_text_set("Drag a rectangle over the ground · Esc / right click: cancel")
+            context.window_manager.modal_handler_add(self)
+            return {"RUNNING_MODAL"}
+
+        def modal(self, context, event):
+            context.area.tag_redraw()
+            if event.type in ("ESC", "RIGHTMOUSE"):
+                self._stop(context)
+                return {"CANCELLED"}
+            if event.type == "LEFTMOUSE" and event.value == "PRESS":
+                self._start = self._now = (event.mouse_region_x, event.mouse_region_y)
+            elif event.type == "MOUSEMOVE" and self._start is not None:
+                self._now = (event.mouse_region_x, event.mouse_region_y)
+            elif event.type == "LEFTMOUSE" and event.value == "RELEASE" and self._start is not None:
+                self._now = (event.mouse_region_x, event.mouse_region_y)
+                self._stop(context)
+                return self._make(context)
+            return {"RUNNING_MODAL"}
+
+        def _make(self, context):
+            from bpy_extras import view3d_utils
+            region, rv3d = context.region, context.space_data.region_3d
+            zs = loaded_z_span(context)
+            plane_z = (zs[0] + zs[1]) / 2 if zs else float(context.scene.cursor.location.z)
+            (x0, y0), (x1, y1) = self._start, self._now
+            pts = []
+            for xy in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+                o = view3d_utils.region_2d_to_origin_3d(region, rv3d, xy)
+                d = view3d_utils.region_2d_to_vector_3d(region, rv3d, xy)
+                pts.append(ray_plane(tuple(o), tuple(d), (0.0, 0.0, plane_z)))
+            if any(p is None for p in pts):
+                self.report({"WARNING"}, "The rectangle does not meet the ground: look from above")
+                return {"CANCELLED"}
+            lo, hi = (zs if zs else (plane_z - 2.0, plane_z + 2.0))
+            b = rect_box(pts, lo, hi)
+            obj = make_box(context, b["center"], b["half"])
+            self.report({"INFO"}, f"{obj.name}: {2 * b['half'][0]:.1f} × {2 * b['half'][1]:.1f} × "
+                                  f"{2 * b['half'][2]:.1f} m — «More detail here» uses it")
+            return {"FINISHED"}
+
+    return (EM_OT_detail_load_set, EM_OT_detail_more_here, EM_OT_detail_less, EM_OT_detail_regenerate,
+            EM_OT_detail_add_box, EM_OT_detail_draw_box)
 
 
 def draw(layout, context) -> None:  # pragma: no cover — bpy
@@ -844,7 +1129,11 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
     col = box.column(align=True)
     col.operator("em.detail_load_set", icon="IMPORT", text="Load the light set…")
     row = col.row(align=True)
-    row.enabled = bool(st["kind"]) and bool(context.selected_objects)
+    row.operator("em.detail_add_box", icon="CUBE", text="Add a detail box")
+    row.operator("em.detail_draw_box", icon="SELECT_SET", text="Draw a detail box")
+    row = col.row(align=True)
+    has_box = any(is_box(o) for o in context.scene.objects)
+    row.enabled = bool(st["kind"]) and (bool(context.selected_objects) or has_box)
     row.operator("em.detail_more_here", icon="ZOOM_IN", text="More detail here")
     row.operator("em.detail_less", icon="ZOOM_OUT", text="Less detail")
     col.operator("em.detail_regenerate", icon="FILE_REFRESH", text="Regenerate from the recipes")

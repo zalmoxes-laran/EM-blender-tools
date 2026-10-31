@@ -2821,8 +2821,11 @@ def _operator_classes():  # pragma: no cover — bpy
             # lease), a working .blend for a profile, detail on request
             from . import blend_detail, blend_lease
             blend_lease.draw(layout, context)
-            layout.operator("em.compose_working_blend", icon="FILE_BLEND",
-                            text="Compose a working .blend for…")
+            row = layout.row(align=True)
+            row.operator("em.compose_working_blend", icon="FILE_BLEND",
+                         text="Compose a working .blend for…")
+            # MICRO-BLEND-OFFICINA-3 · no .blend to start from: the study
+            row.operator("em.compose_from_graph", icon="NODETREE", text="From the graph…")
             blend_detail.draw(layout, context)
             if obj is not None and obj.get(PROP_ASSET):
                 # D1 · what the shown version IS: computed level, uses, measures
