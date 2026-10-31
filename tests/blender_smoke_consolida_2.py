@@ -133,7 +133,10 @@ acts = {a["kind"]: a for a in PH.row_actions(grp or {})}
 check("«Declare the master…» offered on it", "declare_master" in acts, list(acts))
 HD.LAST.update(consolidated=deck, plan=HD.make_plan(ctx), folder="/tmp/x")
 lines = drawn(HD.EM_OT_deck_heriverse, road="NODE", platform="heriverse")
-check("the Deck draws «Declare the master…»", any(x.startswith("[em.deck_declare_tileset_master]") for x in lines),
+# MICRO-ARCHIVE-ASSET · «Declare the master…» is a gesture of EMStudio's list now
+check("the Deck points to Archive › Asset (the tileset's master is said in the summary)",
+      any(x.startswith("[em.deck_open_asset_list]") for x in lines)
+      and any("tileset master to declare" in x for x in lines),
       [x for x in lines if x.startswith("[")][:4])
 check("the new operators are registered", hasattr(bpy.ops.em, "deck_register_new_version")
       and hasattr(bpy.ops.em, "deck_declare_tileset_master"))

@@ -132,11 +132,20 @@ if no_base is not None:
 HD.LAST.update(consolidated=deck, plan=HD.make_plan(ctx), folder="/tmp/x")
 lines = drawn(HD.EM_OT_deck_heriverse, road="NODE", platform="heriverse")
 print("[SMOKE] DECK DRAWN:", len(lines), "lines;", lines[:3], "…", [x for x in lines if x.startswith("[")][:3])
-check("the Deck's popup draws the consolidation", any("mobile webXR" in x for x in lines)
-      and any(x.startswith("[em.deck_heriverse_prepare]") for x in lines)
-      and any("Prepare the missing bases" in x for x in lines))
+# MICRO-ARCHIVE-ASSET · the list is EMStudio's Archive › Asset: the Deck says
+# the summary and points there (no rows, no gestures of its own)
+check("the Deck's popup draws the consolidation in one row and points to Archive › Asset",
+      any("mobile webXR" in x for x in lines) and any("with the mobile base" in x for x in lines)
+      and any(x.startswith("[em.deck_open_asset_list]") for x in lines)
+      and not any(x.startswith("[em.deck_heriverse_prepare]") for x in lines))
 check("the Deck's operators are registered", hasattr(bpy.ops.em, "deck_heriverse")
       and hasattr(bpy.ops.em, "deck_heriverse_make_missing"))
+# MICRO-ARCHIVE-ASSET · «Open in EMStudio › Archive › Asset»: no Sidecar, no
+# room here → it says how, and opens nothing
+r = bpy.ops.em.deck_open_asset_list(platform="heriverse")
+said = json.loads(bpy.context.window_manager.get("em_last_asset_list_link") or "{}")
+check("«Open in EMStudio › Archive › Asset» without Sidecar nor room says how", r == {"CANCELLED"}
+      and said.get("way") is None and "Archive › Asset" in said.get("say", ""), (r, said))
 
 # ── 2 · «Compose a .blend from the graph», from the disk ────────────────────
 t0 = time.time()

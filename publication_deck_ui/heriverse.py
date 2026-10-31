@@ -236,8 +236,6 @@ def make_consolidation(context, platform: str = "heriverse") -> Dict[str, Any]:
     return PH.merge_consolidations(parts)
 
 
-_ORDER = {lv: i for i, lv in enumerate(("necessary", "recommended", "opportune", "sufficient",
-                                        "presence", "ok"))}
 
 
 def _roots_and_caches(context) -> Tuple[List[str], List[str]]:
@@ -296,50 +294,20 @@ class EM_OT_deck_heriverse(bpy.types.Operator):
         return context.window_manager.invoke_popup(self, width=560)
 
     def _draw_consolidated(self, layout, cons) -> None:
-        """MICRO-BLEND-OFFICINA-3 · «Consolidate for…»: the rows of s3Dgraphy's
-        ``consolidate`` (the same as EMStudio's), their gestures, the totals."""
+        """MICRO-ARCHIVE-ASSET · «Consolidate for…» in one row: the list of the
+        assets (versions, textures, state per target, actions in bulk, the
+        queue) is EMStudio's Archive › Asset — rebuilding it here would be
+        prohibitive (E.D., 31 Oct 2026), and EMStudio launches Blender itself.
+        The Deck says the summary and the totals, and points there."""
         layout.row().prop(self, "platform", expand=True)
         for line in cons.get("say_it") or []:
             layout.label(text=line, icon="WORLD_DATA")
         for line in PH.totals_lines(cons):
             layout.label(text=line, icon="MEMORY")
-        # the containers first (a few, each the whole of a survey: its master
-        # is asked there), then the models from the one that blocks
-        rows = sorted(cons.get("rows") or [],
-                      key=lambda r: (r.get("kind") != "container",
-                                     _ORDER.get(r.get("status") or "ok", 9), r.get("name") or ""))
-        col = layout.column(align=True)
-        for row in rows[:20]:
-            line = col.row(align=True)
-            line.label(text=PH.consolidation_row_line(row),
-                       icon=PH.STATUS_ICON.get(row.get("status") or "ok", "DOT"))
-            for a in PH.row_actions(row, platform=self.platform):
-                if a["kind"] == "prepare" and a["object"]:
-                    op = line.operator("em.deck_heriverse_prepare", text="", icon="MOD_DECIM")
-                    op.object_name = a["object"]
-                    op.uses = ",".join(a["uses"])
-                elif a["kind"] == "upload" and a["resource_id"]:
-                    op = line.operator("em.files_upload", text="", icon="EXPORT")
-                    op.resource_id = a["resource_id"]
-                elif a["kind"] == "check":
-                    line.operator("em.files_check", text="", icon="FILE_REFRESH")
-                elif a["kind"] == "register_new_version" and a["resource_id"]:
-                    op = line.operator("em.deck_register_new_version", text="", icon="FILE_NEW")
-                    op.resource_id = a["resource_id"]
-                    op.checksum_now = a.get("checksum_now") or ""
-                elif a["kind"] == "declare_master" and a["resource_id"]:
-                    op = line.operator("em.deck_declare_tileset_master", text="", icon="OUTLINER_OB_GROUP_INSTANCE")
-                    op.tileset_id = a["resource_id"]
-                    op.container_id = a.get("container_id") or ""
-        if len(rows) > 20:
-            col.label(text=f"… and {len(rows) - 20} more")
-        no_base = [r for r in rows if r.get("kind") == "rm" and not r.get("base") and r.get("object")]
-        if no_base:
-            op = layout.operator("em.deck_heriverse_make_missing",
-                                 text=f"Prepare the missing bases, mobile webXR ({len(no_base)})",
-                                 icon="MOD_DECIM")
-            op.profile = "mobile_webxr"
-            op.platform = self.platform
+        row = layout.row(align=True)
+        row.label(text=PH.consolidation_summary(cons), icon="ASSET_MANAGER")
+        op = row.operator("em.deck_open_asset_list", text="Open in EMStudio › Archive › Asset", icon="URL")
+        op.platform = self.platform
 
     def draw(self, context):
         layout = self.layout
@@ -696,6 +664,46 @@ class EM_OT_deck_heriverse_write_disk(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EM_OT_deck_open_asset_list(bpy.types.Operator):
+    """Open EMStudio on Archive › Asset for this platform: the list of the
+    assets with their versions and textures, what each target loads and what is
+    to do, the actions in bulk and the queue"""
+
+    bl_idname = "em.deck_open_asset_list"
+    bl_label = "Open in EMStudio › Archive › Asset"
+
+    platform: bpy.props.StringProperty(default="heriverse")  # type: ignore
+
+    def execute(self, context):
+        import json
+        from ..sync_manager import operators as sync
+        clients = sync.client_count() if sync.is_running() else 0
+        room_info = {}
+        try:
+            from ..sync_manager import room as _room
+            r = _room.room() or {}
+            room_info = {"server": r.get("server") or r.get("base_url"), "room": r.get("room") or r.get("room_id")}
+        except Exception:  # noqa: BLE001
+            pass
+        plan = PH.asset_list_link(sidecar_clients=clients, room=room_info, platform=self.platform)
+        context.window_manager["em_last_asset_list_link"] = json.dumps(plan)
+        if plan["way"] == "sidecar":
+            try:
+                env = dict(plan["envelope"])
+                sync._server.broadcast(json.dumps(sync.envelope(env.pop("type"), env, source=sync._SOURCE)))
+                self.report({"INFO"}, "Asked EMStudio to open Archive › Asset")
+                return {"FINISHED"}
+            except Exception as exc:  # noqa: BLE001
+                plan = {"way": None, "say": f"the Sidecar did not take it: {exc}"}
+        if plan["way"] == "link":
+            if not bpy.app.background:
+                bpy.ops.wm.url_open(url=plan["url"])
+            self.report({"INFO"}, "EMStudio opens Archive › Asset in the room")
+            return {"FINISHED"}
+        self.report({"WARNING"}, plan["say"])
+        return {"CANCELLED"}
+
+
 class EM_OT_deck_register_new_version(bpy.types.Operator):
     """The file of this version was modified after its stamp (today it has
     another sha256): register it as a new version — a revision at the same
@@ -799,7 +807,8 @@ class EM_OT_deck_declare_tileset_master(bpy.types.Operator):
 
 CLASSES = (EM_OT_deck_heriverse, EM_OT_deck_heriverse_prepare,
            EM_OT_deck_heriverse_make_missing, EM_OT_deck_heriverse_write_disk,
-           EM_OT_deck_register_new_version, EM_OT_deck_declare_tileset_master)
+           EM_OT_deck_register_new_version, EM_OT_deck_declare_tileset_master,
+           EM_OT_deck_open_asset_list)
 
 
 def register():

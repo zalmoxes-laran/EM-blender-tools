@@ -1019,3 +1019,44 @@ def totals_lines(result: Dict[str, Any]) -> List[str]:
             if one.get("say_it"):
                 out.append(("✔ " if one.get("ok") else "✗ ") + one["say_it"])
     return out
+
+
+# ── MICRO-ARCHIVE-ASSET · the list lives in EMStudio, Blender points to it ───
+
+#: the targets of EMStudio's Archive › Asset, by the Deck's platform
+ASSET_TARGETS = {"heriverse": "web", "aton": "web", "web": "web"}
+
+
+def consolidation_summary(result: Dict[str, Any]) -> str:
+    """The Deck's one row in place of the list (E.D. 31 Oct 2026: the list
+    is EMStudio's Archive › Asset, Blender points to it): models, how many
+    have the mobile base, what is to do — the counts of s3Dgraphy's
+    ``consolidate``."""
+    c = result.get("counts") or {}
+    st = c.get("status") or {}
+    parts = [f"{c.get('models', 0)} models", f"{c.get('with_base', 0)} with the mobile base"]
+    todo = sum(int(st.get(k, 0) or 0) for k in ("necessary", "recommended", "opportune", "presence"))
+    parts.append(f"{todo} to do" if todo else "nothing to do")
+    for key, said in (("too_heavy", "too heavy"), ("modified_after_stamp", "modified after the stamp"),
+                      ("tileset_master", "tileset master to declare"), ("to_upload", "to upload")):
+        if c.get(key):
+            parts.append(f"{c[key]} {said}")
+    return " · ".join(parts)
+
+
+def asset_list_link(*, sidecar_clients: int, room: Dict[str, Optional[str]],
+                    platform: str = "heriverse") -> Dict[str, Any]:
+    """How «Open in EMStudio › Archive › Asset» reaches EMStudio: the
+    Sidecar (an ``open`` envelope ``what: assets``, EMStudio connected), else
+    the room's link (``stratigraph://open?…&view=assets&target=…``), else it
+    says how — as «Prepare in EMStudio» does."""
+    target = ASSET_TARGETS.get(platform, "web")
+    if sidecar_clients > 0:
+        return {"way": "sidecar", "envelope": {"type": "open", "what": "assets", "target": target}}
+    if room.get("server") and room.get("room"):
+        from urllib.parse import urlencode
+        q = {"server": room["server"], "room": room["room"], "view": "assets", "target": target}
+        return {"way": "link", "url": "stratigraph://open?" + urlencode(q)}
+    return {"way": None, "say": ("EMStudio is not connected: turn the Sidecar on (EM ▸ Mode ▸ With "
+                                 "EMStudio) and connect EMStudio to it, then press again; or open "
+                                 "the em.json in EMStudio › Archive › Asset (File › Consolidate for…).")}
