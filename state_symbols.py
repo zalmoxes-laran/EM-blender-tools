@@ -19,6 +19,7 @@ ICONS: Dict[str, str] = {
     "file.reference_only": "URL",
     "file.missing": "CANCEL",
     "file.empty_copy": "GHOST_DISABLED",
+    "file.in_cloud": "INTERNET",
     "node.reachable": "CHECKBOX_HLT",
     "node.unreachable": "CHECKBOX_DEHLT",
     "node.global": "WORLD",
