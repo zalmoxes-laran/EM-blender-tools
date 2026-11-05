@@ -77,7 +77,9 @@ def use_profiles():
     try:
         from s3dgraphy.resources import use_profiles as UP
         extra = _sibling_resources()
-        if extra is not None and not hasattr(UP, "ALIASES"):
+        # MICRO-VERSIONI-PER-USO: likewise a table without the names by use
+        # (``USE_SLUGS``): the bundled dev89 names a version «lodN»
+        if extra is not None and not (hasattr(UP, "ALIASES") and hasattr(UP, "USE_SLUGS")):
             # MICRO-PREPARA-RITOCCHI: the installed table predates E.D.'s names
             # of the profiles; the checkout beside holds them — the same as
             # EMStudio's bridge, so both say the same profiles
@@ -261,6 +263,13 @@ def target_name(folder: str, model: str, level: str, prof: Dict[str, Any],
     ``<model>@<level>-<destination>/<model>.gltf``)."""
     UP = use_profiles()
     name = UP.version_file_name(model, level, prof, packaging)
+    # MICRO-VERSIONI-PER-USO · a use's name as the level (``mobile-webxr-2k``,
+    # what EMStudio sends) with a table that does not know it: the use's form
+    # all the same, never ``…@mobile-webxr-2k-mobile.glb``
+    if not hasattr(UP, "USE_SLUGS") and str(level).split("-")[0] in {
+            k.split("_")[0] for k in getattr(UP, "PROFILES", {})} and not str(level).startswith("lod"):
+        name = name.rsplit("-" + prof["destination"] + ".", 1)
+        name = f"{name[0]}.{name[1]}" if len(name) == 2 else name[0]
     if name.endswith(".gltf"):
         stem = name[:-5]
         return os.path.join(folder, stem, name.split("@")[0] + ".gltf")

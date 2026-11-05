@@ -91,6 +91,16 @@ def test_level_and_target_name():
         "Colonnato@lod0-aton-heriverse.glb")
 
 
+def test_a_version_for_a_use_is_named_by_its_use():
+    """MICRO-VERSIONI-PER-USO (E.D., 2 Nov 2026): EMStudio sends the use's
+    name as the level; the file is ``<model>@<use>[-<n>k]``."""
+    mob = UP.profile("mobile_webxr")
+    assert pd.target_name("/p/SB/versions", "Column_light1", "mobile-webxr-2k", mob) \
+        == "/p/SB/versions/Column_light1@mobile-webxr-2k.glb"
+    assert pd.target_name("/p/SB/versions", "C", "webxr-53k", UP.profile("webxr")) \
+        == "/p/SB/versions/C@webxr-53k/C.gltf"
+
+
 def test_target_files_never_overwritten_silently(tmp_path):
     entry = str(tmp_path / "M@lod0-web.glb")
     assert pd.target_files(entry) == []
