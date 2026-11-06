@@ -325,3 +325,35 @@ def test_con_dtcstamp_013_le_stesse_piste_e_lo_stato_si_leggono(tmp_path, monkey
         "fingerprint": "struct:f=12:v=8", "sha256": MASTER["blend_digest"], "saved": True}
     assert d13.parent_hints(via, "US01_model_res_blend")["seen"][0]["locator"] == MASTER["locator"]
 
+
+
+
+# ── MICRO-TIMBRA-MASTER (6 Nov 2026) · the stamped file IS the master ──────────
+
+def test_a_master_export_is_stamped_tier_master_with_its_kind(tmp_path):
+    f = tmp_path / "Tempio.glb"
+    f.write_bytes(b"glTF master bytes")
+    out = bs.stamp_export(str(f), how={"dtc_kind": "export"}, tier="master", master_kind="complete")
+    me = out["stamp"]["self"]
+    assert out["state"] == "stamped" and me["tier"] == "master" and me["master_kind"] == "complete"
+    # a distribution never carries a kind of master
+    g = tmp_path / "Tempio@web.glb"
+    g.write_bytes(b"glTF web")
+    me = bs.stamp_export(str(g), how={"dtc_kind": "export"}, master_kind="complete")["stamp"]["self"]
+    assert me["tier"] == "distribution" and "master_kind" not in me
+
+
+def test_a_new_master_file_names_the_one_it_replaces(tmp_path):
+    old = tmp_path / "Tempio.glb"
+    old.write_bytes(b"old master")
+    first = bs.stamp_export(str(old), how={"dtc_kind": "export"}, tier="master")["stamp"]["self"]
+    new = tmp_path / "Tempio_rev-2026-11-06.glb"
+    new.write_bytes(b"new master, changed in Blender")
+    parent = {"resource_id": first["resource_id"], "digest": first["digest"], "tier": "master"}
+    out = bs.stamp_export(str(new), parents=[parent], how={"dtc_kind": "export", "technique": "manual_editing_blender"},
+                          tier="master", revision_of={"resource_id": first["resource_id"], "digest": first["digest"]})
+    st = out["stamp"]
+    assert st["self"]["was_revision_of"] == {"resource_id": first["resource_id"], "digest": first["digest"]}
+    assert st["from"] == [parent] and "a revision of" in out["line"]
+    # the old stamp is untouched
+    assert json.loads((tmp_path / "Tempio.glb.stamp.json").read_text())["self"]["digest"] == first["digest"]

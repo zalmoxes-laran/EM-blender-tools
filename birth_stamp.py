@@ -201,9 +201,19 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
                  operator: Optional[Dict[str, Any]] = None,
                  resource_id: Optional[str] = None, label: Optional[str] = None,
                  description: Optional[str] = None,
-                 when: Optional[str] = None, machine: Optional[str] = None
+                 when: Optional[str] = None, machine: Optional[str] = None,
+                 tier: str = "distribution", master_kind: Optional[str] = None,
+                 revision_of: Optional[Dict[str, Any]] = None
                  ) -> Dict[str, Any]:
     """Write the ``.stamp.json`` of an exported file, folder or archive.
+
+    MICRO-TIMBRA-MASTER: ``tier`` is ``master`` for a master exported out of
+    the .blend («Export as master», «Export as a new version of the master»)
+    — the stamped FILE is the master, the .blend a cache — with
+    ``master_kind`` (``very_high_resolution`` | ``complete``) on ``self``;
+    ``revision_of`` ``{resource_id, digest}`` names the master file this one
+    replaces when it is a NEW file (a revision at the same path is found by
+    itself).
 
     ``masters`` are the objects it was made from (:func:`master_entry`);
     ``parents`` other ``from`` entries as they are (a folder a ``.3tz`` was
@@ -226,7 +236,9 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
             return out
         stamp = _base_stamp(path, resource_id)
         itself = stamp["self"]
-        itself["tier"] = "distribution"
+        itself["tier"] = tier if tier in ("master", "distribution") else "distribution"
+        if itself["tier"] == "master" and master_kind in ("very_high_resolution", "complete"):
+            itself["master_kind"] = master_kind
         if label:
             itself["label"] = str(label)
         if description:
@@ -278,6 +290,10 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
                 + PREVIOUS_INFIX + _hex(old.get("digest"))[:12] + dtc.STAMP_SUFFIX)
             shutil.copy2(target, keep)
             out.update(revision_of=itself["was_revision_of"], previous_path=keep)
+        elif revision_of and revision_of.get("resource_id"):
+            itself["was_revision_of"] = {k: v for k, v in (("resource_id", str(revision_of["resource_id"])),
+                                                           ("digest", revision_of.get("digest"))) if v}
+            out.update(revision_of=itself["was_revision_of"])
 
         dtc.write_stamp(stamp, target)
         hints_path = write_hints(path, target, itself["digest"],
@@ -289,7 +305,7 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
                    line=(f"stamped {os.path.basename(target)} "
                          f"({itself.get('packaging')}, {itself['digest'][:19]}…)"
                          + (f", a revision of {itself['was_revision_of']['resource_id']}"
-                            if previous is not None else "")))
+                            if itself.get("was_revision_of") else "")))
         return out
     except Exception as exc:                        # noqa: BLE001 — said, not raised
         out["line"] = f"not stamped: {exc}"
@@ -549,7 +565,9 @@ def stamp_blender_export(path: str, *, objects=None, dtc_kind: str = KIND_EXPORT
                          resource_id: Optional[str] = None,
                          label: Optional[str] = None,
                          register_in_graph: bool = True, context=None,
-                         force: bool = False) -> Dict[str, Any]:
+                         force: bool = False, tier: str = "distribution",
+                         master_kind: Optional[str] = None,
+                         revision_of: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """THE call for an export made in Blender — EMtools' and 3DSC's.
 
     ``objects`` the meshes it was made from (the masters); ``producer`` the
@@ -577,7 +595,8 @@ def stamp_blender_export(path: str, *, objects=None, dtc_kind: str = KIND_EXPORT
     how["software"] = blender_software(producer)
     result = stamp_export(path, masters=masters, parents=parents, how=how,
                           operator=current_operator(), resource_id=resource_id,
-                          label=label)
+                          label=label, tier=tier, master_kind=master_kind,
+                          revision_of=revision_of)
     result["graph"] = ""
     if (register_in_graph and graph is not None and len(masters) == 1
             and masters[0].get("rm_id") and result["state"] in ("stamped", "revised")):

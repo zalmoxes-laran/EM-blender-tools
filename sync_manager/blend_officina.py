@@ -106,11 +106,22 @@ def read_session(blend: str, home: Optional[str] = None) -> Optional[Dict[str, A
         return None
 
 
+#: MICRO-TIMBRA-MASTER · the two kinds of master, as a row says them
+#: (s3Dgraphy's ``resources.master_stamp.KIND_LABELS``)
+KIND_LABELS = {"very_high_resolution": "very high resolution", "complete": "complete"}
+#: the radar's gesture (s3Dgraphy's ``blend_folder.EXPORT_MASTER_VERSION``)
+EXPORT_MASTER_VERSION = "export_master_version"
+
+
 def status_line(*, master_stamped: Optional[bool], versions: int,
-                counts: Optional[Dict[str, int]] = None) -> str:
+                counts: Optional[Dict[str, int]] = None, kind: Optional[str] = None) -> str:
     """The status row of a container in «Asset versions»: the master, the
-    versions, the alignment (the last check)."""
-    master = {True: "master stamped", False: "master not stamped", None: "no master"}[master_stamped]
+    versions, the alignment (the last check). MICRO-TIMBRA-MASTER: a master
+    not stamped says so with a sign («⚠ master not stamped»), and the kind of
+    master when it is known."""
+    master = {True: "master stamped", False: "⚠ master not stamped", None: "no master"}[master_stamped]
+    if kind in KIND_LABELS and master_stamped is not None:
+        master += f" · {KIND_LABELS[kind]}"
     parts = [master, f"{versions} version" + ("" if versions == 1 else "s")]
     if counts:
         signs = {"aligned": "✔", "changed_here": "↑", "newer_outside": "↓", "missing": "✗", "only_here": "○"}
@@ -118,6 +129,51 @@ def status_line(*, master_stamped: Optional[bool], versions: int,
         if said:
             parts.append(said)
     return " · ".join(parts)
+
+
+def master_sign(*, master_url: str, stamp_exists: Optional[bool]) -> Dict[str, Any]:
+    """MICRO-TIMBRA-MASTER p.1 · the sign of a container's master, and its
+    gesture: a datablock of the .blend (``blend://``) is not stamped — «Export
+    as master» writes and stamps its file; a file with no stamp beside it is
+    not stamped — «Stamp the master» stamps it where it is; a file with its
+    stamp is stamped. → ``{stamped, gesture, say}``."""
+    url = str(master_url or "")
+    if not url:
+        return {"stamped": None, "gesture": None, "say": "no master"}
+    if url.startswith("blend://"):
+        return {"stamped": False, "gesture": "export_master",
+                "say": "⚠ master not stamped: it is an object of the .blend — export it as master"}
+    if stamp_exists is False:
+        return {"stamped": False, "gesture": "stamp_master",
+                "say": "⚠ master not stamped: its file has no stamp beside it — stamp it"}
+    return {"stamped": True, "gesture": None, "say": "master stamped"}
+
+
+def master_version_path(old_path: str, *, taken: Optional[List[str]] = None, day: Optional[str] = None) -> str:
+    """Where «Export as a new version of the master» writes: beside the master
+    it replaces, ``<stem>_rev-YYYY-MM-DD<ext>`` (``-2``, ``-3`` the same day) —
+    never over a file. The extension (the branch's format) is the old one's."""
+    folder, name = os.path.split(old_path)
+    stem, ext = os.path.splitext(name)
+    stem = re.sub(r"_rev-\d{4}-\d{2}-\d{2}(-\d+)?$", "", stem)
+    day = day or time.strftime("%Y-%m-%d")
+    have = set(taken if taken is not None else (os.listdir(folder) if os.path.isdir(folder) else []))
+    n, cand = 1, f"{stem}_rev-{day}{ext}"
+    while cand in have:
+        n += 1
+        cand = f"{stem}_rev-{day}-{n}{ext}"
+    return os.path.join(folder, cand)
+
+
+def kind_of_file(path: str) -> Optional[str]:
+    """The kind of master a file is (s3Dgraphy's ``master_stamp``: textured →
+    complete, untextured → very high resolution), None when not known or this
+    Blender's s3dgraphy predates it."""
+    try:
+        from s3dgraphy.resources import master_stamp as MS
+    except ImportError:
+        return None
+    return MS.master_kind(None, textured=MS.is_textured(path))
 
 
 def prepare_link(*, sidecar_clients: int, room: Dict[str, Optional[str]], container: str,
@@ -605,11 +661,15 @@ def _export_one(context, obj, path: str, fmt: Dict[str, Any]) -> None:  # pragma
         layer.objects.active = act
 
 
-def _stamp(context, obj, path: str, *, technique: str, label: str) -> Dict[str, Any]:  # pragma: no cover
+def _stamp(context, obj, path: str, *, technique: str, label: str, tier: str = "distribution",
+           master_kind: Optional[str] = None, parents: Optional[List[Dict[str, Any]]] = None,
+           revision_of: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:  # pragma: no cover
     from .. import birth_stamp as BS
     return BS.stamp_blender_export(path, objects=[obj], dtc_kind=BS.KIND_EXPORT, technique=technique,
                                    parameters={"step": MANUAL_STEP if technique == MANUAL_TECHNIQUE else technique},
-                                   label=label, register_in_graph=False, context=context, force=True)
+                                   label=label, register_in_graph=False, context=context, force=True,
+                                   tier=tier, master_kind=master_kind, parents=parents,
+                                   revision_of=revision_of)
 
 
 def _files_of(path: str) -> List[Dict[str, Any]]:  # pragma: no cover — bpy
@@ -666,7 +726,10 @@ def export_master(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragm
         raise RuntimeError(f"{os.path.relpath(t['path'], t['root'])} is there already: a master is never "
                            "written over — remove it or register this as a version")
     _export_one(context, obj, t["path"], t["format"])
-    st = _stamp(context, obj, t["path"], technique="master_export", label=f"{obj.name} (master)")
+    # MICRO-TIMBRA-MASTER · the stamped file IS the master: tier master, its kind
+    kind = kind_of_file(t["path"])
+    st = _stamp(context, obj, t["path"], technique="master_export", label=f"{obj.name} (master)",
+                tier="master", master_kind=kind)
     files = _files_of(t["path"])
     from ..resource_digest import members_digest
     digest = members_digest(files) if len(files) > 1 else str(files[0]["checksum"])
@@ -679,6 +742,8 @@ def export_master(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragm
         node = graph.find_node_by_id(master_id) if master_id else None
         if node is not None:
             old = str((node.data or {}).get("url") or "")
+            if kind:
+                node.data["master_kind"] = kind
             node.data.update({"url": rel, "checksum": digest, "tier": "master",
                               "media_type": "model/gltf+json" if t["format"]["format"] == "gltf" else "model/obj",
                               "packaging": "file_set" if len(files) > 1 else None,
@@ -692,6 +757,99 @@ def export_master(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragm
     _mark(obj, digest, asset_id=master_id)
     return {"path": t["path"], "rel": rel, "digest": digest, "master_id": master_id,
             "state": st.get("state"), "folder": t["folder"]}
+
+
+def _master_file(graph, obj, context, em_folder: str):  # pragma: no cover — bpy
+    """The object's master node and the path of its FILE (None when the master
+    is still a datablock or has no url)."""
+    from .asset_versions import master_of
+    mid = master_of(graph, obj, context.scene) or ""
+    node = graph.find_node_by_id(mid) if mid else None
+    url = str(((node.data or {}).get("url") if node is not None else "") or getattr(node, "url", "") or "")
+    if not url or url.startswith("blend://"):
+        return node, None
+    return node, url if os.path.isabs(url) else os.path.normpath(os.path.join(em_folder, url))
+
+
+def export_master_version(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """MICRO-TIMBRA-MASTER p.3 · «Export as a new version of the master»: the
+    object differs from its stamped master (changed in Blender after the
+    stamp, or other bytes). A NEW master file beside the old one
+    (:func:`master_version_path`), exported in the master's format, stamped
+    ``tier: master`` with its kind, ``from`` the previous master (by id and
+    digest) and the object, ``was_revision_of`` the previous master; in the
+    graph a new master resource, ``was_revision_of`` the old and derived from
+    it, the RM hatting the new one (s3Dgraphy's
+    ``master_stamp.register_master_revision``). The .blend is a cache: it is
+    not stamped, and the old master file is never written over.
+    → ``{path, rel, digest, resource_id, old_id, state}``."""
+    _refuse_detail(obj)
+    if graph is None:
+        raise RuntimeError("no active graph")
+    try:
+        from s3dgraphy.resources import master_stamp as MS
+    except ImportError as exc:
+        raise RuntimeError("this Blender's s3dgraphy has no master_stamp: it comes with the next "
+                           "bundle of EM Tools") from exc
+    em_folder = os.path.dirname(em_json) if em_json else ""
+    node, old_path = _master_file(graph, obj, context, em_folder)
+    if node is None or not old_path:
+        raise RuntimeError(f"{obj.name}: its master is not a stamped file — «Export as master» first")
+    from .. import birth_stamp as BS
+    import dtcstamp
+    old_stamp = None
+    sp = BS.stamp_path_for(old_path)
+    if os.path.isfile(sp):
+        old_stamp = dtcstamp.read_stamp(sp)
+    old_self = (old_stamp or {}).get("self") or {}
+    old_entry = {"resource_id": str(old_self.get("resource_id") or node.node_id), "tier": "master",
+                 "label": node.name}
+    old_digest = old_self.get("digest") or (node.data or {}).get("checksum")
+    if old_digest:
+        old_entry["digest"] = old_digest
+    fmt = {"format": "obj" if old_path.lower().endswith(".obj") else "gltf"}
+    path = master_version_path(old_path)
+    _export_one(context, obj, path, fmt)
+    kind = (node.data or {}).get("master_kind") or kind_of_file(path)
+    st = _stamp(context, obj, path, technique=MANUAL_TECHNIQUE, label=f"{obj.name} (master, new version)",
+                tier="master", master_kind=kind, parents=[old_entry],
+                revision_of={"resource_id": old_entry["resource_id"], "digest": old_digest})
+    if st.get("state") not in ("stamped", "revised"):
+        raise RuntimeError(f"the new master is written but not stamped: {st.get('line')}")
+    files = _relative(_files_of(path), em_folder)
+    from ..resource_digest import members_digest
+    digest = members_digest(_files_of(path)) if len(files) > 1 else str(files[0]["checksum"])
+    from .. import birth_stamp as _BS
+    out = MS.register_master_revision(graph, node.node_id, name=f"{obj.name} (master, {os.path.basename(path)})",
+                                      files=files, checksum=digest, master_kind=kind,
+                                      technique=MANUAL_STEP, software=_BS.blender_software())
+    _mark(obj, digest, asset_id=out["resource_id"])
+    return {"path": path, "rel": os.path.relpath(path, em_folder) if em_folder else path, "digest": digest,
+            "resource_id": out["resource_id"], "old_id": node.node_id, "state": st.get("state")}
+
+
+def stamp_master(context, graph, obj, em_json: str) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """MICRO-TIMBRA-MASTER p.1 · «Stamp the master»: the master is a file that
+    arrived with no stamp (exported elsewhere, before stamping existed): its
+    stamp is written where it is — ``tier: master`` and its kind, ``from: []``
+    and ``how.dtc_kind: local_import`` (it came in already made; how it was
+    made is not known here and is not invented)."""
+    em_folder = os.path.dirname(em_json) if em_json else ""
+    node, path = _master_file(graph, obj, context, em_folder)
+    if node is None or not path:
+        raise RuntimeError(f"{obj.name}: its master is an object of the .blend — «Export as master»")
+    if not os.path.exists(path):
+        raise RuntimeError(f"the master file is not on this disk: {path}")
+    from .. import birth_stamp as BS
+    kind = (node.data or {}).get("master_kind") or kind_of_file(path)
+    st = BS.stamp_export(path, how={"dtc_kind": "local_import", "technique": "master stamped as it arrived",
+                                    "software": BS.blender_software()},
+                         operator=BS.current_operator(), label=node.name, tier="master", master_kind=kind)
+    if st.get("state") not in ("stamped", "revised", "unchanged"):
+        raise RuntimeError(st.get("line") or "not stamped")
+    if kind and node is not None:
+        node.data["master_kind"] = kind
+    return {"path": path, "state": st.get("state"), "line": st.get("line")}
 
 
 def _levels_taken(graph, obj, context, folder: str, stem: str) -> List[str]:  # pragma: no cover — bpy
@@ -1021,6 +1179,10 @@ def apply_rows(context, graph, rows: List[Dict[str, Any]], em_json: str, *, em_f
                 register_version(context, graph, obj, em_json, as_resource=True)
             elif act == "export_master":
                 export_master(context, graph, obj, em_json)
+            elif act == EXPORT_MASTER_VERSION:
+                export_master_version(context, graph, obj, em_json)
+            elif act == "stamp_master":
+                stamp_master(context, graph, obj, em_json)
             elif act == "take_epochs_from_graph":
                 take_epochs(graph, obj, list(r.get("epochs_graph") or []))
             elif act == "register_new_version":
@@ -1088,6 +1250,10 @@ def _operator_classes():  # pragma: no cover — bpy
                ("register_version", "Register as a version", "export, stamp, a version of its master"),
                ("register_resource", "Register as a new resource", "export, stamp, a resource of its own"),
                ("export_master", "Export as master", "the master as a stamped file outside the .blend"),
+               ("export_master_version", "Export as a new version of the master",
+                "the object differs from its stamped master: a new master file beside it, stamped, "
+                "a revision of the old one (the .blend stays a cache)"),
+               ("stamp_master", "Stamp the master", "its file arrived with no stamp: stamp it where it is"),
                ("take_epochs_from_graph", "Take the graph's epochs", "the object's epochs as the graph says"),
                ("relink_texture", "Find the texture", "look for it beside the .blend"),
                ("unpack_texture", "Unpack the texture", "write it beside the .blend"),
@@ -1314,6 +1480,51 @@ def _operator_classes():  # pragma: no cover — bpy
             self.report({"INFO"}, f"Exported {ok} master(s)")
             return {"FINISHED"}
 
+    class EM_OT_blend_export_master_version(bpy.types.Operator, _OnSelection):
+        """Export the selected objects as a NEW VERSION of their stamped master: a new master file
+        beside the old one, stamped as its revision; the graph's RM hats the new master (the .blend stays a cache)"""
+        bl_idname = "em.blend_export_master_version"
+        bl_label = "Export as a new version of the master"
+        bl_options = {"REGISTER", "UNDO"}
+
+        def invoke(self, context, event):
+            return context.window_manager.invoke_confirm(self, event)
+
+        def execute(self, context):
+            graph, _d, _f = active_graph_doc(context)
+            from .project_files import active_emjson
+            em = active_emjson(context)
+            ok = 0
+            for o in self._objs(context):
+                try:
+                    export_master_version(context, graph, o, em)
+                    ok += 1
+                except Exception as exc:  # noqa: BLE001
+                    self.report({"WARNING"}, f"{o.name}: {exc}")
+            self.report({"INFO"}, f"{ok} new version(s) of the master, stamped")
+            return {"FINISHED"}
+
+    class EM_OT_blend_stamp_master(bpy.types.Operator, _OnSelection):
+        """Stamp the master file of the selected objects where it is: it arrived without a stamp
+        (tier master, its kind: very high resolution or complete)"""
+        bl_idname = "em.blend_stamp_master"
+        bl_label = "Stamp the master"
+        bl_options = {"REGISTER", "UNDO"}
+
+        def execute(self, context):
+            graph, _d, _f = active_graph_doc(context)
+            from .project_files import active_emjson
+            em = active_emjson(context)
+            ok = 0
+            for o in self._objs(context):
+                try:
+                    stamp_master(context, graph, o, em)
+                    ok += 1
+                except Exception as exc:  # noqa: BLE001
+                    self.report({"WARNING"}, f"{o.name}: {exc}")
+            self.report({"INFO"}, f"Stamped {ok} master(s)")
+            return {"FINISHED"}
+
     class EM_OT_prepare_in_emstudio(bpy.types.Operator):
         """Open EMStudio on this container to prepare it for a use (the optimisation
         window lives in EMStudio now)"""
@@ -1351,7 +1562,7 @@ def _operator_classes():  # pragma: no cover — bpy
 
     return (EM_PG_check_row, EM_UL_check_rows, EM_OT_blend_check_graph, EM_OT_blend_register_version,
             EM_OT_blend_restore_master, EM_OT_blend_update_version, EM_OT_blend_export_master,
-            EM_OT_prepare_in_emstudio)
+            EM_OT_blend_export_master_version, EM_OT_blend_stamp_master, EM_OT_prepare_in_emstudio)
 
 
 def draw_check(layout, context) -> None:  # pragma: no cover — bpy
@@ -1376,12 +1587,16 @@ def draw_modeller(layout, context) -> None:  # pragma: no cover — bpy
     col.operator("em.blend_restore_master", icon="LOOP_BACK", text="Restore from the master" + on)
     col.operator("em.blend_update_version", icon="SORTTIME", text="Update to the latest version" + on)
     col.operator("em.blend_export_master", icon="EXPORT", text="Export as master" + on)
+    col.operator("em.blend_export_master_version", icon="DUPLICATE",
+                 text="Export as a new version of the master" + on)
 
 
 def draw_status(layout, context, obj) -> None:  # pragma: no cover — bpy
     """«Asset versions»: the status row of the active object's container, and
     «Prepare in EMStudio»."""
     master_stamped: Optional[bool] = None
+    sign: Dict[str, Any] = {"stamped": None, "gesture": None, "say": ""}
+    kind: Optional[str] = None
     versions = 0
     cont = ""
     try:
@@ -1394,7 +1609,17 @@ def draw_status(layout, context, obj) -> None:  # pragma: no cover — bpy
             node = graph.find_node_by_id(mid) if mid else None
             if node is not None:
                 url = str((node.data or {}).get("url") or "")
-                master_stamped = bool(url) and not url.startswith("blend://")
+                kind = (node.data or {}).get("master_kind") or None
+                exists = None
+                if url and not url.startswith("blend://"):
+                    from .project_files import active_emjson
+                    em = active_emjson(context)
+                    path = url if os.path.isabs(url) else os.path.join(os.path.dirname(em or ""), url)
+                    from .. import birth_stamp as BS
+                    exists = os.path.isfile(BS.stamp_path_for(path))
+                    kind = kind or (kind_of_file(path) if os.path.isfile(path) else None)
+                sign = master_sign(master_url=url, stamp_exists=exists)
+                master_stamped = sign["stamped"]
                 versions = max(0, len(api.versions_of(graph, mid)) - 1)
             cont = container_of(context, graph, obj)
     except Exception:  # noqa: BLE001
@@ -1406,7 +1631,16 @@ def draw_status(layout, context, obj) -> None:  # pragma: no cover — bpy
         counts = {st: 1} if st else None
     box = layout.box()
     box.label(text=(cont or "—") + " · " + status_line(master_stamped=master_stamped, versions=versions,
-                                                        counts=counts), icon="OUTLINER_COLLECTION")
+                                                        counts=counts, kind=kind), icon="OUTLINER_COLLECTION")
+    # MICRO-TIMBRA-MASTER p.1 · a master not stamped is SEEN, with its gesture
+    if sign.get("stamped") is False:
+        row = box.row(align=True)
+        row.alert = True
+        row.label(text=sign["say"], icon="ERROR")
+        if sign["gesture"] == "export_master":
+            row.operator("em.blend_export_master", icon="EXPORT", text="Export as master")
+        elif sign["gesture"] == "stamp_master":
+            row.operator("em.blend_stamp_master", icon="FILE_TICK", text="Stamp the master")
     op = box.operator("em.prepare_in_emstudio", icon="URL", text="Prepare in EMStudio")
     op.container = cont
 
