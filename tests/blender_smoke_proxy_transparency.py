@@ -59,7 +59,10 @@ def alphas():
             p = next((n for n in (mat.node_tree.nodes if mat.node_tree else [])
                       if n.type == 'BSDF_PRINCIPLED'), None)
             out.append((round(p.inputs['Alpha'].default_value, 3) if p else None,
-                        round(mat.diffuse_color[3], 3), mat.blend_method))
+                        round(mat.diffuse_color[3], 3),
+                        # MICRO-TAGLI-3D-DECISIONI (decision 4): transparent proxies render
+                        # «Dithered» (order independent); before Blender 4.2 the blend method
+                        getattr(mat, "surface_render_method", mat.blend_method)))
     return out
 
 
@@ -68,7 +71,7 @@ def slide(mode_label):
     before = alphas()
     et.proxy_display_alpha = 0.2
     after = alphas()
-    ok = bool(after) and all(a[0] in (None, 0.2) and a[1] == 0.2 and a[2] == 'BLEND'
+    ok = bool(after) and all(a[0] in (None, 0.2) and a[1] == 0.2 and a[2] in ('DITHERED', 'BLEND')
                              for a in after)
     check(f"slider 1 → 0.2 changes the alpha in mode {mode_label}", ok,
           f"{len(after)} materials · before {sorted(set(before))[:3]} · "

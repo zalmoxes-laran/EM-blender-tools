@@ -248,6 +248,11 @@ class VISUAL_OT_apply_colors(Operator):
             # STEP 3: Applica i materiali agli oggetti
             colored_count = apply_materials_to_objects(context, property_mapping, materials_by_value)
             print(f"STEP 3: Applied materials to objects")
+
+            # MICRO-TAGLI-3D-DECISIONI · the type decides the faces (USNt none,
+            # USN 0.3), the property colours (the edges and the other faces)
+            from ..functions import apply_threed_in_mode
+            apply_threed_in_mode(context, "Properties")
             
             # Report risultato
             total_meshes = len([obj for obj in scene.objects if obj.type == 'MESH'])

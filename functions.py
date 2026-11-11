@@ -1527,11 +1527,19 @@ def update_property_materials_alpha(alpha_value):
                 new_color = (*current_color[:3], alpha_value)
                 principled_node.inputs['Base Color'].default_value = new_color
 
+            # MICRO-TAGLI-3D-DECISIONI · a faces variant keeps its type's factor
+            a = _type_alpha(mat.name, alpha_value)
+            if a != alpha_value:
+                if 'Alpha' in principled_node.inputs:
+                    principled_node.inputs['Alpha'].default_value = a
+                principled_node.inputs['Base Color'].default_value = (*current_color[:3], a)
+
             # Set appropriate blend mode
-            if alpha_value < 1.0:
+            if a < 1.0:
                 mat.blend_method = 'BLEND'
             else:
                 mat.blend_method = getattr(scene, 'proxy_blend_mode', 'OPAQUE')
+            _order_independent(mat, a)
 
             updated_count += 1
 
@@ -1593,6 +1601,19 @@ def _set_material_alpha(mat, alpha, blend_when_opaque):
             if node.type == 'BSDF_PRINCIPLED' and 'Alpha' in node.inputs:
                 node.inputs['Alpha'].default_value = alpha
     mat.blend_method = 'BLEND' if alpha < 1.0 else blend_when_opaque
+    _order_independent(mat, alpha)
+
+
+def _order_independent(mat, alpha):
+    """MICRO-TAGLI-3D-DECISIONI (decision 4) · EEVEE «Dithered» + backface
+    culling: the fill no longer vanishes behind its cut when the proxies have
+    their origin at 0,0,0 (Blended sorts by origin). The user's objects are
+    not touched."""
+    try:
+        from .threed_style import order_independent
+        order_independent(mat, alpha)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[threed] render method not set on {mat.name}: {exc}")
 
 
 def apply_proxy_alpha(context):
@@ -1632,16 +1653,21 @@ def _type_alpha(mat_name, slider):
     """NIGHT-TAGLI-E-NEUTRE · an EM type's material (named after the type):
     the type's faces opacity × the slider (em_visual_rules threed: the slider
     MULTIPLIES); 0 for a type without faces (USNt). Epoch and property
-    materials: the slider, as before."""
-    if mat_name not in US_PROPER_TYPES:
+    materials: the slider, as before — except their faces variants
+    (``ep_X.EM_faces_USNt``, MICRO-TAGLI-3D-DECISIONI: the type decides the
+    faces in every mode), which take their type's factor."""
+    from .threed_style import faces_alpha, threed_style_of, type_of_material
+    t = mat_name if mat_name in US_PROPER_TYPES else type_of_material(mat_name)
+    if t is None:
         return slider
-    from .threed_style import faces_alpha, threed_style_of
-    return faces_alpha(threed_style_of(mat_name), slider)
+    return faces_alpha(threed_style_of(t), slider)
 
 
 def _drop_type_edges():
-    """NIGHT-TAGLI-E-NEUTRE · the type's edges belong to the EM display (the
-    colour of the type): another mode takes them away; EM draws them again."""
+    """NIGHT-TAGLI-E-NEUTRE · every type-edge curve away. Since
+    MICRO-TAGLI-3D-DECISIONI the edges stay in every display mode (coloured by
+    the mode, ``threed_style.apply_threed_mode``): this is no longer called on
+    a mode change, only kept for a clean-up."""
     try:
         from .threed_style import remove_all_edges
         remove_all_edges()
@@ -1657,10 +1683,8 @@ def update_display_mode(self, context):
         if scene.em_tools.proxy_display_mode == "EM":
             bpy.ops.emset.emmaterial()
         elif scene.em_tools.proxy_display_mode == "Epochs":
-            _drop_type_edges()
             bpy.ops.emset.epochmaterial()
         elif scene.em_tools.proxy_display_mode == "Properties":
-            _drop_type_edges()
             # Prima aggiorna l'alpha dei materiali esistenti
             update_property_materials_alpha(scene.em_tools.proxy_display_alpha)
             
@@ -1746,6 +1770,7 @@ def em_setup_mat_cycles(matname, R, G, B, A=1.0):
     mainNode.name = "diffuse"
     mainNode.inputs['Alpha'].default_value = scene.em_tools.proxy_display_alpha * type_op
     links.new(mainNode.outputs[0], output.inputs[0])
+    _order_independent(mat, scene.em_tools.proxy_display_alpha * type_op)
 
 
 def set_materials_using_EM_list(context):
@@ -1904,6 +1929,20 @@ def set_materials_using_epoch_list(context):
                         obj.data.materials.append(mat)
                     else:
                         print(f"Warning: Warning: Object '{proxy_name}' not found")
+    # MICRO-TAGLI-3D-DECISIONI · the type decides the faces, the epoch colours
+    # (the edges, and the faces of the types that have faces)
+    apply_threed_in_mode(context, "Epochs")
+
+
+def apply_threed_in_mode(context, mode):
+    """The types' faces and edges after a display mode has put its materials
+    on the proxies (decision 3 of E.D., 11 Nov 2026)."""
+    try:
+        from .threed_style import apply_threed_mode, typed_proxies
+        return apply_threed_mode(context, typed_proxies(context), mode)
+    except Exception as exc:  # noqa: BLE001 — the materials are applied anyway
+        print(f"[threed] {mode}: faces/edges of the types not applied: {exc}")
+        return None
 
 
 

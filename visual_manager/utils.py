@@ -228,6 +228,9 @@ def create_property_materials_for_scene_values(context):
 
             mat.show_transparent_back = False
             mat.use_backface_culling = False
+            # MICRO-TAGLI-3D-DECISIONI · order independent (decision 4)
+            from ..threed_style import order_independent
+            order_independent(mat, alpha_value)
 
             # Create shader nodes
             output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
