@@ -1616,16 +1616,37 @@ def apply_proxy_alpha(context):
     for ob in proxy_objects(context):
         for slot in ob.material_slots:
             if slot.material is not None and slot.material.name not in done:
-                _set_material_alpha(slot.material, alpha, opaque)
+                _set_material_alpha(slot.material, _type_alpha(slot.material.name, alpha), opaque)
                 done.add(slot.material.name)
     for mat in bpy.data.materials:
         if mat.name in done:
             continue
         if (mat.name in US_PROPER_TYPES or mat.name.startswith("ep_")
                 or mat.name.startswith("prop_")):
-            _set_material_alpha(mat, alpha, opaque)
+            _set_material_alpha(mat, _type_alpha(mat.name, alpha), opaque)
             done.add(mat.name)
     return len(done)
+
+
+def _type_alpha(mat_name, slider):
+    """NIGHT-TAGLI-E-NEUTRE · an EM type's material (named after the type):
+    the type's faces opacity × the slider (em_visual_rules threed: the slider
+    MULTIPLIES); 0 for a type without faces (USNt). Epoch and property
+    materials: the slider, as before."""
+    if mat_name not in US_PROPER_TYPES:
+        return slider
+    from .threed_style import faces_alpha, threed_style_of
+    return faces_alpha(threed_style_of(mat_name), slider)
+
+
+def _drop_type_edges():
+    """NIGHT-TAGLI-E-NEUTRE · the type's edges belong to the EM display (the
+    colour of the type): another mode takes them away; EM draws them again."""
+    try:
+        from .threed_style import remove_all_edges
+        remove_all_edges()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[threed] edges not removed: {exc}")
 
 
 def update_display_mode(self, context):
@@ -1636,8 +1657,10 @@ def update_display_mode(self, context):
         if scene.em_tools.proxy_display_mode == "EM":
             bpy.ops.emset.emmaterial()
         elif scene.em_tools.proxy_display_mode == "Epochs":
+            _drop_type_edges()
             bpy.ops.emset.epochmaterial()
         elif scene.em_tools.proxy_display_mode == "Properties":
+            _drop_type_edges()
             # Prima aggiorna l'alpha dei materiali esistenti
             update_property_materials_alpha(scene.em_tools.proxy_display_alpha)
             
@@ -1702,12 +1725,17 @@ def em_setup_mat_cycles(matname, R, G, B, A=1.0):
     mat.diffuse_color[0] = R
     mat.diffuse_color[1] = G
     mat.diffuse_color[2] = B 
-    mat.diffuse_color[3] = A
+    # NIGHT-TAGLI-E-NEUTRE · the type's faces: opacity × the slider, none for USNt
+    from .threed_style import threed_style_of
+    style = threed_style_of(matname)
+    faces = (style or {}).get("faces") or {}
+    type_op = float(faces.get("opacity", 1.0)) if faces.get("show", True) else 0.0
+    mat.diffuse_color[3] = A * type_op
     mat.show_transparent_back = False
     mat.use_backface_culling = False
     mat.use_nodes = True
     mat.node_tree.nodes.clear()
-    mat.blend_method = scene.em_tools.proxy_blend_mode
+    mat.blend_method = scene.em_tools.proxy_blend_mode if type_op >= 1.0 else 'BLEND'
     links = mat.node_tree.links
     nodes = mat.node_tree.nodes
     output = nodes.new('ShaderNodeOutputMaterial')
@@ -1716,7 +1744,7 @@ def em_setup_mat_cycles(matname, R, G, B, A=1.0):
     mainNode.inputs['Base Color'].default_value = (R, G, B, A)
     mainNode.location = (-800, 50)
     mainNode.name = "diffuse"
-    mainNode.inputs['Alpha'].default_value = scene.em_tools.proxy_display_alpha
+    mainNode.inputs['Alpha'].default_value = scene.em_tools.proxy_display_alpha * type_op
     links.new(mainNode.outputs[0], output.inputs[0])
 
 
@@ -1732,6 +1760,7 @@ def set_materials_using_EM_list(context):
     active_graph = graph if graph_exists else None
     
     strat = context.scene.em_tools.stratigraphy  # ✅ Nuovo
+    typed = []
     em_list_lenght = len(strat.units)
     counter = 0
     while counter < em_list_lenght:
@@ -1788,7 +1817,15 @@ def set_materials_using_EM_list(context):
             mat = bpy.data.materials[ob_material_name]
             current_ob_scene.data.materials.clear()
             current_ob_scene.data.materials.append(mat)
+            if current_ob_scene.type == 'MESH':
+                typed.append((current_ob_scene, ob_material_name))
         counter += 1
+    # NIGHT-TAGLI-E-NEUTRE · the edges of the types that have their own (USN, USNt)
+    try:
+        from .threed_style import apply_threed
+        apply_threed(context, typed)
+    except Exception as exc:  # noqa: BLE001 — the materials are applied anyway
+        print(f"[threed] edges not drawn: {exc}")
 
 def proxy_shader_mode_function(self, context):
     scene = context.scene

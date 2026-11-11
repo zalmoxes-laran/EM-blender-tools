@@ -32,10 +32,23 @@ def _display_mode_on_load(_dummy=None):
         print(f"[VisualManager] display mode not read: {exc}")
 
 
+@persistent
+def _threed_edges_follow(scene=None, depsgraph=None):
+    """NIGHT-TAGLI-E-NEUTRE · the type's edges (USN, USNt) follow their proxy:
+    hidden, shown, off in the render as it is."""
+    try:
+        from ..threed_style import sync_edges_visibility
+        sync_edges_visibility(scene, depsgraph)
+    except Exception:  # noqa: BLE001 — a drawing aid never stops an update
+        pass
+
+
 def register():
     """Register Visual Manager - solo UI e operatori base."""
     if _display_mode_on_load not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(_display_mode_on_load)
+    if _threed_edges_follow not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(_threed_edges_follow)
     try:
         register_data()
         register_operators()
@@ -56,6 +69,8 @@ def unregister():
     """Unregister Visual Manager - solo UI e operatori base."""
     if _display_mode_on_load in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(_display_mode_on_load)
+    if _threed_edges_follow in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(_threed_edges_follow)
     try:
         unregister_ui()
         unregister_label_tools()
