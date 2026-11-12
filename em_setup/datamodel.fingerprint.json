@@ -1,26 +1,26 @@
 {
-  "digest": "sha256:b32a6c18d3253929c584b38a29309f99c7c15c0c1255653d77165928c228b2e8",
+  "digest": "sha256:bae7a32fbe0568d3b2881406f2c4bb8698d27ab18105df76d5ee862689430d87",
   "versions": {
-    "nodes": "1.6.42",
+    "nodes": "1.6.43",
     "node_registry": "1.6.41",
     "connections": "1.6.53",
-    "visual_rules": "1.6.43",
-    "qualia": "1.6.10",
+    "visual_rules": "1.6.45",
+    "qualia": "1.6.11",
     "translations": "1.16"
   },
   "digests": {
-    "nodes": "sha256:16d6e02abf05f5d69cf88113e6adad050901b4f3417ff73ad999d85418fb80db",
+    "nodes": "sha256:31abff5b7ab70522ec8dba8cf75c7d652fc3aa60f217f24c9381f6726859e5cc",
     "node_registry": "sha256:5669c0824d7149e22a25d424645b3b78b7c698c5338f3fd639d75c60b31483da",
     "connections": "sha256:4b0e4cca75478bcb7b2d3d158f70def90a6b76f97a37450e2eb6f37602976a9b",
-    "visual_rules": "sha256:cec805e27c8fbf5ecc70d2b5b9efc62845b9eafc1eb4bef42fd3df0788936e04",
-    "qualia": "sha256:2f8567e8e0f6a319327839ab5169c1495642eebef00c542b9b50c284abdb8502",
+    "visual_rules": "sha256:c171c337031c5b4ea97dfd7d597b28de1a716c00ee4ab01653e6677298c266d5",
+    "qualia": "sha256:f7ac5853dddacd222e6b4eb75fe943a6a44e594742100160e6fad97f7c69da9c",
     "translations": "sha256:9df60406f02a292d7e2c1b066ee649588f9668613f3f0f0365884efe37f7c6e5"
   },
   "files": {
     "nodes": {
       "file": "s3Dgraphy_node_datamodel.json",
-      "digest": "sha256:16d6e02abf05f5d69cf88113e6adad050901b4f3417ff73ad999d85418fb80db",
-      "version": "1.6.42"
+      "digest": "sha256:31abff5b7ab70522ec8dba8cf75c7d652fc3aa60f217f24c9381f6726859e5cc",
+      "version": "1.6.43"
     },
     "node_registry": {
       "file": "node_registry.generated.json",
@@ -34,13 +34,13 @@
     },
     "visual_rules": {
       "file": "em_visual_rules.json",
-      "digest": "sha256:cec805e27c8fbf5ecc70d2b5b9efc62845b9eafc1eb4bef42fd3df0788936e04",
-      "version": "1.6.43"
+      "digest": "sha256:c171c337031c5b4ea97dfd7d597b28de1a716c00ee4ab01653e6677298c266d5",
+      "version": "1.6.45"
     },
     "qualia": {
       "file": "em_qualia_types.json",
-      "digest": "sha256:2f8567e8e0f6a319327839ab5169c1495642eebef00c542b9b50c284abdb8502",
-      "version": "1.6.10"
+      "digest": "sha256:f7ac5853dddacd222e6b4eb75fe943a6a44e594742100160e6fad97f7c69da9c",
+      "version": "1.6.11"
     },
     "translations": {
       "file": "datamodel_translations.json",
@@ -48,6 +48,6 @@
       "version": "1.16"
     }
   },
-  "s3dgraphy": "1.6.0.dev102",
+  "s3dgraphy": "1.6.0.dev103",
   "_note": "the datamodel the pinned s3dgraphy wheel carries; written by scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup by em_setup/version_banner.check_datamodel. Never edit by hand."
 }
