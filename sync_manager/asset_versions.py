@@ -2045,6 +2045,17 @@ def _operator_classes():  # pragma: no cover — bpy
         #: E.D. 23 Oct 2026 · where the files go: the cache beside the .blend
         #: (what Blender and the Deck use) or the project's RM folder, where a
         #: reader outside Blender finds them (`project_files`)
+        #: MICRO-ASSETS-LIVELLI (E.D., 13 Nov 2026) · generate only where it
+        #: serves: a mesh under this many triangles is not reduced — its use
+        #: points to the lightest version it has (no new file), or, with none,
+        #: the version is written without decimation. 0: every mesh reduced
+        #: (the behaviour before). EMStudio passes 5000.
+        min_triangles: bpy.props.IntProperty(  # type: ignore
+            name="Reduce from", default=0, min=0, soft_max=100000,
+            options={"SKIP_SAVE"},
+            description="Meshes under this many triangles are not reduced: "
+                        "their use points to the lightest version there is "
+                        "(0: every mesh is reduced)")
         destination: bpy.props.EnumProperty(  # type: ignore
             name="Write to", default="CACHE", options={"SKIP_SAVE"},
             items=[("CACHE", "The cache (em_cache)",
@@ -2118,6 +2129,8 @@ def _operator_classes():  # pragma: no cover — bpy
             box.prop(self, "format")
             box.prop(self, "transform")
             box.prop(self, "ratio")
+            if self.ratio < 1.0:
+                box.prop(self, "min_triangles")
             row = box.row(align=True)
             row.prop(self, "max_texture")
             row.prop(self, "jpeg_quality")
@@ -2167,6 +2180,14 @@ def _operator_classes():  # pragma: no cover — bpy
                 raise ValueError(refusal)
             viewer = _VR.is_viewer(self.use)
             recipe = dict(recipe, viewer=viewer)
+            #: MICRO-ASSETS-LIVELLI · under the threshold: not reduced
+            if self.min_triangles > 0 and recipe["ratio"] < 1.0:
+                tris = _object_triangles(context, obj)
+                if tris is not None and tris < self.min_triangles:
+                    pointed = _point_use_to_lightest(context, graph, obj, self.use)
+                    if pointed is not None:
+                        return {"pointed": pointed, "triangles": tris, "warnings": []}
+                    recipe = dict(recipe, ratio=1.0)
             #: first: an RMDoc / RMSF finds its node, and its level after it
             seated = seat_representation(context, graph, obj, recipe)
             computed = (self.computed if obj == context.active_object and self.computed
@@ -2294,6 +2315,13 @@ def _operator_classes():  # pragma: no cover — bpy
                 if not PREPARED:
                     #: U1 · what callers read: the active object's version
                     PREPARED.update(out)
+                if out.get("pointed"):
+                    pt = out["pointed"]
+                    self.report({"INFO"}, f"{obj.name}: {out['triangles']} triangles, under "
+                                          f"{self.min_triangles}: not reduced — "
+                                          f"{', '.join(sorted(self.use))} points to "
+                                          f"{pt['level'] or pt['id']} (no new file)")
+                    continue
                 for w in out["warnings"]:
                     self.report({"WARNING"}, w)
                 self.report({"INFO"}, f"{obj.name}: {out['level']} = "
@@ -2312,6 +2340,45 @@ def _operator_classes():  # pragma: no cover — bpy
                 self.report({"INFO"}, f"exported for {', '.join(sorted(self.use))}: "
                                       f"{len(made)} of {len(objs)} objects")
             return {"FINISHED"}
+
+    def _object_triangles(context, obj):
+        """The triangles the object shows (its modifiers applied), or None."""
+        try:
+            ev = obj.evaluated_get(context.evaluated_depsgraph_get())
+            me = ev.to_mesh()
+        except Exception:  # noqa: BLE001 — not measurable: reduced as before
+            return None
+        try:
+            return sum(max(0, len(p.vertices) - 2) for p in me.polygons)
+        finally:
+            ev.to_mesh_clear()
+
+    def _point_use_to_lightest(context, graph, obj, use):
+        """MICRO-ASSETS-LIVELLI · a mesh under the threshold: its uses are
+        written on the lightest version its asset has (``data.use``), no file
+        is made. → ``{id, level, use}``, or None when it has no version."""
+        from s3dgraphy import api
+        master = master_of(graph, obj, context.scene)
+        if not master:
+            return None
+        best = None
+        for e in api.versions_of(graph, api.asset_of(graph, master)):
+            if e.get("master"):
+                continue
+            tris = ((e.get("primitives") or {}).get("triangles"))
+            if tris is None:
+                continue
+            if best is None or tris < best[0]:
+                best = (tris, e)
+        if best is None:
+            return None
+        node = graph.find_node_by_id(best[1]["id"])
+        if node is None:
+            return None
+        data = node.data if isinstance(getattr(node, "data", None), dict) else {}
+        node.data = data
+        data["use"] = sorted(set(data.get("use") or []) | set(use))
+        return {"id": node.node_id, "level": best[1].get("level") or "", "use": data["use"]}
 
     #: what «Remove versions…» takes from each selected object's asset
     REMOVE_MODES = [
