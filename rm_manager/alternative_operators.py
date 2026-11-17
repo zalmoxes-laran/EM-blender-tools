@@ -794,7 +794,8 @@ def apply_view(cont, context=None, members: bool = True) -> None:
     the container has no model (s3Dgraphy 1.6.40). The eye shows or hides the
     box; when the RM visibility follows the active epoch («Sync RM
     Visibility»), the box is seen only in the container's epochs (its
-    members', else its own: E.D.'s «tls», 0 meshes, its document in Epoch 1).
+    members', else its own — an epoch reaching it, never its Document's:
+    em_visual_rules 1.6.47).
     The box is measured where the scene puts it (:func:`place_box`, the
     frame applied) when it has not been yet. ``members=False`` (on opening an
     em.json) leaves the models as they are: only the box is set."""

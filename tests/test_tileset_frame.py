@@ -1,9 +1,13 @@
 """MICRO tileset, shift e epoche (E.D., 25 Oct 2026) — the logic, outside Blender.
 
 E.D.'s case: the RM container «tls» with 0 meshes, its alternative the tileset
-of the whole Basilica Iulia; the epoch is said by the Document wrapping the
-group (D.1 has_first_epoch → Epoch 1, D.1 has_representation_model → the
-group). The alternative lies in Epoch 1 and Automatic picks it.
+of the whole Basilica Iulia; Automatic picks it. Its epoch: since
+em_visual_rules 1.6.47 (MICRO-D-GIS-DOCUMENTI p.6, E.D. 15 Nov 2026, «la
+data/epoca del documento non passa mai al container») the Document wrapping
+the group (D.1 has_first_epoch → Epoch 1, D.1 has_representation_model → the
+group) gives it NO epoch: without an epoch of its own reaching it (Epoch →
+group, has_representation_model) and without members in an epoch it lies in
+none (``source: none``) — the scene's «Epochs of this set» then close the chain.
 
 The tileset's coordinates are shifted (E − 291407, N − 4640813 declared as
 EPSG:6708): ``data.frame`` on its asset, «Use the graph's shift», and the box
@@ -91,15 +95,37 @@ def no_rule(monkeypatch):
 
 # ── Part 1 · the container's own epochs ─────────────────────────────────────
 
-def test_a_container_without_meshes_lies_in_its_documents_epoch():
+def _own_epoch(g):
+    """The container declares its epoch: Epoch 1 → group, has_representation_model."""
+    g.add_edge("ep1~grp", "ep1", "rmgroup_tls", "has_representation_model")
+    return g
+
+
+def test_the_document_does_not_give_its_epoch_to_the_container():
+    # D.1 has_first_epoch → Epoch 1 and D.1 → the group: the group lies in no epoch
+    got = TF.container_epochs(_ed_graph(), "rmgroup_tls")
+    assert got == {"ids": [], "names": [], "source": "none"}
+    assert TF.own_epochs_local(_ed_graph(), "rmgroup_tls") == []
+    # nor does a rule of 1.6.40–1.6.46 (an older bundled em_visual_rules) bring it back
+    old = dict(TF._FALLBACK_RULE, container_epochs={
+        "wrapper_edge": "has_representation_model", "wrapper_types": ["document"],
+        "epoch_edges": ["has_first_epoch", "survive_in_epoch"]})
+    assert TF.own_epochs_local(_ed_graph(), "rmgroup_tls", old) == []
+
+
+def test_a_container_without_meshes_lies_in_its_own_epoch_only():
     if not TF.has_container_rule():
         pytest.skip("this s3Dgraphy has no container_own_epochs")
-    got = TF.container_epochs(_ed_graph(), "rmgroup_tls")
+    assert TF.container_epochs(_ed_graph(), "rmgroup_tls") == \
+        {"ids": [], "names": [], "source": "none"}
+    got = TF.container_epochs(_own_epoch(_ed_graph()), "rmgroup_tls")
     assert got == {"ids": ["ep1"], "names": ["Epoch 1"], "source": "own"}
 
 
 def test_the_same_answer_without_the_rule_in_s3dgraphy(no_rule):
-    got = TF.container_epochs(_ed_graph(), "rmgroup_tls")
+    assert TF.container_epochs(_ed_graph(), "rmgroup_tls") == \
+        {"ids": [], "names": [], "source": "none"}
+    got = TF.container_epochs(_own_epoch(_ed_graph()), "rmgroup_tls")
     assert got == {"ids": ["ep1"], "names": ["Epoch 1"], "source": "own (local)"}
 
 
@@ -107,10 +133,10 @@ def test_the_local_reading_agrees_with_s3dgraphy():
     if not TF.has_container_rule():
         pytest.skip("this s3Dgraphy has no container_own_epochs")
     from s3dgraphy.resources.alternatives import container_own_epochs
-    g = _ed_graph()
-    g.add_edge("d1~ep2", "d1", "ep2", "survive_in_epoch")
+    g = _own_epoch(_ed_graph())
+    g.add_edge("d1~ep2", "d1", "ep2", "survive_in_epoch")   # the Document's: not the group's
     assert TF.own_epochs_local(g, "rmgroup_tls") == container_own_epochs(g, "rmgroup_tls") \
-        == ["ep1", "ep2"]
+        == ["ep1"]
 
 
 def test_the_members_epochs_win_over_the_containers_own():
@@ -132,6 +158,8 @@ def test_s3dgraphy_sets_carry_the_containers_own_epochs():
         pytest.skip("this s3Dgraphy has no container_own_epochs")
     from s3dgraphy.resources.alternatives import alternative_sets, find_set
     s = find_set(alternative_sets(_ed_graph()), "rmgroup_tls")
+    assert s["epochs"] == [] and not s["members"] and s["alternatives"]
+    s = find_set(alternative_sets(_own_epoch(_ed_graph())), "rmgroup_tls")
     assert s["epochs"] == ["ep1"] and not s["members"] and s["alternatives"]
 
 

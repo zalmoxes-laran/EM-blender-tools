@@ -4,17 +4,20 @@ MICRO tileset, shift e epoche (E.D., 25 Oct 2026). Two things went wrong with
 E.D.'s first tileset of the whole Basilica Iulia:
 
 1. **The container had no mesh yet.** «tls» held 0 models and the tileset as
-   its alternative; its epoch, «Epoch 1», was said by the Document wrapping it
-   (D.1 ``has_first_epoch`` → Epoch 1, D.1 ``has_representation_model`` →
-   the group). The epochs of a container's alternative were its members' —
-   none — so it lay in no epoch. s3Dgraphy now says it (em_visual_rules
+   its alternative. The epochs of a container's alternative were its members'
+   — none — so it lay in no epoch. s3Dgraphy now says it (em_visual_rules
    1.6.40, ``alternatives.container_epochs``): a container whose members have
    no epoch takes its OWN (``resources.alternatives.container_own_epochs``),
    and a container with an alternative and no member lights the alternative
-   (``choose_alternative``). Here: :func:`container_epochs` and
-   :func:`effective_mode`, calling s3Dgraphy when it has the rule; with an
-   older s3Dgraphy (the bundled wheel before it) the same reading is done here
-   from the same edges, and the scene's «Epochs of this set» close the chain.
+   (``choose_alternative``). Its own epoch is ONLY an epoch reaching it
+   (em_visual_rules 1.6.47, E.D. 15 Nov 2026: «la data/epoca del documento non
+   passa mai al container»): the Document wrapping it (D.1
+   ``has_first_epoch`` → Epoch 1, D.1 ``has_representation_model`` → the
+   group) gives it no epoch — 1.6.40–1.6.46 read it, no more. Here:
+   :func:`container_epochs` and :func:`effective_mode`, calling s3Dgraphy when
+   it has the rule; with an older s3Dgraphy (the bundled wheel before it) the
+   same reading is done here from the same edges, and the scene's «Epochs of
+   this set» close the chain.
 
 2. **The coordinates were shifted.** RealityScan wrote E − 291407,
    N − 4640813 declared as EPSG:6708: the root's transform put the Basilica on
@@ -35,15 +38,14 @@ import json
 import math
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-#: the rule's data as em_visual_rules 1.6.40 writes it, for an s3Dgraphy that
-#: has not got it yet (``alternatives.container_epochs``)
+#: the rule's data as em_visual_rules 1.6.47 writes it, for an s3Dgraphy that
+#: has not got it yet (``alternatives.container_epochs``: the Document's epochs
+#: never pass to the container)
 _FALLBACK_RULE = {
     "epoch_edge": "has_representation_model",
     "epoch_types": ["EpochNode"],
     "member_edge": "is_in_representation_model_group",
-    "container_epochs": {"wrapper_edge": "has_representation_model",
-                         "wrapper_types": ["document"],
-                         "epoch_edges": ["has_first_epoch", "survive_in_epoch"]},
+    "container_epochs": {"document_epochs": False},
 }
 
 FRAME_KEY = "frame"
@@ -116,12 +118,20 @@ def _members_deep(graph, group_id: str, rule: Dict[str, Any]) -> List[str]:
 
 
 def own_epochs_local(graph, group_id: str, rule: Optional[Dict[str, Any]] = None) -> List[str]:
-    """The container's OWN epochs read here, as s3Dgraphy 1.6.40's
-    ``container_own_epochs`` reads them: an epoch reaching the group, and the
-    epochs of the Document that wraps it. For an s3Dgraphy without the rule."""
+    """The container's OWN epochs read here, as s3Dgraphy's
+    ``container_own_epochs`` reads them (em_visual_rules 1.6.47): an epoch
+    reaching the group — nothing else. The Document that wraps it gives it no
+    epoch. For an s3Dgraphy without the rule.
+
+    The rule of 1.6.40–1.6.46 (``wrapper_edge`` / ``wrapper_types`` /
+    ``epoch_edges``, an older bundled em_visual_rules) is NOT followed: E.D.'s
+    decision of 15 Nov 2026 holds whatever the s3Dgraphy installed. Only a rule
+    saying ``document_epochs: true`` in words would read the wrapper again."""
     r = rule or _rule()
     ce = r.get("container_epochs") or _FALLBACK_RULE["container_epochs"]
     out = set(_epochs_reaching(graph, [group_id], r))
+    if ce.get("document_epochs") is not True:
+        return sorted(out)
     types = set(r.get("epoch_types") or ())
     wtypes = set(ce.get("wrapper_types") or ())
     wrappers = {e.edge_source for e in graph.edges
