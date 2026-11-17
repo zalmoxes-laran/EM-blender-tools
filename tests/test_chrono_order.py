@@ -8,6 +8,13 @@ from a GraphML or from its em.json — and must not change when ``y_pos`` does.
 Two cases: Templu Mare (s3dgraphy's fixture, read back through a GraphML) and
 a small graph over three epochs, with a re-used unit and units tied in time.
 The module measured is ``chrono_order.py``, which does not import ``bpy``.
+
+Since s3dgraphy 1.6.0.dev117 (MICRO-K, E.D. 17 Nov 2026) the computed
+chronology reads the LIFE of a unit: it ends at the limit of the last epoch
+its life reaches — still existing (no continuity) to the most recent epoch, a
+continuity (BR) closes it in the BR's epoch — and a hand-written
+``survive_in_epoch`` no longer moves a bound. So the three-epochs graph says
+how long each unit lives with continuity nodes, not with survival edges.
 """
 import contextlib
 import importlib.util
@@ -64,8 +71,9 @@ def _via_graphml_and_emjson(graph, tmp_path):
 
 
 def _order(graph):
-    from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
-    units = [n for n in graph.nodes if isinstance(n, StratigraphicNode)]
+    from s3dgraphy.nodes.stratigraphic_node import ContinuityNode, StratigraphicNode
+    units = [n for n in graph.nodes
+             if isinstance(n, StratigraphicNode) and not isinstance(n, ContinuityNode)]
     return [n.name for n in co.chronological_order(graph, units)]
 
 
@@ -78,7 +86,7 @@ def _scramble_y_pos(graph):
 def _three_epochs():
     from s3dgraphy.graph import Graph
     from s3dgraphy.nodes.epoch_node import EpochNode
-    from s3dgraphy.nodes.stratigraphic_node import StratigraphicUnit
+    from s3dgraphy.nodes.stratigraphic_node import ContinuityNode, StratigraphicUnit
 
     g = Graph(graph_id="three_epochs")
     for eid, name, s, e in (("E1", "Roman", -100, 300),
@@ -90,8 +98,14 @@ def _three_epochs():
     for name, epoch in units.items():
         g.add_node(StratigraphicUnit(name, name))
         g.add_edge(f"{name}-{epoch}", name, epoch, "has_first_epoch")
-    # US5 is re-used in the late antique and medieval phases
-    g.add_edge("US5-E2", "US5", "E2", "survive_in_epoch")
+    # How long each unit lives is said by its continuity (BR): the Roman
+    # units end with the Roman epoch, except US5, re-used in the late antique
+    # phase and closed there; the late antique and medieval units have no BR —
+    # still existing, they reach the medieval limit.
+    for name, end_epoch in (("US5", "E2"), ("US6", "E1"), ("US7", "E1")):
+        g.add_node(ContinuityNode(f"BR{name}", f"BR {name}"))
+        g.add_edge(f"BR{name}>{name}", f"BR{name}", name, "is_after")
+        g.add_edge(f"BR{name}-{end_epoch}", f"BR{name}", end_epoch, "has_first_epoch")
     # inside the Roman epoch: US7 over US6 — same dates, US7 lies above
     g.add_edge("US7>US6", "US7", "US6", "is_after")
     g.add_edge("US3>US5", "US3", "US5", "is_after")
@@ -117,8 +131,9 @@ def test_three_epochs_most_recent_first_then_above_then_name(tmp_path):
     order = _order(g)
     # medieval units first, tied in time and in position: by name
     assert order[:2] == ["US1", "US2"]
-    # US5, re-used until 600, comes with the late antique ones
-    assert order.index("US5") < order.index("US6")
+    # US5, re-used until 600 (its BR in the late antique epoch), comes before
+    # US6 and US7, whose BR closes them with the Roman epoch in 300
+    assert order.index("US5") < order.index("US7") < order.index("US6")
     # US7 and US6 share the Roman dates; US7 lies above
     assert order.index("US7") < order.index("US6")
     # The GraphML writer materialises the epochs' continuity diamonds, so the

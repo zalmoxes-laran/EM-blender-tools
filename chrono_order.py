@@ -9,8 +9,10 @@ em.json instead of a GraphML.
 The order here reads only what both formats carry:
 
 1. the chronology s3dgraphy computes (``Graph.chronology()``: the written
-   dates, the epochs, the propagation along the stratigraphic relations) —
-   most recent first, undated units last;
+   dates, the epochs, the propagation along the stratigraphic relations; since
+   s3dgraphy 1.6.0.dev117 a unit's end is the limit of the last epoch its
+   life reaches — still existing, or closed by its continuity — and no longer
+   a hand-written ``survive_in_epoch``) — most recent first, undated units last;
 2. at equal dates, the stratigraphic order — what lies above comes first
    (the longest chain of more recent units over it, along ``is_after`` /
    ``cuts`` / ``overlies`` / ``fills`` and their inverses, as s3dgraphy's
