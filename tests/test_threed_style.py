@@ -39,9 +39,11 @@ def test_the_style_is_read_from_s3dgraphy():
     assert usn["edges"]["show"] and usn["edges"]["style"] == "solid"
     assert not usnt["faces"]["show"] and usnt["edges"]["style"] == "dashed"
     assert us["faces"]["opacity"] == 1.0
-    # 1.6.45 (decision 1): every type has edges, thin, continuous, at 1°
+    # 1.6.45 (decision 1): every type has edges, thin, continuous; at 1° until
+    # 1.6.48, at 30° since (MICRO-PL06 part 0, E.D. 18 Nov 2026: at 1° a proxy
+    # modelled on the survey drew nearly every side of its triangles)
     assert us["edges"]["show"] and us["edges"]["style"] == "solid"
-    assert us["edges"]["feature_angle_deg"] == 1.0
+    assert us["edges"]["feature_angle_deg"] == 30.0
     # decision 2: the USN's edges dark grey (#8C8C8C), its faces as they were
     assert usn["edges"]["rgba_color"][:3] == (0.262, 0.262, 0.262)
     assert usn["faces"]["rgba_color"][:3] == (0.55, 0.55, 0.55)
