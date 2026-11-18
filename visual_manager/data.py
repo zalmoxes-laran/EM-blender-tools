@@ -255,6 +255,15 @@ def register_data():
     if not hasattr(bpy.types.Scene, "label_settings"):
         bpy.types.Scene.label_settings = PointerProperty(type=LabelSettings)
 
+    # MICRO-T · the colour schemes of the em.json opened (file_schemes.py):
+    # {"path", "schemes", "active"} as JSON, set when an em.json is imported
+    if not hasattr(bpy.types.Scene, "em_file_colour_schemes"):
+        bpy.types.Scene.em_file_colour_schemes = StringProperty(
+            name="Colour schemes of the file",
+            description="The colour schemes the opened em.json carries",
+            default="",
+        )
+
 
 def unregister_data():
     """
@@ -271,7 +280,8 @@ def unregister_data():
         "color_ramp_props",
         "camera_em_list",
         "active_camera_em_index",
-        "label_settings"
+        "label_settings",
+        "em_file_colour_schemes",
     ]
     
     for prop_name in props_to_remove:

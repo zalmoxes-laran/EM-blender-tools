@@ -189,6 +189,29 @@ class VIEW3D_PT_visual_panel(Panel):
             row.operator("visual.save_color_scheme", text="Save Schema", icon='FILE_TICK')
             row.operator("visual.load_color_scheme", text="Load Schema", icon='FILE_FOLDER')
 
+        # MICRO-T · the colour schemes the em.json itself carries
+        self.draw_file_schemes(box, context)
+
+    def draw_file_schemes(self, layout, context):
+        """The opened em.json's colour schemes: the active graph's marked."""
+        from .operators import file_colour_section
+        from .file_schemes import scheme_list
+        scene = context.scene
+        sec = file_colour_section(scene)
+        if not sec["schemes"]:
+            return
+        em_tools = scene.em_tools
+        gid = (em_tools.graphml_files[em_tools.active_file_index].name
+               if 0 <= em_tools.active_file_index < len(em_tools.graphml_files) else None)
+        sub = layout.box()
+        sub.label(text="Colour schemes in the em.json", icon='FILE')
+        for s in scheme_list(sec, gid):
+            row = sub.row(align=True)
+            row.label(text=f"{s['name']} · {s['property']}" + ("  (in use)" if s["active"] else ""),
+                      icon='CHECKMARK' if s["active"] else 'COLOR')
+            op = row.operator("visual.apply_file_scheme", text="Apply", icon='COLOR')
+            op.scheme_name = s["name"]
+
 
 
     def draw_display_controls(self, layout, context):

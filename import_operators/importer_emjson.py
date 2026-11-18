@@ -292,6 +292,22 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         except Exception as exc:  # noqa: BLE001 — the load succeeded anyway
             print(f"[em.json import] WARN unsaved mark: {exc}")
 
+        # MICRO-T · the colour schemes the em.json carries: listed in the
+        # Visual Manager, and the one the active graph uses applied
+        try:
+            import json as _json
+            from ..visual_manager.file_schemes import read_file, active_for
+            section, scheme_warnings = read_file(bpy.path.abspath(path))
+            scene.em_file_colour_schemes = _json.dumps(
+                {"path": bpy.path.abspath(path), **section}) if section["schemes"] else ""
+            for w in scheme_warnings:
+                print(f"[em.json import] colour schemes: {w}")
+            active_scheme = active_for(section, gid)
+            if active_scheme:
+                bpy.ops.visual.apply_file_scheme(scheme_name=active_scheme)
+        except Exception as exc:  # noqa: BLE001 — the load succeeded anyway
+            print(f"[em.json import] WARN colour schemes of the file: {exc}")
+
         n_warn = len(warnings) if warnings else 0
         n_graphs = len(container.graph_ids())
         project = f"{n_graphs} graphs" if n_graphs > 1 else "1 graph"
