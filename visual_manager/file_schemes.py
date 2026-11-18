@@ -136,8 +136,12 @@ def rows_for(scheme: Mapping[str, Any], values: Mapping[str, Optional[str]]
     return out
 
 
-def value_code_of(_node) -> Optional[str]:
-    """The code of a property node's value. WHERE a node keeps it is MICRO-U's
-    (vocabularies): until then a value has none and the schemes colour by
-    text — this is the one seam."""
-    return None
+def value_code_of(node) -> Optional[str]:
+    """The code of a property node's value: ``data.concept`` (MICRO-U, the
+    double value — ``vocabulary_labels``); None for a value only text, which
+    the schemes colour by its text."""
+    try:
+        from ..vocabulary_labels import value_code_of as _code
+    except ImportError:  # loaded on its own (tests)
+        from vocabulary_labels import value_code_of as _code
+    return _code(node)

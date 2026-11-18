@@ -442,10 +442,18 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         else:
             prop_nodes = [node for node in graph.nodes if hasattr(node, "node_type") and node.node_type == "property"]
 
+        # MICRO-U · a controlled value in Blender's language (installed
+        # vocabulary → saved label), its sign: ◆ linked, ◆? vocabulary
+        # missing here, ◇ not controlled (text where a vocabulary is expected)
+        from ..vocabulary_labels import blender_lang, list_text
+        lang = blender_lang(getattr(bpy.app.translations, "locale", ""))
         for prop_node in prop_nodes:
             item = em_tools.em_v_properties_list.add()
             item.name = prop_node.name
-            item.description = prop_node.description if hasattr(prop_node, "description") else ""
+            try:
+                item.description = list_text(prop_node, lang)
+            except Exception:
+                item.description = prop_node.description if hasattr(prop_node, "description") else ""
             raw_value = prop_node.value if hasattr(prop_node, "value") else ""
             # Ensure string to avoid type errors on numbers
             item.url = "" if raw_value is None else str(raw_value)
