@@ -640,6 +640,9 @@ class PROXYBOX_OT_record_point(Operator):
         point = settings.points[self.point_index]
         point.position = context.scene.cursor.location
         point.is_recorded = True
+        # MICRO-PL12 · a position recorded by hand is not the graph's any more
+        # («Point from the graph» sets it again right after this)
+        point.graph_extractor_id = ""
         point.point_type = POINT_TYPE_LABELS.get(
             self.point_index, f"Point {self.point_index + 1}")
 
@@ -712,6 +715,7 @@ class PROXYBOX_OT_clear_point(Operator):
         point.source_document = ""
         point.source_document_name = ""
         point.extractor_id = ""
+        point.graph_extractor_id = ""
         self.report({'INFO'}, f"Cleared point {self.point_index + 1}")
         return {'FINISHED'}
 
@@ -735,6 +739,7 @@ class PROXYBOX_OT_clear_all_points(Operator):
                 point.source_document = ""
                 point.source_document_name = ""
                 point.extractor_id = ""
+                point.graph_extractor_id = ""
                 cleared_count += 1
         if cleared_count > 0:
             self.report({'INFO'}, f"Cleared {cleared_count} point(s)")

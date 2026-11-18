@@ -147,6 +147,7 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
                 point.extractor_id,
                 point.point_type,
                 point.position,
+                read_from=getattr(point, "graph_extractor_id", ""),
             )
             if ok:
                 empty = self._create_extractor_empty(
@@ -292,7 +293,7 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
 
     def _create_extractor_in_graph(self, graph, doc_node_id,
                                     extractor_display,
-                                    point_type, position):
+                                    point_type, position, read_from=""):
         """Create an ExtractorNode under the DocumentNode with UUID
         ``doc_node_id`` and the edge ``Document --has_extractor-->
         Extractor``.
@@ -328,6 +329,10 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
             extractor.attributes['y'] = position.y
             extractor.attributes['z'] = position.z
             extractor.attributes['purpose'] = "proxy_box_creator"
+            # MICRO-PL12 (G14) · the point was READ from this extractor of
+            # the graph (EMStudio's chain): said, not written as a chain
+            if read_from:
+                extractor.attributes['read_from'] = read_from
             extractor.attributes['description'] = (
                 f"Extractor for {point_type} point")
             graph.add_node(extractor)

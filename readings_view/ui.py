@@ -23,6 +23,12 @@ class VIEW3D_PT_em_readings(Panel):
         row = layout.row(align=True)
         row.operator("em.show_readings", icon='CURVE_PATH')
         row.operator("em.readings_to_graph", icon='EXPORT')
+        # MICRO-PL12 · the measures the packages declare, from the placed points
+        try:
+            from ..community_packages.ui import draw_measures
+            draw_measures(layout, context)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[readings] community packages: {exc}")
         coll = bpy.data.collections.get(core.COLLECTION)
         if coll is None:
             return

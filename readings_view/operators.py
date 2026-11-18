@@ -145,7 +145,7 @@ def show_readings(context, graph):
 
 
 class EM_OT_show_readings(Operator):
-    """Show the 3D readings of the active graph (point, line, polyline) as objects
+    """Show the 3D readings of the active graph (point, line, polyline, surface) as objects
     in the EM_readings collection. Read-only: moving them does not change the graph"""
     bl_idname = "em.show_readings"
     bl_label = "Show 3D readings"

@@ -191,6 +191,12 @@ class VIEW3D_PT_visual_panel(Panel):
 
         # MICRO-T · the colour schemes the em.json itself carries
         self.draw_file_schemes(box, context)
+        # MICRO-PL12 · the colour schemes and vocabularies of the packages
+        try:
+            from ..community_packages.ui import draw_visual_box
+            draw_visual_box(box, context)
+        except Exception as exc:  # noqa: BLE001 — the panel draws anyway
+            print(f"[visual manager] community packages: {exc}")
 
     def draw_file_schemes(self, layout, context):
         """The opened em.json's colour schemes: the active graph's marked."""

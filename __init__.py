@@ -403,6 +403,7 @@ if DEPENDENCIES_LOADED:
             debug_graph_connections,  # Debug operator
             surface_areale,  # Surface Areale proxy creation
             readings_view,  # 3D readings (point/line/polyline) via s3Dgraphy glTF, read-only
+            community_packages,  # MICRO-PL12 (W9): the community packages of ~/.s3dgraphy, read
             georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
             sync_manager,  # ADR-002: live selection bridge to EMStudio (WS host)
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
@@ -830,6 +831,14 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering readings view: {e}")
 
+    # FASE 10: i pacchetti di comunità (MICRO-PL12, W9) — operatori e frasi;
+    # li disegnano le Preferenze, il Visual Manager e le letture 3D
+    try:
+        community_packages.register()
+        logger.debug("Registered community packages")
+    except Exception as e:
+        logger.error(f"Error registering community packages: {e}")
+
     # Registra il keymap manager per ultimo
     if KEYMAP_MANAGER_LOADED:
         try:
@@ -883,6 +892,13 @@ def unregister_modules():
         logger.debug("Unregistered sync manager")
     except Exception as e:
         logger.warning(f"Error unregistering sync manager: {e}")
+
+    # FASE 0: i pacchetti di comunità (MICRO-PL12)
+    try:
+        community_packages.unregister()
+        logger.debug("Unregistered community packages")
+    except Exception as e:
+        logger.warning(f"Error unregistering community packages: {e}")
 
     # FASE 0: le letture 3D (figlio del Visual Manager, va via prima di lui)
     try:

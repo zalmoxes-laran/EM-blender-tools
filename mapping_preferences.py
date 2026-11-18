@@ -371,6 +371,14 @@ class EMToolsMappingPreferences(AddonPreferences):
             who.label(text=_li.PROBLEM_TEXT[problem], icon='BLANK1')
         who.prop(self, "local_name")
 
+        # ===== COMMUNITY PACKAGES (MICRO-PL12, W9) =====
+        # the packages of this computer, the same EMStudio reads (~/.s3dgraphy)
+        try:
+            from .community_packages.ui import draw_preferences
+            draw_preferences(layout, context)
+        except Exception as exc:  # noqa: BLE001 — the rest of the Preferences draws anyway
+            layout.label(text=f"Community packages: {exc}", icon='ERROR')
+
         # ===== SEZIONE PRINCIPALE: USER MAPPINGS =====
         box = layout.box()
         box.label(text="📦 User Custom Mappings", icon='PACKAGE')

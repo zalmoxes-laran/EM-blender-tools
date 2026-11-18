@@ -168,6 +168,11 @@ class PROXYBOX_PT_main_panel(Panel):
             op = row.operator(
                 "proxybox.record_point", text="", icon='MOUSE_LMB')
             op.point_index = i
+            # MICRO-PL12 (G14) · or a point already measured in the graph:
+            # EMStudio's chain (AnnotationRegion) or EM Tools' x/y/z
+            op = row.operator(
+                "empkg.proxybox_point_from_graph", text="", icon='NODETREE')
+            op.point_index = i
 
             # Row B (recorded only): per-point document badge + swap
             # button + editable extractor id. The user can override

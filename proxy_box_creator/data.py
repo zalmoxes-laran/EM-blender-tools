@@ -212,6 +212,16 @@ class ProxyBoxPointSettings(PropertyGroup):
         default="",
     )  # type: ignore
 
+    # MICRO-PL12 (G14) · the extractor of the graph this point was READ from
+    # («Point from the graph»): EMStudio's chain or another EM Tools point.
+    # Create still writes EM Tools' own extractor (writing the chain is 1.7)
+    # and names this one in its ``read_from``.
+    graph_extractor_id: StringProperty(
+        name="Read from",
+        description="The extractor of the graph this point's position was read from",
+        default="",
+    )  # type: ignore
+
     extractor_id: StringProperty(
         name="Extractor Node ID",
         description="Display name of the extractor node created for "

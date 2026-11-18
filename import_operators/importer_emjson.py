@@ -136,6 +136,23 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
             show_popup_message(context, "Import Error", str(exc), "ERROR")
             return {"CANCELLED"}
         graph_origins.remember(target_origin.path, container)
+        # MICRO-PL12 (W9) · the community packages: what the file declares plus
+        # what this computer has installed (EMStudio's rule, W6) becomes the
+        # container's overlay, so saving declares a package whose types the
+        # content uses (profiles.declare); a declared package missing here is
+        # said once, and the file opens all the same (SPEC-pacchetto §11.3)
+        try:
+            from ..community_packages import core as _pk
+            _ov, _missing, _probs, _ = _pk.active_overlay(_pk.declared_of(container))
+            if _ov is not None:
+                container.profiles = _ov
+            if _missing:
+                self.report({"WARNING"}, "This file uses packages not installed here: "
+                            + _pk.missing_line(_missing))
+            for _p in _probs:
+                print(f"[em.json import] packages: {_p}")
+        except Exception as exc:  # noqa: BLE001 — the load goes on without packages
+            print(f"[em.json import] WARN community packages: {exc}")
 
         graph = container.active()
         # the row 🔄 reloads THAT row's graph, not the file's active one

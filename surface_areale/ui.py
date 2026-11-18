@@ -256,6 +256,10 @@ class VIEW3D_PT_SurfaceAreale(Panel):
             row.scale_y = 1.5
             row.enabled = all_ok
             row.operator("emtools.draw_surface_areale", icon='GREASEPENCIL')
+            # MICRO-PL12 (G14) · or from a surface already placed in the graph
+            row = layout.row(align=True)
+            row.enabled = all_ok
+            row.operator("empkg.areale_from_graph", icon='NODETREE')
 
 
 class VIEW3D_PT_SurfaceAreale_Settings(Panel):

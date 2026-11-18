@@ -269,79 +269,8 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                         rm_obj, bvh_tree, settings
                     )
 
-            # ── Post-processing ───────────────────────────────────────
-            # Link to scene if not already (Shrinkwrap/Boolean strategies
-            # may have already linked the object during creation)
-            if areale_obj.name not in context.collection.objects:
-                context.collection.objects.link(areale_obj)
-
-            decimate_preserving_boundary(
-                areale_obj, settings.max_triangles,
-                settings.conformity_threshold, bvh_tree
-            )
-
-            overlap_count = count_overlapping_areali(areale_obj, rm_obj)
-            if overlap_count > 0:
-                self.report({'INFO'},
-                            f"Detected {overlap_count} overlapping areali, "
-                            f"adjusting offset")
-            apply_normal_offset(areale_obj, bvh_tree,
-                                settings.offset_distance, overlap_count)
-
-            alpha = getattr(context.scene.em_tools, 'proxy_display_alpha', 0.5)
-            assign_em_material(areale_obj, settings.us_type, alpha)
-
-            # Graph linking — always runs now that the legacy GENERIC
-            # placeholder is gone (see us_types refactor). The two
-            # branches are still: full paradata chain when
-            # experimental features are on, otherwise simple rename +
-            # parent-to-RM.
-            try:
-                experimental = getattr(context.scene.em_tools,
-                                       'experimental_features', False)
-                if experimental:
-                    # Full paradata chain (experimental / 1.6)
-                    us_node, msg = link_areale_to_graph(
-                        context, areale_obj, rm_obj, settings
-                    )
-                else:
-                    # Simple mode (1.5): just name + parent to RM
-                    us_node, msg = link_areale_simple(
-                        context, areale_obj, rm_obj, settings
-                    )
-                if us_node:
-                    self.report({'INFO'}, msg)
-                else:
-                    self.report({'WARNING'},
-                                f"Graph linking returned no US: {msg}")
-            except Exception as e:
-                self.report({'WARNING'},
-                            f"Graph linking failed: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Ensure proxy is named after the US with graph prefix
-            us_name = settings.linked_us_name
-            if us_name and (areale_obj.name.startswith("EM_SurfaceAreale") or
-                            areale_obj.name == us_name):
-                # Apply graph prefix
-                try:
-                    from ..operators.addon_prefix_helpers import add_graph_prefix
-                    from s3dgraphy import get_graph
-                    em_tools = context.scene.em_tools
-                    graph_info = em_tools.graphml_files[em_tools.active_file_index]
-                    graph = get_graph(graph_info.name)
-                    if graph:
-                        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
-                        prefixed_name = node_name_to_proxy_name(us_name, context, graph)
-                        areale_obj.name = prefixed_name
-                        areale_obj.data.name = prefixed_name
-                    else:
-                        areale_obj.name = us_name
-                        areale_obj.data.name = us_name
-                except Exception:
-                    areale_obj.name = us_name
-                    areale_obj.data.name = us_name
+            # ── Post-processing (shared with «Areale from a graph surface») ──
+            _postprocess_areale(self, context, areale_obj, rm_obj, bvh_tree, settings)
 
             # ── Cleanup ───────────────────────────────────────────────
             self._remove_temp_gp(context)
@@ -475,6 +404,147 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                 gp_collection.remove(gp_data)
 
             self._gp_obj = None
+
+
+def _postprocess_areale(op, context, areale_obj, rm_obj, bvh_tree, settings, extractor_id=None):
+    """Decimate, offset, material, graph linking and EM naming of a new areale —
+    the tail of the drawing (``_finalize``) and of an areale made from a
+    surface of the graph (MICRO-PL12, ``extractor_id`` = the extractor that
+    placed it: the areale's property is provenanced by it, no new one)."""
+    from .postprocess import (
+        apply_normal_offset, decimate_preserving_boundary,
+        assign_em_material, link_areale_to_graph,
+        link_areale_simple, count_overlapping_areali
+    )
+    self = op
+    # ── Post-processing ───────────────────────────────────────
+    # Link to scene if not already (Shrinkwrap/Boolean strategies
+    # may have already linked the object during creation)
+    if areale_obj.name not in context.collection.objects:
+        context.collection.objects.link(areale_obj)
+
+    decimate_preserving_boundary(
+        areale_obj, settings.max_triangles,
+        settings.conformity_threshold, bvh_tree
+    )
+
+    overlap_count = count_overlapping_areali(areale_obj, rm_obj)
+    if overlap_count > 0:
+        self.report({'INFO'},
+                    f"Detected {overlap_count} overlapping areali, "
+                    f"adjusting offset")
+    apply_normal_offset(areale_obj, bvh_tree,
+                        settings.offset_distance, overlap_count)
+
+    alpha = getattr(context.scene.em_tools, 'proxy_display_alpha', 0.5)
+    assign_em_material(areale_obj, settings.us_type, alpha)
+
+    # Graph linking — always runs now that the legacy GENERIC
+    # placeholder is gone (see us_types refactor). The two
+    # branches are still: full paradata chain when
+    # experimental features are on, otherwise simple rename +
+    # parent-to-RM.
+    try:
+        experimental = getattr(context.scene.em_tools,
+                               'experimental_features', False)
+        if experimental:
+            # Full paradata chain (experimental / 1.6)
+            us_node, msg = link_areale_to_graph(
+                context, areale_obj, rm_obj, settings,
+                existing_extractor_id=extractor_id,
+            )
+        else:
+            # Simple mode (1.5): just name + parent to RM
+            us_node, msg = link_areale_simple(
+                context, areale_obj, rm_obj, settings
+            )
+        if us_node:
+            self.report({'INFO'}, msg)
+        else:
+            self.report({'WARNING'},
+                        f"Graph linking returned no US: {msg}")
+    except Exception as e:
+        self.report({'WARNING'},
+                    f"Graph linking failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # Ensure proxy is named after the US with graph prefix
+    us_name = settings.linked_us_name
+    if us_name and (areale_obj.name.startswith("EM_SurfaceAreale") or
+                    areale_obj.name == us_name):
+        # Apply graph prefix
+        try:
+            from ..operators.addon_prefix_helpers import add_graph_prefix
+            from s3dgraphy import get_graph
+            em_tools = context.scene.em_tools
+            graph_info = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graph_info.name)
+            if graph:
+                from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+                prefixed_name = node_name_to_proxy_name(us_name, context, graph)
+                areale_obj.name = prefixed_name
+                areale_obj.data.name = prefixed_name
+            else:
+                areale_obj.name = us_name
+                areale_obj.data.name = us_name
+        except Exception:
+            areale_obj.name = us_name
+            areale_obj.data.name = us_name
+
+
+
+def build_areale_from_ring(op, context, rm_obj, ring, extractor_id=None):
+    """MICRO-PL12 (G14, read) · an areale from a ring already in the graph — a
+    ``surface`` placed in EMStudio (AnnotationRegion, ``data.coords``), here in
+    Blender's world — instead of strokes drawn with the pencil: resampled,
+    reprojected on the RM, the inner mark («whisker») the ring's centroid
+    brought onto the surface, then the same strategies and the same tail as a
+    drawn areale. ``extractor_id`` provenances the areale's property (the
+    surface's extractor, not a new one)."""
+    from mathutils import Vector  # type: ignore
+    from .contour_builder import (resample_contour, reproject_on_surface,
+                                  create_bvh_from_object, validate_contour)
+    from .strategies import generate_areale
+    settings = context.scene.em_tools.surface_areale
+    if context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    bvh_tree = create_bvh_from_object(rm_obj)
+    contour = [Vector(p) for p in ring]
+    contour = resample_contour(contour, settings.resample_distance)
+    contour, val_warnings, is_valid = validate_contour(contour, auto_fix=True)
+    for w in val_warnings:
+        op.report({'WARNING'}, w)
+    if not is_valid or len(contour) < 3:
+        op.report({'ERROR'}, "Contour is degenerate after cleanup")
+        return {'CANCELLED'}
+    projected = reproject_on_surface(contour, bvh_tree)
+    contour_points = [p[0] for p in projected]
+    contour_normals = [p[1] for p in projected]
+    centroid = sum(contour_points, Vector()) / len(contour_points)
+    loc, _n, _i, _d = bvh_tree.find_nearest(centroid)
+    whisker_point = loc if loc is not None else centroid
+    try:
+        areale_obj = generate_areale(contour_points, contour_normals, whisker_point,
+                                     rm_obj, bvh_tree, settings)
+    except Exception as exc:  # noqa: BLE001 — a strategy that fails says why
+        op.report({'ERROR'}, f"Failed to create areale: {exc}")
+        return {'CANCELLED'}
+    _postprocess_areale(op, context, areale_obj, rm_obj, bvh_tree, settings,
+                        extractor_id=extractor_id)
+    areale_obj["em_areale_from_extractor"] = extractor_id or ""
+    bpy.ops.object.select_all(action='DESELECT')
+    areale_obj.select_set(True)
+    context.view_layer.objects.active = areale_obj
+    try:
+        mode = context.scene.em_tools.proxy_display_mode
+        if mode == "EM":
+            bpy.ops.emset.emmaterial()
+        elif mode in ("Epochs", "Horizons"):
+            bpy.ops.emset.epochmaterial()
+    except Exception:  # noqa: BLE001
+        pass
+    return {'FINISHED'}
 
 
 class EMTOOLS_OT_calibrate_benchmark(Operator):

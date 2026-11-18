@@ -466,38 +466,54 @@ class VISUAL_OT_apply_file_scheme(Operator):
     scheme_name: StringProperty(name="Scheme")
 
     def execute(self, context):
-        from .file_schemes import rows_for, value_code_of
         scene = context.scene
         sch = file_colour_section(scene)["schemes"].get(self.scheme_name)
         if not sch:
             self.report({'ERROR'}, f"No colour scheme '{self.scheme_name}' in the em.json")
             return {'CANCELLED'}
-        prop = sch["metadata"]["property_name"]
-        em_tools = scene.em_tools
-        graph = None
-        if 0 <= em_tools.active_file_index < len(em_tools.graphml_files):
-            graph = get_graph(em_tools.graphml_files[em_tools.active_file_index].name)
-        if graph is None:
-            self.report({'ERROR'}, "No active graph found")
+        ok, prop = apply_scheme(context, sch)
+        if not ok:
+            self.report({'ERROR'}, prop)
             return {'CANCELLED'}
-        # the labels found on the graph (the two special values among them),
-        # each with the code of its term when it has one
-        codes = {}
-        for node in graph.nodes:
-            if getattr(node, "node_type", None) == "property" and getattr(node, "name", None) == prop:
-                label = str(getattr(node, "description", "") or "").strip()
-                if label and label not in codes:
-                    codes[label] = value_code_of(node)
-        values = {v: codes.get(v) for v in set(create_property_value_mapping(graph, prop).values())}
-        scene.selected_property = prop          # refills the list: replaced below
-        scene.property_values.clear()
-        for label, rgba in rows_for(sch, values):
-            item = scene.property_values.add()
-            item.value = label
-            item.color = rgba
-        bpy.ops.visual.apply_colors()
         self.report({'INFO'}, f"Colour scheme '{self.scheme_name}' of the em.json applied ({prop})")
         return {'FINISHED'}
+
+
+def active_graph_of(context):
+    em_tools = context.scene.em_tools
+    if 0 <= em_tools.active_file_index < len(em_tools.graphml_files):
+        return get_graph(em_tools.graphml_files[em_tools.active_file_index].name)
+    return None
+
+
+def apply_scheme(context, sch, prop=None):
+    """Colour the proxies with a scheme in EM Tools' .emc form (``sch``) on the
+    active graph — the file's (MICRO-T) and a package's (MICRO-PL12) alike.
+    ``prop`` overrides the scheme's property NAME (a package names its quale
+    by id; the graph by label). → ``(True, prop)`` or ``(False, why)``."""
+    from .file_schemes import rows_for, value_code_of
+    scene = context.scene
+    prop = prop or sch["metadata"]["property_name"]
+    graph = active_graph_of(context)
+    if graph is None:
+        return False, "No active graph found"
+    # the labels found on the graph (the two special values among them),
+    # each with the code of its term when it has one
+    codes = {}
+    for node in graph.nodes:
+        if getattr(node, "node_type", None) == "property" and getattr(node, "name", None) == prop:
+            label = str(getattr(node, "description", "") or "").strip()
+            if label and label not in codes:
+                codes[label] = value_code_of(node)
+    values = {v: codes.get(v) for v in set(create_property_value_mapping(graph, prop).values())}
+    scene.selected_property = prop          # refills the list: replaced below
+    scene.property_values.clear()
+    for label, rgba in rows_for(sch, values):
+        item = scene.property_values.add()
+        item.value = label
+        item.color = rgba
+    bpy.ops.visual.apply_colors()
+    return True, prop
 
 
 class VISUAL_OT_set_property_materials(Operator):

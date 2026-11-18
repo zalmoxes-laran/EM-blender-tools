@@ -406,7 +406,7 @@ def link_areale_simple(context, areale_obj, rm_obj, settings):
 # FULL PARADATA CHAIN (experimental — future 1.6)
 # ══════════════════════════════════════════════════════════════════════
 
-def link_areale_to_graph(context, areale_obj, rm_obj, settings):
+def link_areale_to_graph(context, areale_obj, rm_obj, settings, existing_extractor_id=None):
     """
     Create the full paradata chain in the graph:
     US --has_property--> PropertyNode --has_data_provenance--> ExtractorNode
@@ -480,22 +480,33 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
     graph.add_node(prop_node)
     messages.append(f"Created property: {prop_node.name}={prop_node.value}")
 
-    # ── 5. Create ExtractorNode ───────────────────────────────────────
-    from s3dgraphy.nodes import ExtractorNode
+    # ── 5. ExtractorNode: the surface's own (MICRO-PL12) or a new one ──
+    # An areale made from a surface placed in the graph (EMStudio's chain,
+    # «Areale from a graph surface») is provenanced by THAT extractor: the
+    # reading was done once. Then only PropertyNode → Extractor is added; the
+    # extractor keeps its place (extracted_from → AnnotationRegion).
+    existing = graph.find_node_by_id(existing_extractor_id) if existing_extractor_id else None
+    if existing is not None and getattr(existing, "node_type", "") == "extractor":
+        extractor = existing
+        messages.append(f"Provenanced by the surface's extractor: {extractor.name}")
+    else:
+        existing = None
+        from s3dgraphy.nodes import ExtractorNode
 
-    # Extractor name follows pattern: {document_name}.{next_number}
-    # e.g. D.10016.1, D.10016.2, etc. (same pattern as proxy_box_creator)
-    extractor_name = _get_next_extractor_name(graph, doc_node.name)
+        # Extractor name follows pattern: {document_name}.{next_number}
+        # e.g. D.10016.1, D.10016.2, etc. (same pattern as proxy_box_creator)
+        extractor_name = _get_next_extractor_name(graph, doc_node.name)
 
-    extractor = ExtractorNode(
-        node_id=str(uuid.uuid4()),
-        name=extractor_name,
-        description=settings.extractor_name  # default: "3D drawing on surface"
-    )
-    extractor.attributes['purpose'] = settings.extractor_name
-    extractor.attributes['source_rm'] = rm_obj.name
-    graph.add_node(extractor)
-    messages.append(f"Created extractor: {extractor.name}")
+        extractor = ExtractorNode(
+            node_id=str(uuid.uuid4()),
+            name=extractor_name,
+            description=settings.extractor_name  # default: "3D drawing on surface"
+        )
+        extractor.attributes['purpose'] = settings.extractor_name
+        extractor.attributes['source_rm'] = rm_obj.name
+        graph.add_node(extractor)
+        messages.append(f"Created extractor: {extractor.name}")
+
 
     # ── 6. Create the 4 edges ─────────────────────────────────────────
 
@@ -515,13 +526,15 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
         edge_type="has_data_provenance"
     )
 
-    # Edge 3: ExtractorNode --extracted_from--> DocumentNode
-    graph.add_edge(
-        edge_id=f"{extractor.node_id}_extracted_from_{doc_node.node_id}",
-        edge_source=extractor.node_id,
-        edge_target=doc_node.node_id,
-        edge_type="extracted_from"
-    )
+    # Edge 3: ExtractorNode --extracted_from--> DocumentNode (a new extractor
+    # only: the surface's own is extracted from its AnnotationRegion)
+    if existing is None:
+        graph.add_edge(
+            edge_id=f"{extractor.node_id}_extracted_from_{doc_node.node_id}",
+            edge_source=extractor.node_id,
+            edge_target=doc_node.node_id,
+            edge_type="extracted_from"
+        )
 
     # Edge 4: DocumentNode --has_representation_model--> RM (ensure exists)
     _ensure_edge(graph, doc_node.node_id, rm_node.node_id,

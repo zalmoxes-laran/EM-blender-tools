@@ -19,8 +19,10 @@ from typing import Any, Dict, List
 #: la collezione di Blender dove stanno le letture mostrate
 COLLECTION = "EM_readings"
 
-#: i tipi di geometria di una lettura che hanno una forma in glTF
-KINDS_3D = ("point", "line", "polyline")
+#: i tipi di geometria di una lettura che hanno una forma in glTF. MICRO-PL12
+#: (W9): anche la superficie (un anello chiuso, LINE_LOOP in glTF), che dal
+#: datamodel 1.6.50 è un geometry_kind del nucleo (PL07, D-3)
+KINDS_3D = ("point", "line", "polyline", "surface")
 
 #: le custom property con cui un oggetto di `EM_readings` ricorda da dove viene
 PROP_ID = "em_reading_id"
@@ -178,6 +180,12 @@ def apply_back(graph, region_id: str, geometry: Dict[str, Any], *,
         length = chain_length(after)
         set_field(node, "data.length", length, author=author)
         out["length_after"] = length
+    elif kind == "surface":
+        # MICRO-PL12 · area and perimeter of the ring, computed again
+        from s3dgraphy.nodes.annotation_region_node import ring_area, ring_perimeter
+        set_field(node, "data.area", ring_area(after), author=author)
+        set_field(node, "data.perimeter", ring_perimeter(after), author=author)
+        out["area_after"] = ring_area(after)
     out["written"] = True
     return out
 
