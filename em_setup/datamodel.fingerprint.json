@@ -1,26 +1,26 @@
 {
-  "digest": "sha256:a6632923a44dcccae0d641dd1b8f4ea7be3fe9780592dfbd636868611a43d5e8",
+  "digest": "sha256:feaee8d2599ad9a0672e8963f6ce8bfd409e09359f8dcbd5c3d439e35b17d0be",
   "versions": {
-    "nodes": "1.6.48",
+    "nodes": "1.6.51",
     "node_registry": "1.6.41",
     "connections": "1.6.55",
-    "visual_rules": "1.6.47",
+    "visual_rules": "1.6.48",
     "qualia": "1.6.13",
     "translations": "1.17"
   },
   "digests": {
-    "nodes": "sha256:03a49281a9f72e279abac53374670ba94ef040d821daf1fc3bbdb5b0e2b5f9e5",
+    "nodes": "sha256:21c7a2346f9b670207802c036135ed65f9d055ae7984b78a3a565d8170af2117",
     "node_registry": "sha256:5669c0824d7149e22a25d424645b3b78b7c698c5338f3fd639d75c60b31483da",
     "connections": "sha256:c1d475a3ea9543dada7ac42ca73452f5c20f185ea56de2787914cad44389ad6b",
-    "visual_rules": "sha256:b1458d56f999d8163d6a0fe29f748f45c3ce2e90f952afefe3c37725a482fb4f",
+    "visual_rules": "sha256:61361d6882958305486fe914f9635e9f0dd31d3f0aca285e3dc80294857710f3",
     "qualia": "sha256:175c189d760b4dc511b0b93ed16e95b354272152458cc9984a8d64bb6db50bca",
     "translations": "sha256:bf4ce3673a1133afb50c9f6b1d4f326d24c6a19b848d87c8230ac7b4fed369f9"
   },
   "files": {
     "nodes": {
       "file": "s3Dgraphy_node_datamodel.json",
-      "digest": "sha256:03a49281a9f72e279abac53374670ba94ef040d821daf1fc3bbdb5b0e2b5f9e5",
-      "version": "1.6.48"
+      "digest": "sha256:21c7a2346f9b670207802c036135ed65f9d055ae7984b78a3a565d8170af2117",
+      "version": "1.6.51"
     },
     "node_registry": {
       "file": "node_registry.generated.json",
@@ -34,8 +34,8 @@
     },
     "visual_rules": {
       "file": "em_visual_rules.json",
-      "digest": "sha256:b1458d56f999d8163d6a0fe29f748f45c3ce2e90f952afefe3c37725a482fb4f",
-      "version": "1.6.47"
+      "digest": "sha256:61361d6882958305486fe914f9635e9f0dd31d3f0aca285e3dc80294857710f3",
+      "version": "1.6.48"
     },
     "qualia": {
       "file": "em_qualia_types.json",
@@ -48,6 +48,6 @@
       "version": "1.17"
     }
   },
-  "s3dgraphy": "1.6.0.dev121",
+  "s3dgraphy": "1.6.0.dev122",
   "_note": "the datamodel the pinned s3dgraphy wheel carries; written by scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup by em_setup/version_banner.check_datamodel. Never edit by hand."
 }
