@@ -34,9 +34,39 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         'it_IT': "L's3dgraphy impacchettato non conosce i pacchetti di comunità (più vecchio della dev117)"},
     "data {version}": {'it_IT': "dati {version}"},
     "no data": {'it_IT': "nessun dato"},
-    "code: installed in EMStudio, not run by EM Tools": {
-        'it_IT': "codice: installato per EMStudio, EM Tools non lo esegue"},
     "code not installed: {reason}": {'it_IT': "codice non installato: {reason}"},
+    # ── W16 (MICRO-PL19): the code that runs in Blender ─────────────────────
+    "code: for {hosts}, not run by EM Tools": {'it_IT': "codice: per {hosts}, EM Tools non lo esegue"},
+    "code: {state}": {'it_IT': "codice: {state}"},
+    "off": {'it_IT': "spento"},
+    "Turn on": {'it_IT': "Accendi"},
+    "Turn off": {'it_IT': "Spegni"},
+    "Enable the code": {'it_IT': "Accendi il codice"},
+    "Turn this package's code on or off on this computer (EMStudio's too)": {
+        'it_IT': "Accende o spegne il codice di questo pacchetto su questo computer (anche per EMStudio)"},
+    "Code on: {name}": {'it_IT': "Codice acceso: {name}"},
+    "Code off: {name}": {'it_IT': "Codice spento: {name}"},
+    "on, not loaded yet (EM ▸ Plugin ▸ Reload the plugins)": {
+        'it_IT': "acceso, non ancora caricato (EM ▸ Plugin ▸ Ricarica i plugin)"},
+    "loaded in Blender, not verified": {'it_IT': "caricato in Blender, non verificato"},
+    "not loaded: {why}": {'it_IT': "non caricato: {why}"},
+    "Install": {'it_IT': "Installa"},
+    "Install the code too: I trust it": {'it_IT': "Installa anche il codice: me ne fido"},
+    "A Python plugin has the powers of your user: tick «Install the code too» only if you trust it": {
+        'it_IT': "Un plugin Python ha i poteri del tuo utente: spunta «Installa anche il codice» solo se te ne fidi"},
+    "Same permissions, capabilities and source as the last trust: no new question": {
+        'it_IT': "Stessi permessi, capability e fonte dell'ultima fiducia: nessuna nuova domanda"},
+    "The code does not run in Blender: EM Tools installs the data only (EMStudio can install the code)": {
+        'it_IT': "Il codice non gira in Blender: EM Tools installa solo i dati (EMStudio può installare il codice)"},
+    "A plugin with no data, and its code does not run in Blender: install it in EMStudio (Tools ▸ Extensions…)": {
+        'it_IT': "Un plugin senza dati, e il suo codice non gira in Blender: installalo in EMStudio "
+                 "(Strumenti ▸ Estensioni…)"},
+    "A plugin with no data: tick «Install the code too» to install it": {
+        'it_IT': "Un plugin senza dati: spunta «Installa anche il codice» per installarlo"},
+    "Installed: {name} {version} (data and code, not verified)": {
+        'it_IT': "Installato: {name} {version} (dati e codice, non verificato)"},
+    "Installed: {name} {version} (code, not verified)": {
+        'it_IT': "Installato: {name} {version} (codice, non verificato)"},
     "used by this file": {'it_IT': "usato da questo file"},
     "incomplete: a required package is missing": {'it_IT': "incompleto: manca un pacchetto richiesto"},
     "Remove": {'it_IT': "Rimuovi"},
@@ -64,11 +94,6 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         'it_IT': "Già installato, identico: non cambia nulla"},
     "Code {version}: NOT VERIFIED, from disk": {'it_IT': "Codice {version}: NON VERIFICATO, da disco"},
     "runs in: {hosts}": {'it_IT': "gira in: {hosts}"},
-    "EM Tools installs the data only: the code is left out (EMStudio can install it)": {
-        'it_IT': "EM Tools installa solo i dati: il codice resta fuori (lo può installare EMStudio)"},
-    "A plugin with no data: EM Tools does not run plugins yet. Install it in EMStudio (Tools ▸ Extensions…)": {
-        'it_IT': "Un plugin senza dati: EM Tools non esegue ancora i plugin. Installalo in EMStudio "
-                 "(Strumenti ▸ Estensioni…)"},
     "Not installed: {why}": {'it_IT': "Non installato: {why}"},
     "Installed: {name} {version} (data)": {'it_IT': "Installato: {name} {version} (dati)"},
     "Installed: {name} {version} (data; the code left out)": {
@@ -177,6 +202,8 @@ CONTEXT = "EMPackages"
 #: sentences Blender translates by itself (operator names and descriptions,
 #: property names): also registered in its default contexts
 AUTO = (
+    "Install", "Install the code too: I trust it", "Enable the code",
+    "Turn this package's code on or off on this computer (EMStudio's too)",
     "Install from disk…", "Open the folder", "Refresh", "Remove", "Install the data", "Apply",
     "Remove its vocabularies too", "From the graph", "Point from the graph",
     "Take the position of a point measured in the graph (EMStudio's chain or EM Tools' x/y/z)",

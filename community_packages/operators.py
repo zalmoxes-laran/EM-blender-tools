@@ -105,6 +105,8 @@ class EMPKG_OT_confirm_install(Operator):
     bl_options = {'INTERNAL'}
 
     source: StringProperty(options={'HIDDEN'})  # type: ignore
+    # W16 · the trust question, for a code that runs in Blender: a tick, off
+    with_code: BoolProperty(name="Install the code too: I trust it", default=False)  # type: ignore
 
     def invoke(self, context, event):
         _, X = core.library()
@@ -117,7 +119,9 @@ class EMPKG_OT_confirm_install(Operator):
             self.report({'ERROR'}, tr("Not installed: {why}").format(why="; ".join(core.error_texts(exc, lang()))))
             return {'CANCELLED'}
         _preview_cache[self.source] = pv
-        return context.window_manager.invoke_props_dialog(self, width=560, confirm_text=tr("Install the data"))
+        # an update with the same permissions, capabilities and source: no new question
+        self.with_code = core.code_for_blender(pv) and not (pv.get("code") or {}).get("trust_needed", True)
+        return context.window_manager.invoke_props_dialog(self, width=560, confirm_text=tr("Install"))
 
     def draw(self, context):
         pv = _preview_cache.get(self.source) or {}
@@ -126,12 +130,14 @@ class EMPKG_OT_confirm_install(Operator):
             row = col.row()
             row.alert = level == "error"
             row.label(text=text, icon=icon)
-        plan = core.plan_install(pv)
-        if plan["action"] == "refuse" and plan["why"] == "plugin_only":
+        if core.code_for_blender(pv):
+            col.separator()
+            col.prop(self, "with_code")
+        plan = core.plan_install(pv, with_code=self.with_code)
+        if plan["action"] == "refuse" and plan["why"] in ("plugin_only", "plugin_needs_trust"):
             row = col.row()
             row.alert = True
-            row.label(text=tr("A plugin with no data: EM Tools does not run plugins yet. Install it in "
-                              "EMStudio (Tools ▸ Extensions…)"), icon='ERROR')
+            row.label(text=tr(_REFUSE[plan["why"]]), icon='ERROR')
 
     def execute(self, context):
         lg = lang()
@@ -142,23 +148,70 @@ class EMPKG_OT_confirm_install(Operator):
             except Exception as exc:  # noqa: BLE001
                 self.report({'ERROR'}, tr("Not installed: {why}").format(why="; ".join(core.error_texts(exc, lg))))
                 return {'CANCELLED'}
-        plan = core.plan_install(pv)
-        if plan["action"] != "data":
-            why = (tr("A plugin with no data: EM Tools does not run plugins yet. Install it in EMStudio "
-                      "(Tools ▸ Extensions…)") if plan["why"] == "plugin_only"
+        plan = core.plan_install(pv, with_code=self.with_code)
+        if plan["action"] not in ("data", "all"):
+            why = (tr(_REFUSE[plan["why"]]) if plan["why"] in _REFUSE
                    else "; ".join(core.problem_text(p, lg) for p in pv.get("errors") or []))
             self.report({'ERROR'}, tr("Not installed: {why}").format(why=why))
             return {'CANCELLED'}
         try:
-            core.install_data(self.source)
+            if plan["action"] == "all":
+                core.install_with_code(self.source)
+            else:
+                core.install_data(self.source)
         except Exception as exc:  # noqa: BLE001 — nothing written, the library says why
             self.report({'ERROR'}, tr("Not installed: {why}").format(why="; ".join(core.error_texts(exc, lg))))
             return {'CANCELLED'}
         core.forget_cache()
         name = pv.get("name") or pv.get("id")
-        msg = ("Installed: {name} {version} (data; the code left out)" if plan.get("code_left_out")
-               else "Installed: {name} {version} (data)")
+        if plan["action"] == "all":
+            msg = "Installed: {name} {version} (data and code, not verified)" if (pv.get("data") or {}).get(
+                "present") else "Installed: {name} {version} (code, not verified)"
+            _sync_plugins()
+        else:
+            msg = ("Installed: {name} {version} (data; the code left out)" if plan.get("code_left_out")
+                   else "Installed: {name} {version} (data)")
         self.report({'INFO'}, tr(msg).format(name=name, version=pv.get("version") or ""))
+        _redraw(context)
+        return {'FINISHED'}
+
+
+#: why «Install» says no to a plugin with no data
+_REFUSE = {
+    "plugin_only": "A plugin with no data, and its code does not run in Blender: install it in EMStudio "
+                   "(Tools ▸ Extensions…)",
+    "plugin_needs_trust": "A plugin with no data: tick «Install the code too» to install it",
+}
+
+
+def _sync_plugins():
+    """The plugins of this Blender follow enabled.json (W16)."""
+    try:
+        from ..em_scripting import blender as emb
+        emb.sync_plugins()
+    except Exception:  # noqa: BLE001 — an older s3dgraphy: no em
+        pass
+
+
+class EMPKG_OT_set_code_active(Operator):
+    bl_idname = "empkg.set_code_active"
+    bl_label = "Enable the code"
+    bl_description = "Turn this package's code on or off on this computer (EMStudio's too)"
+    bl_options = {'INTERNAL'}
+
+    package_id: StringProperty(options={'HIDDEN'})  # type: ignore
+    active: BoolProperty(options={'HIDDEN'})  # type: ignore
+
+    def execute(self, context):
+        try:
+            core.set_code_active(self.package_id, self.active)
+        except Exception as exc:  # noqa: BLE001
+            self.report({'ERROR'}, "; ".join(core.error_texts(exc, lang())))
+            return {'CANCELLED'}
+        core.forget_cache()
+        _sync_plugins()
+        self.report({'INFO'}, tr("Code on: {name}" if self.active else "Code off: {name}").format(
+            name=self.package_id))
         _redraw(context)
         return {'FINISHED'}
 
@@ -195,6 +248,7 @@ class EMPKG_OT_remove(Operator):
             self.report({'ERROR'}, "; ".join(core.error_texts(exc, lang())))
             return {'CANCELLED'}
         core.forget_cache()
+        _sync_plugins()
         self.report({'INFO'}, tr("Removed: {name}").format(name=self.package_id))
         _redraw(context)
         return {'FINISHED'}
@@ -400,6 +454,7 @@ class EMPKG_OT_compute_measures(Operator):
 classes = (
     EMPKG_OT_install_from_disk,
     EMPKG_OT_confirm_install,
+    EMPKG_OT_set_code_active,
     EMPKG_OT_remove,
     EMPKG_OT_open_folder,
     EMPKG_OT_refresh,

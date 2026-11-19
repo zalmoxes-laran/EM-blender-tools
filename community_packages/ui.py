@@ -42,6 +42,7 @@ def draw_preferences(layout, context) -> None:
         box.label(text=tr("No package installed on this computer"), icon='DOT')
         return
     lg = lang()
+    active = set(core.active_code_ids())
     for r in rows:
         sub = box.box()
         head = sub.row(align=True)
@@ -53,7 +54,7 @@ def draw_preferences(layout, context) -> None:
         col.label(text=tr("data {version}").format(version=r.version) if r.data == "installed" else tr("no data"),
                   icon='FILE')
         if r.code == "installed":
-            col.label(text=tr("code: installed in EMStudio, not run by EM Tools"), icon='SCRIPT')
+            _draw_code(col, r, active, lg)
         elif r.code == "not_installed":
             # the library's sentence already says «code not installed: …»
             text = (core.problem_text(r.code_reason, lg) if r.code_reason
@@ -65,6 +66,37 @@ def draw_preferences(layout, context) -> None:
             warn = col.row()
             warn.alert = True
             warn.label(text=tr("incomplete: a required package is missing"), icon='ERROR')
+
+
+def _draw_code(col, r, active, lg) -> None:
+    """(W16) An installed code: does it run here, is it on, what Blender made of it."""
+    on = r.id in active
+    row = col.row(align=True)
+    if core.HOST not in r.hosts:
+        row.label(text=tr("code: for {hosts}, not run by EM Tools").format(
+            hosts=", ".join(r.hosts) or "?"), icon='SCRIPT')
+    else:
+        state = _plugin_state(r.id, lg) if on else tr("off")
+        row.label(text=tr("code: {state}").format(state=state), icon='SCRIPT')
+    op = row.operator("empkg.set_code_active", text=tr("Turn off") if on else tr("Turn on"),
+                      icon='CHECKBOX_HLT' if on else 'CHECKBOX_DEHLT')
+    op.package_id, op.active = r.id, not on
+
+
+def _plugin_state(pid: str, lg: str) -> str:
+    """What this Blender made of a plugin: loaded, or refused with the why."""
+    try:
+        from ..em_scripting import core as emc
+        em = emc.em_module()
+        p = em.plugins.get(pid) if em is not None else None
+    except Exception:  # noqa: BLE001
+        p = None
+    if p is None:
+        return tr("on, not loaded yet (EM ▸ Plugin ▸ Reload the plugins)")
+    if p.state == "loaded":
+        return tr("loaded in Blender, not verified")
+    why = (p.problems[-1].get(lg) or p.problems[-1].get("en")) if p.problems else p.state
+    return tr("not loaded: {why}").format(why=why)
 
 
 def draw_visual_box(layout, context) -> None:

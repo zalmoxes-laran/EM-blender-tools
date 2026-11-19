@@ -95,7 +95,7 @@ def test_a_mixed_package_installs_its_data_and_leaves_the_code_out(machine):
     src = _copy(machine, "esempio-statuaria-misto")
     pv = C.library()[1].preview(str(src))
     plan = C.plan_install(pv)
-    assert plan == {"action": "data", "code_left_out": True}
+    assert plan == {"action": "data", "code_left_out": True, "code_for_blender": False}
     lines = [t for t, _i, _l in C.preview_lines(pv, "en")]
     assert any(t.startswith("Data 0.1.0") for t in lines)
     assert any("tier A" in t for t in lines)

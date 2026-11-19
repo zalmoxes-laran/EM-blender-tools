@@ -57,6 +57,12 @@ def mark(context, path: str, *, saved: bool = True) -> None:
             origin.path, _graphs_of(rows, origin), container_rows(scene))
     except Exception as exc:  # noqa: BLE001
         print(f"[em.json unsaved] mark skipped: {exc}")
+    # MICRO-PL19 (W16) · em's document-opened / document-saved
+    try:
+        from ..em_scripting import blender as _emb
+        _emb.document_marked(path, saved)
+    except Exception:  # noqa: BLE001 — never fails the load or the save
+        pass
 
 
 def measure(scene) -> bool:

@@ -10,7 +10,8 @@ le cose spariscono**, e far sparire un comando che serve mentre si lavora su un
 oggetto è peggio che lasciarlo in fondo a un pannello. Convert 1.x→1.5 lo lanci
 una volta per progetto; il proxy lo disegni cento volte al giorno.
 
-Tre voci:
+Tre voci (più **Plugin**, MICRO-PL19: i plugin con ``hosts = blender`` e la
+console EM, da ``em_scripting``):
 
 * **Utils** — i comandi che stavano nella sezione Utils dell'EM Data Tree
   (Convert 1.x→1.5, Create, Proxy Prefixes, Experimental e gli strumenti
@@ -182,6 +183,9 @@ class EM_MT_header(bpy.types.Menu):
         # T1 · the exporters left the tabs: rare gestures, and a file's
         layout.menu("EM_MT_export", icon='EXPORT')
         layout.menu("EM_MT_utils", icon='TOOL_SETTINGS')
+        # MICRO-PL19 (W16) · the plugins with hosts = blender, the EM console
+        if hasattr(bpy.types, "EMSCRIPT_MT_plugins"):
+            layout.menu("EMSCRIPT_MT_plugins", icon='PLUGIN')
         layout.menu("EM_MT_settings", icon='PREFERENCES')
         layout.menu("EM_MT_about", icon='INFO')
 

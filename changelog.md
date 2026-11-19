@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — em in Blender: EM Tools is the host of the scripting API (19 November 2026)
+- MICRO-PL19, row W16 of the extensions plan. New `em_scripting/`: at
+  registration EM Tools becomes the host of s3Dgraphy's `em`
+  (`from s3dgraphy import em`, the same API as in EMStudio and in a script) on
+  the ACTIVE graph of EM Setup. Every `em.write` is one step through the
+  contract (`apply_delta_to_graph`): the session's author (the room's, else
+  the iD of the Preferences), a `dtc_process` node naming the console, the
+  script (its code, D-8) or the plugin (unverified), a line in the EM Log, the
+  lists rebuilt, the same operations sent to a room / EMStudio, and an «Undo»
+  that is the inverse act through the seam (Blender's undo does not hold the
+  graph). `em.app`: selection ↔ proxies, `select`, `frame`, the 3D view's
+  camera as EMStudio's `{pos, target}` in the scene's frame, `notify`,
+  `commands.run`; `view` and `space.pick` say they do not exist in Blender.
+  Events: selection-changed, graph-changed, document-opened/closed/saved,
+  locale-changed.
+- EM ▸ Plugin: the plugins whose `hosts` names `blender`, with the mark «not
+  verified» / «development», their commands (`when` against the selection,
+  slots from the selection, a file asked for a reader, a save dialog for an
+  exporter); Undo, EM Log, Reload the plugins; with Experimental on, «Open EM
+  console» (Blender's Python console with `em` ready) and Text ▸ «Run as EM
+  script».
+- Preferences ▸ Community packages: a code for Blender installs with the tick
+  «Install the code too: I trust it» (a plugin with no data too); an installed
+  code says whether Blender loaded it and can be turned off and on.
+- Needs an s3Dgraphy with `em` (dev124 or later); with the bundled dev123 the
+  menu says so and nothing else changes. EN + IT.
+
 ### Changed — The value of a property in two places; a property documented through its extractor (28 October 2026)
 - MICRO valore-proprietà, decided by E.D. Every operator and panel that
   creates or changes a property already passes through s3Dgraphy's

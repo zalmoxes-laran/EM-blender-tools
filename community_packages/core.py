@@ -38,8 +38,9 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-#: the code of a package that EM Tools does not run (W16 will): a pure plugin
-#: is refused here, a mixed package installs its data only
+#: the host EM Tools is for the plugins (W16, MICRO-PL19): a package whose code
+#: names ``blender`` in ``hosts`` can install its code here, after the trust
+#: question; any other code stays out (its data come in)
 HOST = "blender"
 
 
@@ -206,24 +207,38 @@ def package_rows(declared_names: Iterable[str] = ()) -> List[PackageRow]:
 Line = Tuple[str, str, str]
 
 
-def plan_install(preview: Mapping[str, Any]) -> Dict[str, Any]:
+def code_for_blender(preview: Mapping[str, Any]) -> bool:
+    """The archive has code that runs in Blender and could go in (W16)."""
+    code = preview.get("code") or {}
+    return bool(code.get("present")) and HOST in (code.get("hosts") or []) \
+        and code.get("installable", True) and not code.get("module_collision")
+
+
+def plan_install(preview: Mapping[str, Any], *, with_code: bool = False) -> Dict[str, Any]:
     """What «Install» does in EM Tools for this archive:
 
     * ``data`` — a package with data installs its data (``parts="data"``);
       its code, if any, is registered «not installed: the user's choice (data
-      only)», and EMStudio can install it later (*Install the code…*): EM Tools
-      does not run plugins yet (row W16), so it never asks the trust question;
-    * ``refuse`` — a plugin with no data, or an archive with errors.
+      only)», and EMStudio (or EM Tools, later) can install it;
+    * ``all`` — (W16) the person ticked «Install the code too»: the code runs
+      in Blender (``hosts`` names it), so data and code go in
+      (``parts="all"``, the trust question answered by the tick);
+    * ``refuse`` — a plugin with no data whose code is not for Blender or was
+      not ticked, or an archive with errors.
     """
     data = preview.get("data") or {}
     code = preview.get("code") or {}
     if preview.get("errors"):
         return {"action": "refuse", "why": "errors"}
+    for_blender = code_for_blender(preview)
+    if with_code and for_blender:
+        return {"action": "all", "code_left_out": False, "code_for_blender": True}
     if not data.get("present"):
-        return {"action": "refuse", "why": "plugin_only"}
+        return {"action": "refuse", "why": "plugin_needs_trust" if for_blender else "plugin_only",
+                "code_for_blender": for_blender}
     if not data.get("installable", True):
         return {"action": "refuse", "why": "errors"}
-    return {"action": "data", "code_left_out": bool(code.get("present"))}
+    return {"action": "data", "code_left_out": bool(code.get("present")), "code_for_blender": for_blender}
 
 
 def preview_lines(preview: Mapping[str, Any], lang: str, tr=lambda s: s) -> List[Line]:
@@ -269,8 +284,16 @@ def preview_lines(preview: Mapping[str, Any], lang: str, tr=lambda s: s) -> List
             lines.append((f"{perm} — «{why}»", "BLANK1", "warning"))
         if code.get("hosts"):
             lines.append((tr("runs in: {hosts}").format(hosts=", ".join(code["hosts"])), "BLANK1", "info"))
-        lines.append((tr("EM Tools installs the data only: the code is left out (EMStudio can install it)"),
-                      "INFO", "warning"))
+        if code_for_blender(preview):
+            if code.get("trust_needed", True):
+                lines.append((tr("A Python plugin has the powers of your user: tick «Install the code too» "
+                                 "only if you trust it"), "INFO", "warning"))
+            else:
+                lines.append((tr("Same permissions, capabilities and source as the last trust: "
+                                 "no new question"), "CHECKMARK", "info"))
+        else:
+            lines.append((tr("The code does not run in Blender: EM Tools installs the data only "
+                             "(EMStudio can install the code)"), "INFO", "warning"))
     for p in preview.get("errors") or []:
         lines.append((problem_text(p, lang), "ERROR", "error"))
     for p in (preview.get("requires") or {}).get("missing") or []:
@@ -290,10 +313,44 @@ def install_data(source: Any) -> Dict[str, Any]:
     pv = X.preview(source)
     plan = plan_install(pv)
     if plan["action"] != "data":
-        if plan["why"] == "plugin_only":
-            raise ValueError("plugin_only")
+        if plan["why"] in ("plugin_only", "plugin_needs_trust"):
+            raise ValueError(plan["why"])
         raise X.ExtensionError("; ".join(problem_text(p, "en") for p in pv.get("errors") or []) or "not installable")
     return X.install(source, parts="data")
+
+
+def install_with_code(source: Any) -> Dict[str, Any]:
+    """(W16) Data and code, the trust question answered by the person's tick:
+    ``extensions.install(..., parts="all", trust=True)`` — the code becomes the
+    active version (``enabled.json``), for EMStudio too where ``hosts`` says so."""
+    _, X = library()
+    if X is None:
+        raise RuntimeError("the bundled s3dgraphy has no extensions (older than dev117)")
+    pv = X.preview(source)
+    plan = plan_install(pv, with_code=True)
+    if plan["action"] != "all":
+        if plan.get("why") == "plugin_only":
+            raise ValueError("plugin_only")
+        raise X.ExtensionError("; ".join(problem_text(p, "en") for p in pv.get("errors") or []) or "not installable")
+    return X.install(source, parts="all", trust=True)
+
+
+def active_code_ids() -> List[str]:
+    """The ids whose code is active (``enabled.json``), whatever the host."""
+    _, X = library()
+    try:
+        return [str(e.get("id")) for e in X.active_code()]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def set_code_active(eid: str, active: bool) -> Dict[str, Any]:
+    """Enable or disable an installed code (for every EM tool of this computer:
+    ``enabled.json`` is one, and each host loads the codes for it)."""
+    _, X = library()
+    if active:
+        return X.enable(eid)
+    return {"disabled": bool(X.disable(eid))}
 
 
 def remove_package(eid: str, *, purge_vocabularies: bool = False) -> Dict[str, Any]:
