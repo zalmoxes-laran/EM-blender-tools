@@ -174,6 +174,7 @@ class PackageRow:
     incomplete: bool = False
     used_by_file: bool = False
     vocabularies: List[str] = field(default_factory=list)
+    verified: bool = False            # X4 · a code a trusted repository reviewed
 
 
 def package_rows(declared_names: Iterable[str] = ()) -> List[PackageRow]:
@@ -197,7 +198,8 @@ def package_rows(declared_names: Iterable[str] = ()) -> List[PackageRow]:
             registered=bool(r.get("registered", True)), incomplete=bool(r.get("incomplete")),
             used_by_file=str(r.get("id") or "") in used or name in used,
             vocabularies=[str(v.get("scheme") or v.get("id") or v) if isinstance(v, Mapping) else str(v)
-                          for v in (data.get("vocabularies") or [])]))
+                          for v in (data.get("vocabularies") or [])],
+            verified=bool(code.get("verified"))))
     return out
 
 
@@ -278,8 +280,18 @@ def preview_lines(preview: Mapping[str, Any], lang: str, tr=lambda s: s) -> List
             lines.append((problem_text(data["beside"], lang), "INFO", "warning"))
     code = preview.get("code") or {}
     if code.get("present"):
-        lines.append((tr("Code {version}: NOT VERIFIED, from disk").format(version=code.get("version") or ""),
-                      "SCRIPT", "warning"))
+        # X6 · from a repository the code says which one; a reviewed code (X4) says who read it
+        repo = (preview.get("repository") or {}).get("name")
+        if code.get("verified") and code.get("review_note"):
+            lines.append((tr("Code {version}: verified — {note}").format(
+                version=code.get("version") or "", note=problem_text(code["review_note"], lang)),
+                "CHECKMARK", "info"))
+        elif repo:
+            lines.append((tr("Code {version}: NOT VERIFIED, from {repo}").format(
+                version=code.get("version") or "", repo=repo), "SCRIPT", "warning"))
+        else:
+            lines.append((tr("Code {version}: NOT VERIFIED, from disk").format(version=code.get("version") or ""),
+                          "SCRIPT", "warning"))
         for perm, why in sorted((code.get("permissions") or {}).items()):
             lines.append((f"{perm} — «{why}»", "BLANK1", "warning"))
         if code.get("hosts"):
@@ -288,7 +300,7 @@ def preview_lines(preview: Mapping[str, Any], lang: str, tr=lambda s: s) -> List
             if code.get("trust_needed", True):
                 lines.append((tr("A Python plugin has the powers of your user: tick «Install the code too» "
                                  "only if you trust it"), "INFO", "warning"))
-            else:
+            elif not code.get("verified"):
                 lines.append((tr("Same permissions, capabilities and source as the last trust: "
                                  "no new question"), "CHECKMARK", "info"))
         else:

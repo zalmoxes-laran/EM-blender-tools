@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — EM Tools reads the repositories of extensions (19 November 2026)
+- MICRO-PL26, row X6 of the extensions plan. Preferences ▸ Community
+  packages ▸ «Repositories»: the SAME repositories EMStudio reads
+  (`~/.s3dgraphy/extensions/repositories.json`, s3Dgraphy's client X2–X4):
+  «Allow online access» (one switch for the computer; with Blender's own
+  «Allow Online Access» off EM Tools stays offline, in this Blender only),
+  «Add repository…» (an address, a folder of the lab or NAS, or the
+  official index; name, access token, «Check for updates at start-up»),
+  each repository with its state, «Refresh», its token, «Its reviews
+  count», «Remove» (what came from it stays).
+- What the repositories offer Blender: the community packages and the
+  plugins whose code names `blender` (a plugin for EMStudio only is counted,
+  not listed); «Install» / «Update» with the confirmation of the two panels
+  and the plan (the archive the index names, the requirements installed
+  first, what nobody offers, the optional offers, tier C); a code for
+  Blender with the tick «Install the code too: I trust it», a reviewed code
+  without it («verified»); the requirements' code trusted with the same tick
+  only when it runs in Blender. «Update all (n)»: the updates that ask the
+  trust again said first, trusted with one tick only when their code runs
+  in Blender (the others: «update it in EMStudio»). At start-up the
+  repositories that ask are read once and the updates said, never installed.
+- With the bundled s3dgraphy dev124 (before the repositories) the box says so
+  and nothing else changes. EN + IT.
+
 ### Added — em in Blender: EM Tools is the host of the scripting API (19 November 2026)
 - MICRO-PL19, row W16 of the extensions plan. New `em_scripting/`: at
   registration EM Tools becomes the host of s3Dgraphy's `em`

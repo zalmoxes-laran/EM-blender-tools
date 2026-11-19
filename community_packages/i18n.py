@@ -148,6 +148,134 @@ MESSAGES: Dict[str, Dict[str, str]] = {
     "{n} measure(s) computed, {m} waiting for points": {
         'it_IT': "{n} misura/e calcolata/e, {m} in attesa di punti"},
     "No package with combiners is active": {'it_IT': "Nessun pacchetto attivo ha combinatori"},
+    # ── X6 (MICRO-PL26): the repositories ───────────────────────────────────
+    "Repositories": {'it_IT': "Repository"},
+    "The bundled s3dgraphy has no repositories (older than dev125)": {
+        'it_IT': "L's3dgraphy impacchettato non conosce i repository (più vecchio della dev125)"},
+    "No repository yet: add a folder of the lab, or an index on the internet": {
+        'it_IT': "Ancora nessun repository: aggiungi una cartella del laboratorio, o un indice su internet"},
+    "Refresh all": {'it_IT': "Aggiorna tutti gli elenchi"},
+    "Update all ({n})": {'it_IT': "Aggiorna tutto ({n})"},
+    "Online access is off in Blender (Preferences ▸ System ▸ Network): only folders and file:// are read": {
+        'it_IT': "L'accesso in rete è spento in Blender (Preferenze ▸ Sistema ▸ Rete): "
+                 "si leggono solo cartelle e file://"},
+    "Online access: {state}, decided by the environment": {
+        'it_IT': "Accesso in rete: {state}, lo decide l'ambiente"},
+    "on": {'it_IT': "acceso"},
+    "Allow online access": {'it_IT': "Consenti l'accesso in rete"},
+    "Let the repositories on the internet be read, for every EM tool of this computer; "
+    "folders and file:// are read all the same": {
+        'it_IT': "Lascia leggere i repository su internet, per ogni strumento EM di questo computer; "
+                 "cartelle e file:// si leggono comunque"},
+    "one switch for this computer, EMStudio's too": {
+        'it_IT': "un solo interruttore per questo computer, anche per EMStudio"},
+    "folder": {'it_IT': "cartella"},
+    "on the internet": {'it_IT': "su internet"},
+    "official": {'it_IT': "ufficiale"},
+    "read {when}: {n} entries": {'it_IT': "letto {when}: {n} voci"},
+    "not read yet: «Refresh»": {'it_IT': "non ancora letto: «Aggiorna»"},
+    "Check for updates at start-up": {'it_IT': "Controlla gli aggiornamenti all'avvio"},
+    "Its reviews count": {'it_IT': "Le sue revisioni contano"},
+    "Access token (set)": {'it_IT': "Token di accesso (impostato)"},
+    "Access token…": {'it_IT': "Token di accesso…"},
+    "Access token": {'it_IT': "Token di accesso"},
+    "Offered by the repositories": {'it_IT': "Offerti dai repository"},
+    "installed {version}": {'it_IT': "installata la {version}"},
+    "Update": {'it_IT': "Aggiorna"},
+    "{n} plugin(s) for EMStudio only, not listed here": {
+        'it_IT': "{n} plugin solo per EMStudio, non elencati qui"},
+    "mixed: data, and code for Blender": {'it_IT': "misto: dati, e codice per Blender"},
+    "data (its code is not for Blender)": {'it_IT': "dati (il suo codice non è per Blender)"},
+    "plugin for Blender": {'it_IT': "plugin per Blender"},
+    "verified": {'it_IT': "verificato"},
+    "from {repo}": {'it_IT': "da {repo}"},
+    # adding, reading, removing a repository
+    "Add repository…": {'it_IT': "Aggiungi repository…"},
+    "Add a repository of extensions: a folder of the lab, a NAS, or an index on the internet": {
+        'it_IT': "Aggiunge un repository di estensioni: una cartella del laboratorio, un NAS, o un indice su internet"},
+    "Address": {'it_IT': "Indirizzo"},
+    "https://…/index.json, file://…, or a folder": {'it_IT': "https://…/index.json, file://…, o una cartella"},
+    "Or a folder": {'it_IT': "Oppure una cartella"},
+    "ExtendedMatrix (official)": {'it_IT': "ExtendedMatrix (ufficiale)"},
+    "Name": {'it_IT': "Nome"},
+    "Lower-case letters, digits, - and _; from the address when empty": {
+        'it_IT': "Lettere minuscole, cifre, - e _; dall'indirizzo se vuoto"},
+    "Add": {'it_IT': "Aggiungi"},
+    "The token is kept on this computer only and sent only to the index's address": {
+        'it_IT': "Il token resta solo su questo computer e va solo all'indirizzo dell'indice"},
+    "Write an address or choose a folder": {'it_IT': "Scrivi un indirizzo o scegli una cartella"},
+    "Repository added: {name}": {'it_IT': "Repository aggiunto: {name}"},
+    "{name}: {n} entries read": {'it_IT': "{name}: lette {n} voci"},
+    "Updates available: {list}": {'it_IT': "Aggiornamenti disponibili: {list}"},
+    "Read the index of the repository again (all of them when none is named)": {
+        'it_IT': "Rilegge l'indice del repository (di tutti, se non se ne nomina uno)"},
+    "Remove the repository": {'it_IT': "Rimuovi il repository"},
+    "Forget this repository (EMStudio's too); what was installed from it stays": {
+        'it_IT': "Dimentica questo repository (anche per EMStudio); ciò che si è installato da lì resta"},
+    "Remove the repository {name}?": {'it_IT': "Rimuovere il repository {name}?"},
+    "What was installed from it stays installed": {'it_IT': "Ciò che si è installato da lì resta installato"},
+    "No repository called {name}": {'it_IT': "Nessun repository di nome {name}"},
+    "Repository removed: {name}": {'it_IT': "Repository rimosso: {name}"},
+    "Change the repository": {'it_IT': "Cambia il repository"},
+    "Check this repository at start-up, or let its reviews count (EMStudio's too)": {
+        'it_IT': "Controlla questo repository all'avvio, o fa contare le sue revisioni (anche per EMStudio)"},
+    "Set or clear the access token of this repository (sent only to the index's address)": {
+        'it_IT': "Imposta o toglie il token di accesso di questo repository (va solo all'indirizzo dell'indice)"},
+    "Save": {'it_IT': "Salva"},
+    "Empty: the token is cleared": {'it_IT': "Vuoto: il token si toglie"},
+    "Token set: {name}": {'it_IT': "Token impostato: {name}"},
+    "Token cleared: {name}": {'it_IT': "Token tolto: {name}"},
+    # installing from a repository
+    "Install from the repository": {'it_IT': "Installa dal repository"},
+    "Install or update this extension from its repository, after the confirmation": {
+        'it_IT': "Installa o aggiorna questa estensione dal suo repository, dopo la conferma"},
+    "Code {version}: NOT VERIFIED, from {repo}": {'it_IT': "Codice {version}: NON VERIFICATO, da {repo}"},
+    "Code {version}: verified — {note}": {'it_IT': "Codice {version}: verificato — {note}"},
+    "loaded in Blender, verified": {'it_IT': "caricato in Blender, verificato"},
+    "The archive is the one the index of {repo} names ({hash})": {
+        'it_IT': "L'archivio è quello che l'indice di {repo} nomina ({hash})"},
+    "The requirements go round in a circle: {cycle}": {'it_IT': "I requisiti girano in tondo: {cycle}"},
+    "The requirements go round in a circle: nothing installed": {
+        'it_IT': "I requisiti girano in tondo: non si installa nulla"},
+    "Installed first, because it requires them:": {'it_IT': "Installati prima, perché li richiede:"},
+    "with code that runs in Blender, not verified": {'it_IT': "con codice che gira in Blender, non verificato"},
+    "with code for {hosts}: left for EMStudio": {'it_IT': "con codice per {hosts}: lasciato a EMStudio"},
+    "no repository has it": {'it_IT': "nessun repository ce l'ha"},
+    "Offers {id} {range} (optional, not installed): {where}": {
+        'it_IT': "Offre {id} {range} (facoltativo, non installato): {where}"},
+    "Tier C vocabulary {scheme}: downloaded to this computer from {url}": {
+        'it_IT': "Vocabolario di fascia C {scheme}: scaricato su questo computer da {url}"},
+    "Tier C vocabulary {scheme}: not downloaded now («Download locally» later)": {
+        'it_IT': "Vocabolario di fascia C {scheme}: non scaricato ora («Scarica in locale» più tardi)"},
+    "Tier C vocabulary {scheme}: downloaded": {'it_IT': "Vocabolario di fascia C {scheme}: scaricato"},
+    "Installed first: {id} {version} from {repo}": {'it_IT': "Installato prima: {id} {version} da {repo}"},
+    "Installed: {name} {version} from {repo} (data and code)": {
+        'it_IT': "Installato: {name} {version} da {repo} (dati e codice)"},
+    "Installed: {name} {version} from {repo} (code)": {'it_IT': "Installato: {name} {version} da {repo} (codice)"},
+    "Installed: {name} {version} from {repo} (data; the code left out)": {
+        'it_IT': "Installato: {name} {version} da {repo} (dati; il codice resta fuori)"},
+    "Installed: {name} {version} from {repo} (data)": {'it_IT': "Installato: {name} {version} da {repo} (dati)"},
+    # «Update all»
+    "Update all": {'it_IT': "Aggiorna tutto"},
+    "Install every update the repositories offer; the ones that would ask the trust again are said first": {
+        'it_IT': "Installa ogni aggiornamento che i repository offrono; quelli che chiederebbero di nuovo "
+                 "la fiducia sono detti prima"},
+    "Update these too: I trust them": {'it_IT': "Aggiorna anche questi: me ne fido"},
+    "Everything is up to date": {'it_IT': "Tutto è aggiornato"},
+    "These ask the trust again:": {'it_IT': "Questi chiedono di nuovo la fiducia:"},
+    "source": {'it_IT': "fonte"},
+    "its code is not for Blender: update it in EMStudio": {
+        'it_IT': "il suo codice non è per Blender: aggiornalo in EMStudio"},
+    "These update without a question:": {'it_IT': "Questi si aggiornano senza domande:"},
+    "data only (the code was left out)": {'it_IT': "solo i dati (il codice era stato lasciato fuori)"},
+    "The new data go beside the old: every file keeps the version it declares": {
+        'it_IT': "I dati nuovi si affiancano ai vecchi: ogni file tiene la versione che dichiara"},
+    "Updated: {id} {old} → {new} ({repo})": {'it_IT': "Aggiornato: {id} {old} → {new} ({repo})"},
+    "Not updated, it asks the trust again: {id} {version} — update it in EMStudio": {
+        'it_IT': "Non aggiornato, chiede di nuovo la fiducia: {id} {version} — aggiornalo in EMStudio"},
+    "Not updated, it asks the trust again: {id} {version}": {
+        'it_IT': "Non aggiornato, chiede di nuovo la fiducia: {id} {version}"},
+    "Not updated: {id} ({why})": {'it_IT': "Non aggiornato: {id} ({why})"},
 }
 
 
@@ -211,6 +339,21 @@ AUTO = (
     "Make the areale from a surface placed in the graph (EMStudio), on the target RM",
     "Compute the measures",
     "Compute the measures the packages declare from the points placed on each model",
+    # X6 · operator names and descriptions, property names
+    "Allow online access",
+    "Let the repositories on the internet be read, for every EM tool of this computer; "
+    "folders and file:// are read all the same",
+    "Add repository…", "Add a repository of extensions: a folder of the lab, a NAS, or an index on the internet",
+    "Address", "https://…/index.json, file://…, or a folder", "Or a folder", "ExtendedMatrix (official)", "Name",
+    "Lower-case letters, digits, - and _; from the address when empty", "Access token",
+    "Check for updates at start-up", "Read the index of the repository again (all of them when none is named)",
+    "Remove the repository", "Forget this repository (EMStudio's too); what was installed from it stays",
+    "Change the repository", "Check this repository at start-up, or let its reviews count (EMStudio's too)",
+    "Access token…", "Set or clear the access token of this repository (sent only to the index's address)",
+    "Install from the repository",
+    "Install or update this extension from its repository, after the confirmation",
+    "Update all", "Install every update the repositories offer; the ones that would ask the trust again "
+    "are said first", "Update these too: I trust them",
 )
 
 

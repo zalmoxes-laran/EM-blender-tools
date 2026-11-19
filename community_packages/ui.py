@@ -16,6 +16,12 @@ def _kind(kind: str) -> str:
 
 
 def draw_preferences(layout, context) -> None:
+    _draw_packages(layout, context)
+    from .repo_ui import draw_repositories       # X6 · the repositories, below the installed
+    draw_repositories(layout, context)
+
+
+def _draw_packages(layout, context) -> None:
     box = layout.box()
     box.label(text=tr("Community packages"), icon='PACKAGE')
     P, _ = core.library()
@@ -48,6 +54,8 @@ def draw_preferences(layout, context) -> None:
         head = sub.row(align=True)
         head.label(text=f"{r.name} · {r.id} {r.version} · {_kind(r.kind)}".strip(" ·"),
                    icon='CHECKMARK' if r.used_by_file else 'PACKAGE')
+        if r.source and r.source not in ("disk", "profiles", "dev"):
+            head.label(text=tr("from {repo}").format(repo=r.source), icon='WORLD')   # X6
         op = head.operator("empkg.remove", text=tr("Remove"), icon='TRASH')
         op.package_id = r.id
         col = sub.column(align=True)
@@ -94,7 +102,7 @@ def _plugin_state(pid: str, lg: str) -> str:
     if p is None:
         return tr("on, not loaded yet (EM ▸ Plugin ▸ Reload the plugins)")
     if p.state == "loaded":
-        return tr("loaded in Blender, not verified")
+        return tr("loaded in Blender, verified") if p.meta.get("verified") else tr("loaded in Blender, not verified")
     why = (p.problems[-1].get(lg) or p.problems[-1].get("en")) if p.problems else p.state
     return tr("not loaded: {why}").format(why=why)
 
