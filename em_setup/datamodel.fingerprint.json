@@ -1,17 +1,17 @@
 {
-  "digest": "sha256:db171a946d73ec384072dd5ca514d93ac185864c4ff8af3d50df133764a2b051",
+  "digest": "sha256:81f7dd3986966e0549b14dd0eafe1432ecbaa6a4a7fb3afa5e6b01b8e8cf7727",
   "versions": {
-    "nodes": "1.6.56",
-    "node_registry": "1.6.56",
-    "connections": "1.6.61",
+    "nodes": "1.6.57",
+    "node_registry": "1.6.57",
+    "connections": "1.6.62",
     "visual_rules": "1.6.48",
     "qualia": "1.6.21",
     "translations": "1.27"
   },
   "digests": {
-    "nodes": "sha256:fbf6d6bd731e1394a33af94e18c296e1496c273f24dfcaae56ea447ce50ec891",
-    "node_registry": "sha256:4f37e44e75b58dce227e7f06371d5fd9ab6382879b4cf1fa934e8446698a2675",
-    "connections": "sha256:6e6d9b833fed4416df1a6c8466d7b11a97fb681635e97825debd05e890d6e570",
+    "nodes": "sha256:84bb2dd7379d62adcc25d23b11d9a50b3ae7ee31281cefe6ecdcfb8bb432be6c",
+    "node_registry": "sha256:bf15598600ab0dfe1fddc6cb68a0caedfd470fef98cc76b58505befd31103e43",
+    "connections": "sha256:24654e3c453149577dc7d2bce07353c9ae737d295ad9b3271d07e6864aa8bdc4",
     "visual_rules": "sha256:61361d6882958305486fe914f9635e9f0dd31d3f0aca285e3dc80294857710f3",
     "qualia": "sha256:7f1e51f9529350e2c761c21f08411c3ca314d88292c939e0a36411f5ecdafefc",
     "translations": "sha256:2f1dec1b546467bf512fe046b81c6074f09301d98e1dc675b6ea016f5d89a37d"
@@ -19,18 +19,18 @@
   "files": {
     "nodes": {
       "file": "s3Dgraphy_node_datamodel.json",
-      "digest": "sha256:fbf6d6bd731e1394a33af94e18c296e1496c273f24dfcaae56ea447ce50ec891",
-      "version": "1.6.56"
+      "digest": "sha256:84bb2dd7379d62adcc25d23b11d9a50b3ae7ee31281cefe6ecdcfb8bb432be6c",
+      "version": "1.6.57"
     },
     "node_registry": {
       "file": "node_registry.generated.json",
-      "digest": "sha256:4f37e44e75b58dce227e7f06371d5fd9ab6382879b4cf1fa934e8446698a2675",
-      "version": "1.6.56"
+      "digest": "sha256:bf15598600ab0dfe1fddc6cb68a0caedfd470fef98cc76b58505befd31103e43",
+      "version": "1.6.57"
     },
     "connections": {
       "file": "s3Dgraphy_connections_datamodel.json",
-      "digest": "sha256:6e6d9b833fed4416df1a6c8466d7b11a97fb681635e97825debd05e890d6e570",
-      "version": "1.6.61"
+      "digest": "sha256:24654e3c453149577dc7d2bce07353c9ae737d295ad9b3271d07e6864aa8bdc4",
+      "version": "1.6.62"
     },
     "visual_rules": {
       "file": "em_visual_rules.json",
@@ -48,6 +48,6 @@
       "version": "1.27"
     }
   },
-  "s3dgraphy": "1.6.0.dev143",
+  "s3dgraphy": "1.6.0.dev144",
   "_note": "the datamodel the pinned s3dgraphy wheel carries; written by scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup by em_setup/version_banner.check_datamodel. Never edit by hand."
 }
